@@ -19,4 +19,18 @@ public class ChecklistRequirementRowView : MonoBehaviour
             toggle.onValueChanged.AddListener(v => onChanged?.Invoke(v));
         }
     }
+
+    public void SetLabel(string text)
+    {
+        if (label) label.text = text;
+    }
+    public void SetLabelColor(Color c)
+    {
+        if (label) label.color = c;
+    }
+    public void SetInteractable(bool on)
+    {
+        if (toggle) toggle.interactable = on;
+    }
+
 }
