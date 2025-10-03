@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "396234367219",
+    "firebase_url": "https://manilaserve-f3ed8-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "manilaserve-f3ed8",
+    "storage_bucket": "manilaserve-f3ed8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:396234367219:android:540f055de174f0fbfed786",
+        "android_client_info": {
+          "package_name": "mqtt.purrplelink"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCvbJHLplEOSTQrwLICTDtigSu-sCZgBts"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

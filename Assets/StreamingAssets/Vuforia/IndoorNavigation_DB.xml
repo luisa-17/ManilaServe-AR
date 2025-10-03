@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<QCARConfig>
+  <Tracking>
+    <ImageTarget name="cashDivision" size="1.000000 1.333333" />
+    <ImageTarget name="realestatedivision" size="1.000000 0.711458" />
+    <ImageTarget name="civilRegistry" size="1.000000 0.750000" />
+  </Tracking>
+</QCARConfig>

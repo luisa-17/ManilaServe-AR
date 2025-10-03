@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<QCARConfig>
+  <Tracking>
+    <ImageTarget name="center_anchor" size="1.000000 0.750000" />
+    <ImageTarget name="city_admin" size="1.000000 1.289347" />
+    <ImageTarget name="permit" size="1.000000 1.236328" />
+    <ImageTarget name="mayor_office" size="1.000000 1.333333" />
+    <ImageTarget name="manila_health" size="1.000000 1.333333" />
+    <ImageTarget name="employees_clinic" size="1.000000 1.217179" />
+    <ImageTarget name="socialWelfare" size="1.000000 0.867857" />
+    <ImageTarget name="CGSO" size="1.000000 1.656341" />
+    <ImageTarget name="adminDiv" size="1.000000 1.305891" />
+    <ImageTarget name="brgy_account" size="1.000000 1.244163" />
+    <ImageTarget name="accountableForms" size="1.000000 1.316754" />
+    <ImageTarget name="smart" size="1.000000 1.145802" />
+    <ImageTarget name="cashDivision" size="1.000000 1.039920" />
+    <ImageTarget name="realEstate" size="1.000000 1.286251" />
+    <ImageTarget name="cityAccountant" size="1.000000 1.333513" />
+    <ImageTarget name="fiscal-control" size="1.000000 1.031305" />
+    <ImageTarget name="e_business" size="1.000000 0.681159" />
+    <ImageTarget name="edp" size="1.000000 1.377119" />
+    <ImageTarget name="civilRegistry" size="1.000000 0.614604" />
+  </Tracking>
+</QCARConfig>
