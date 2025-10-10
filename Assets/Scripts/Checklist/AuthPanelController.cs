@@ -7,30 +7,30 @@ using UnityEngine.UI;
 public class AuthPanelController : MonoBehaviour
 {
     [Header("Login Mode")]
-    public GameObject loginModeRoot;                 // AuthPanel/Card/AuthMode/LoginMode
-    public Button switchSignupModeButton;            // AuthPanel/Card/AuthMode/LoginMode/SwitchSignupModeButton
-    public TMP_InputField loginEmailInput;           // AuthPanel/Card/AuthMode/LoginMode/InputField (TMP) - Email
-    public TMP_InputField loginPasswordInput;        // AuthPanel/Card/AuthMode/LoginMode/InputField (TMP) - Password
-    public Button loginButton;                       // AuthPanel/Card/AuthMode/LoginMode/LoginButton
+    public GameObject loginModeRoot;                
+    public Button switchSignupModeButton;            
+    public TMP_InputField loginEmailInput;           
+    public TMP_InputField loginPasswordInput;        
+    public Button loginButton;                       
 
     [Header("Signup Mode")]
-    public GameObject signupModeRoot;                // AuthPanel/Card/AuthMode/SignupMode
-    public Button switchLoginModeButton;             // AuthPanel/Card/AuthMode/SignupMode/SwitchLoginModeButton
-    public TMP_InputField signupEmailInput;          // AuthPanel/Card/AuthMode/SignupMode/InputField (TMP) - Email
-    public TMP_InputField signupPasswordInput;       // AuthPanel/Card/AuthMode/SignupMode/InputField (TMP) - Password
-    public TMP_InputField signupConfirmInput;        // AuthPanel/Card/AuthMode/SignupMode/InputField (TMP) - ConfirmPassword
-    public Button signupButton;                      // AuthPanel/Card/AuthMode/SignupMode/SignupButton
+    public GameObject signupModeRoot;                
+    public Button switchLoginModeButton;             
+    public TMP_InputField signupEmailInput;          
+    public TMP_InputField signupPasswordInput;       
+    public TMP_InputField signupConfirmInput;        
+    public Button signupButton;                      
 
     [Header("Common Actions")]
-    public Button guestButton;                       // AuthPanel/Card/ContinueAsGuestButton
-    public Button closeButton;                       // AuthPanel/Card/CloseButton
-    public TextMeshProUGUI errorText;                // AuthPanel/Card/ErrorText
+    public Button guestButton;                       
+    public Button closeButton;                       
+    public TextMeshProUGUI errorText;                
 
     [Header("Rules")]
     public int minPasswordLength = 6;
     public bool validateEmailFormat = true;
 
-    public System.Action<bool> OnClosed; // true = auth success
+    public System.Action<bool> OnClosed; 
 
     CanvasGroup canvasGroup;
     enum Mode { Login, Signup }
@@ -138,17 +138,38 @@ public class AuthPanelController : MonoBehaviour
     async Task DoSignUp()
     {
         SetError("");
-        if (!SignupValid()) return;
+
+        if (!SignupValid())
+        {
+            ValidateForms(); // ?? ensure button interactivity syncs back
+            return;
+        }
 
         SetBusy(true);
+
         var (ok, msg) = await AuthService.SignUpEmailPasswordAsync(
-            signupEmailInput.text.Trim(), signupPasswordInput.text, null
+            signupEmailInput.text.Trim(),
+            signupPasswordInput.text,
+            null
         );
+
         SetBusy(false);
 
-        if (ok) Close(true);
-        else SetError(msg);
+        if (ok)
+        {
+            Close(true);
+        }
+        else
+        {
+            SetError(msg);
+
+            // ?? Make sure the UI is usable again even after error
+            canvasGroup.interactable = true;
+            canvasGroup.blocksRaycasts = true;
+            ValidateForms();
+        }
     }
+
 
     async Task DoGuest()
     {
@@ -213,10 +234,28 @@ public class AuthPanelController : MonoBehaviour
     {
         gameObject.SetActive(false);
         OnClosed?.Invoke(success);
+
+        // ? Re-enable Checklist FAB after closing Auth
+        var fab = FindFirstObjectByType<ChecklistFAB>();
+        if (fab != null)
+            fab.EnableChecklistButtonAgain();
+
         Destroy(gameObject);
     }
+
 
     // Add to AuthPanelController
     public void OpenLoginMode() { SwitchMode(Mode.Login); }
     public void OpenSignupMode() { SwitchMode(Mode.Signup); }
+
+    void Update()
+    {
+        // Prevent accidental close on Delete key
+        if (Input.GetKeyDown(KeyCode.Delete))
+        {
+            // Do nothing
+            return;
+        }
+    }
+
 }

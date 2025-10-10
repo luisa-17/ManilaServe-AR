@@ -18,7 +18,7 @@ public class ChecklistSceneController : MonoBehaviour
     [Header("Scene Names")]
     public string checklistSceneName = "ChecklistScene";
     public string mainSceneName = "SampleScene";
-    public bool loadedAdditively = true;
+    public bool loadedAdditively = false;
 
     [Header("Auth Gate")]
     public bool allowGuests = false;   // false = require login on entry

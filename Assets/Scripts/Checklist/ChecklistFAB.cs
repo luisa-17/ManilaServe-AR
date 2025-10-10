@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using System.Collections;
@@ -25,8 +25,10 @@ public class ChecklistFAB : MonoBehaviour
     public Vector2 safeAreaOffset = new Vector2(20, 20);
 
     RectTransform rt;
+    private bool isOpening = false;
 
     void Reset() { AutoWire(); }
+
     void Awake()
     {
         AutoWire();
@@ -35,11 +37,7 @@ public class ChecklistFAB : MonoBehaviour
         ApplySafeArea();
     }
 
-    void Start()
-    {
-        // Always visible for now; later we can show it only after arrival
-        Show();
-    }
+    void Start() => Show();
 
     void AutoWire()
     {
@@ -55,7 +53,6 @@ public class ChecklistFAB : MonoBehaviour
     void ApplySafeArea()
     {
         if (rt == null) return;
-        // Anchor to bottom-right
         rt.anchorMin = new Vector2(1, 0);
         rt.anchorMax = new Vector2(1, 0);
         rt.pivot = new Vector2(1, 0);
@@ -98,12 +95,19 @@ public class ChecklistFAB : MonoBehaviour
 
     void OnClick()
     {
+        if (isOpening) return;
         StartCoroutine(OpenChecklistScene());
     }
 
     IEnumerator OpenChecklistScene()
     {
-        // Optional: pass context (selected office) to the checklist scene
+        isOpening = true;
+
+        // 🔹 Completely disable FAB's raycasts to allow clicks behind (signup/login)
+        canvasGroup.blocksRaycasts = false;
+        canvasGroup.interactable = false;
+        canvasGroup.alpha = 0.8f; // 🔹 optional visual dim (can remove)
+
         var ui = FindFirstObjectByType<ManilaServeUI>();
         if (ui != null) ChecklistContext.SelectedOffice = ui.GetSelectedOffice();
 
@@ -113,7 +117,6 @@ public class ChecklistFAB : MonoBehaviour
             yield break;
         }
 
-        // Additive load so AR stays
         AsyncOperation op = SceneManager.LoadSceneAsync(checklistSceneName, LoadSceneMode.Additive);
         while (!op.isDone) yield return null;
 
@@ -123,5 +126,14 @@ public class ChecklistFAB : MonoBehaviour
             if (checklist.IsValid())
                 SceneManager.SetActiveScene(checklist);
         }
+    }
+
+    // 🔹 Called when login/signup closes or checklist scene exits
+    public void EnableChecklistButtonAgain()
+    {
+        isOpening = false;
+        canvasGroup.interactable = true;
+        canvasGroup.blocksRaycasts = true;
+        canvasGroup.alpha = 1f; // 🔹 restore full visibility
     }
 }

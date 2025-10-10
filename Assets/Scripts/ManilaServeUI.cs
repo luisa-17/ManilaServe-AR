@@ -16,6 +16,9 @@ public class ManilaServeUI : MonoBehaviour
     public TextMeshProUGUI directionText;
     public TextMeshProUGUI distanceText;
 
+    [Header("Navigation System")]
+    public SmartNavigationSystem nav; 
+
     [Header("Firebase Integration")]
     public FirebaseOfficeManager firebaseManager;
     private Dictionary<string, FirebaseOfficeManager.Office> firebaseOffices;
@@ -24,12 +27,31 @@ public class ManilaServeUI : MonoBehaviour
     public TMP_InputField officeSearchInput;
     public Toggle currentFloorOnlyToggle;
 
+    [Header("Location Display")]
+    public TextMeshProUGUI currentLocationLabel;
+
     [Header("Arrival Notification")]
     public GameObject arrivalPanel;
     public TextMeshProUGUI arrivalText;
     public Button arrivalOKButton;
     public float arrivalDisplayTime = 3f;
     public CanvasGroup arrivalCanvasGroup;
+
+    // ⭐ NEW: Hybrid Location System
+    [Header("Location Selection Mode")]
+    public Toggle useCurrentLocationToggle;      // Radio button: "Use My Current Location"
+    public Toggle useSpecificOfficeToggle;       // Radio button: "I'm At A Specific Office"
+    public GameObject currentLocationPanel;      // Panel containing auto-detected label
+    public GameObject specificOfficePanel;       // Panel containing office dropdown
+
+    [Header("Auto-Detection Display")]
+    public TextMeshProUGUI autoDetectedLocationLabel; // Shows "📍 Near: EDP Office"
+
+    [Header("Manual Office Selection")]
+    public TMP_Dropdown currentOfficeDropdown;   // Dropdown for manual selection
+    private string selectedCurrentOffice = "";   // Selected office name
+
+    private bool useAutoDetection = true;        // Which mode is active
 
     [Header("Navigation Status")]
     public GameObject navigationStatusPanel;
@@ -38,6 +60,8 @@ public class ManilaServeUI : MonoBehaviour
     SmartNavigationSystem navigationSystem;
     string selectedOffice = "";
     bool isNavigationActive = false;
+
+    private Dictionary<string, GameObject> officeLookup = new Dictionary<string, GameObject>();
 
 
     [Header("Dropdown Styling")]
@@ -50,7 +74,7 @@ public class ManilaServeUI : MonoBehaviour
     public Color customItemColor = Color.white;
     public Color customItemTextColor = Color.black;
     public TMP_FontAsset customFont;
-    public int customFontSize = 14;
+    public float customFontSize = 30f;
 
     [Header("Search/Select Mode Toggle")]
     public Button searchModeButton;
@@ -81,7 +105,7 @@ public class ManilaServeUI : MonoBehaviour
     public Transform searchResultsContent;
     public GameObject searchResultItemPrefab;
     public int maxSearchResults = 5;
-    public float searchResultFontSize = 14f; // Add this field
+    public float searchResultFontSize = 30f; // Add this field
 
 
     [System.Serializable]
@@ -144,10 +168,32 @@ public class ManilaServeUI : MonoBehaviour
 
         if (!officeSearchInput) officeSearchInput = GameObject.Find("OfficeSearchInput")?.GetComponent<TMP_InputField>();
         if (!currentFloorOnlyToggle) currentFloorOnlyToggle = GameObject.Find("FilterCurrentFloorToggle")?.GetComponent<Toggle>();
+
+        // ⭐ NEW: Auto-find hybrid location system elements
+        if (!useCurrentLocationToggle) useCurrentLocationToggle = GameObject.Find("UseCurrentLocationToggle")?.GetComponent<Toggle>();
+        if (!useSpecificOfficeToggle) useSpecificOfficeToggle = GameObject.Find("UseSpecificOfficeToggle")?.GetComponent<Toggle>();
+        if (!currentLocationPanel) currentLocationPanel = GameObject.Find("CurrentLocationPanel");
+        if (!specificOfficePanel) specificOfficePanel = GameObject.Find("SpecificOfficePanel");
+        if (!autoDetectedLocationLabel) autoDetectedLocationLabel = GameObject.Find("AutoDetectedLocationLabel")?.GetComponent<TextMeshProUGUI>();
+        if (!currentOfficeDropdown) currentOfficeDropdown = GameObject.Find("Current officedropdown")?.GetComponent<TMP_Dropdown>();
     }
 
     void Start()
     {
+        // ✅ ADD THIS at the beginning:
+        Debug.Log("[UI] === ManilaServeUI Start ===");
+
+        if (nav == null)
+        {
+            nav = FindObjectOfType<SmartNavigationSystem>();
+            if (nav != null)
+                Debug.Log($"[UI] ✅ Found SmartNavigationSystem on: '{nav.gameObject.name}'");
+            else
+                Debug.LogError("[UI] ❌ SmartNavigationSystem NOT FOUND!");
+        }
+
+        SetupDropdowns();
+
         navigationSystem = FindFirstObjectByType<SmartNavigationSystem>();
         InitializeOfficeNameMappings();
 
@@ -165,11 +211,36 @@ public class ManilaServeUI : MonoBehaviour
         }
         if (officeDropdown)
         {
-            Debug.Log("Setting up dropdown listener in ManilaServeUI");
-            officeDropdown.onValueChanged = new TMP_Dropdown.DropdownEvent(); // wipes persistent + runtime
+            officeDropdown.onValueChanged = new TMP_Dropdown.DropdownEvent();
             officeDropdown.onValueChanged.AddListener(OnOfficeSelected);
         }
 
+        // ⭐ NEW: Setup location mode toggles (REPLACES old toggle setup)
+        if (useCurrentLocationToggle)
+        {
+            useCurrentLocationToggle.onValueChanged.RemoveAllListeners();
+            useCurrentLocationToggle.onValueChanged.AddListener(OnUseCurrentLocationToggled);
+            useCurrentLocationToggle.isOn = true; // Default to auto-detection
+        }
+
+        if (useSpecificOfficeToggle)
+        {
+            useSpecificOfficeToggle.onValueChanged.RemoveAllListeners();
+            useSpecificOfficeToggle.onValueChanged.AddListener(OnUseSpecificOfficeToggled);
+            useSpecificOfficeToggle.isOn = false;
+        }
+
+        // Setup current office dropdown
+        if (currentOfficeDropdown)
+        {
+            currentOfficeDropdown.onValueChanged.RemoveAllListeners();
+            currentOfficeDropdown.onValueChanged.AddListener(OnCurrentOfficeSelected);
+        }
+
+        // ⭐ Show correct panel based on default mode
+        UpdateLocationModeUI();
+
+        // Setup search/filters
         if (officeSearchInput)
         {
             officeSearchInput.onValueChanged.RemoveAllListeners();
@@ -180,6 +251,7 @@ public class ManilaServeUI : MonoBehaviour
             currentFloorOnlyToggle.onValueChanged.RemoveAllListeners();
             currentFloorOnlyToggle.onValueChanged.AddListener(_ => PopulateOfficeDropdown());
         }
+
         if (navigationStatusPanel) navigationStatusPanel.SetActive(true);
 
         SetupModeButtons();
@@ -190,15 +262,13 @@ public class ManilaServeUI : MonoBehaviour
         UpdateNavigationUI();
 
         CustomizeDropdownAppearance();
-
         StartCoroutine(WaitForFirebaseData());
+        FirebaseOfficeManager.OnOfficeDataLoaded += OnFirebaseDataLoaded;
 
-
-        FirebaseOfficeManager.OnOfficeDataLoaded += OnFirebaseDataLoaded; 
-
-        Debug.Log("ManilaServeUI initialized");
+        Debug.Log("ManilaServeUI initialized with hybrid location mode");
     }
-
+   
+    
     IEnumerator WaitForFirebaseData()
     {
         float timeout = 10f;
@@ -243,6 +313,118 @@ public class ManilaServeUI : MonoBehaviour
         PopulateOfficeDropdown();
     }
 
+    // ⭐ ADD THESE NEW METHODS:
+
+    void OnUseCurrentLocationToggled(bool isOn)
+    {
+        if (!isOn) return; // Only act when turning ON
+
+        useAutoDetection = true;
+        selectedCurrentOffice = ""; // Clear manual selection
+
+        if (useSpecificOfficeToggle) useSpecificOfficeToggle.isOn = false;
+
+        UpdateLocationModeUI();
+        UpdateNavigationUI();
+
+        Debug.Log("Switched to: Use Current Location (auto-detection)");
+    }
+
+    void OnUseSpecificOfficeToggled(bool isOn)
+    {
+        if (!isOn) return; // Only act when turning ON
+
+        useAutoDetection = false;
+
+        if (useCurrentLocationToggle) useCurrentLocationToggle.isOn = false;
+
+        UpdateLocationModeUI();
+        UpdateNavigationUI();
+
+        Debug.Log("Switched to: Use Specific Office (manual selection)");
+    }
+
+    void UpdateLocationModeUI()
+    {
+        if (currentLocationPanel)
+        {
+            currentLocationPanel.SetActive(useAutoDetection);
+        }
+
+        if (specificOfficePanel)
+        {
+            specificOfficePanel.SetActive(!useAutoDetection);
+        }
+
+        // Update status text
+        if (statusText && !isNavigationActive)
+        {
+            if (useAutoDetection)
+            {
+                statusText.text = "Select destination to navigate from current location";
+            }
+            else
+            {
+                statusText.text = "Select your current office, then destination";
+            }
+        }
+    }
+
+    void UpdateAutoDetectedLocation()
+    {
+        if (!autoDetectedLocationLabel || !navigationSystem) return;
+
+        Vector3 camPos = Camera.main ? Camera.main.transform.position : Vector3.zero;
+        if (camPos == Vector3.zero)
+        {
+            autoDetectedLocationLabel.text = "📍 Current Location";
+            autoDetectedLocationLabel.color = Color.white;
+            return;
+        }
+
+        // ⭐ DEBUG: Log camera position
+        Debug.Log($"[AUTO-DETECT] Camera at: {camPos}");
+
+        // Find nearest office within 5 meters
+        var allWaypoints = Resources.FindObjectsOfTypeAll<NavigationWaypoint>()
+            .Where(w => w.gameObject.scene.name != null && w.waypointType == WaypointType.Office)
+            .ToArray();
+
+        string nearest = "";
+        float minDist = 2f; // Only show if within 5 meters
+
+        // ⭐ DEBUG: Log all office distances
+        Debug.Log($"[AUTO-DETECT] Checking {allWaypoints.Length} office waypoints:");
+
+        foreach (var wp in allWaypoints)
+        {
+            float dist = Vector3.Distance(camPos, wp.transform.position);
+            string officeName = !string.IsNullOrEmpty(wp.officeName) ? wp.officeName : wp.waypointName;
+
+            // ⭐ DEBUG: Log each office distance
+            Debug.Log($"  - {officeName}: {dist:F2}m away at {wp.transform.position}");
+
+            if (dist < minDist)
+            {
+                minDist = dist;
+                nearest = officeName;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(nearest))
+        {
+            autoDetectedLocationLabel.text = $"📍 Near: {nearest}";
+            autoDetectedLocationLabel.color = Color.green;
+            Debug.Log($"[AUTO-DETECT] ✅ Selected: {nearest} ({minDist:F2}m away)");
+        }
+        else
+        {
+            autoDetectedLocationLabel.text = "📍 Current Location";
+            autoDetectedLocationLabel.color = Color.white;
+            Debug.Log($"[AUTO-DETECT] ❌ No office within 5m");
+        }
+    }
+
     void ShowLoadingPlaceholder()
     {
         if (!officeDropdown) return;
@@ -253,69 +435,131 @@ public class ManilaServeUI : MonoBehaviour
         officeDropdown.interactable = false;
     }
 
-    // REPLACE your existing PopulateOfficeDropdown method with this version that adds caching:
     public void PopulateOfficeDropdown()
     {
         if (!officeDropdown) return;
 
-        // Build or refresh a quick waypoint cache (for floor grouping)
-        BuildWaypointCache();
+        Debug.Log("=== PopulateOfficeDropdown START ===");
 
-        // Gather office names (prefer from SmartNavigationSystem)
-        List<string> names = navigationSystem ? navigationSystem.GetAllOfficeNames() : null;
+        // Get ONLY office names from SmartNavigationSystem
+        List<string> officeNames = navigationSystem ? navigationSystem.GetAllOfficeNames() : new List<string>();
 
-        if (names == null || names.Count == 0)
+        Debug.Log($"Got {officeNames.Count} office names from SmartNavigationSystem");
+
+        if (officeNames.Count == 0)
         {
-            // Fallback: read names straight from waypoints
-            names = waypointCache.Keys.ToList();
+            Debug.LogWarning("No office names received from SmartNavigationSystem!");
+            ShowLoadingPlaceholder();
+            return;
         }
 
-        // Normalize, de-dup and sort
-        names = names.Where(n => !string.IsNullOrWhiteSpace(n))
-                     .Distinct()
-                     .OrderBy(n => n)
-                     .ToList();
-
-        // CACHE FOR SEARCH - This is the only new line
-        cachedOfficeNames = new List<string>(names);
-
-        // Apply filters
+        // Apply search filter if any
         string filter = Normalize(officeSearchInput ? officeSearchInput.text : null);
         bool currentFloorOnly = currentFloorOnlyToggle && currentFloorOnlyToggle.isOn;
-
         string currentFloor = GetCurrentFloorLabel();
 
         List<string> ground = new List<string>();
         List<string> second = new List<string>();
         List<string> unknown = new List<string>();
 
-        foreach (var name in names)
+        foreach (var officeName in officeNames)
         {
-            // Filter by text
-            if (!string.IsNullOrEmpty(filter) && !Normalize(name).Contains(filter))
+            // Apply text filter
+            if (!string.IsNullOrEmpty(filter) && !Normalize(officeName).Contains(filter))
                 continue;
 
-            string floor = GetOfficeFloorLabel(name); // "Ground", "Second", "Unknown"
+            string floor = GetOfficeFloorLabel(officeName);
 
-            // Filter by current floor toggle
+            // Apply floor filter
             if (currentFloorOnly && floor != currentFloor)
                 continue;
 
+            Debug.Log($"Adding office to dropdown: {officeName} (floor: {floor})");
+
+            if (floor == "Ground") ground.Add(officeName);
+            else if (floor == "Second") second.Add(officeName);
+            else unknown.Add(officeName);
+        }
+
+        // Build dropdown options
+        officeDropdown.ClearOptions();
+        nonSelectableIndices.Clear();
+
+        var options = new List<TMP_Dropdown.OptionData>();
+        options.Add(new TMP_Dropdown.OptionData("Select an Office"));
+
+        int idx = 1;
+        void AddSection(string header, List<string> items)
+        {
+            if (items.Count == 0) return;
+            options.Add(new TMP_Dropdown.OptionData($"— {header} —"));
+            nonSelectableIndices.Add(idx);
+            idx++;
+
+            foreach (var officeName in items)
+            {
+                options.Add(new TMP_Dropdown.OptionData(officeName));
+                Debug.Log($"Added to dropdown: [{idx}] {officeName}");
+                idx++;
+            }
+        }
+
+        AddSection("Ground Floor", ground);
+        AddSection("Second Floor", second);
+        AddSection("Unknown Floor", unknown);
+
+        if (options.Count == 1)
+        {
+            options.Add(new TMP_Dropdown.OptionData("No offices found"));
+            nonSelectableIndices.Add(1);
+        }
+
+        officeDropdown.AddOptions(options);
+        officeDropdown.SetValueWithoutNotify(0);
+        officeDropdown.RefreshShownValue();
+        officeDropdown.interactable = options.Count > 1 && !options[1].text.StartsWith("No offices");
+
+        // Cache for search
+        cachedOfficeNames = new List<string>(officeNames);
+
+        // Also populate current office dropdown
+        PopulateCurrentOfficeDropdown();
+
+        Debug.Log($"=== PopulateOfficeDropdown COMPLETE: {ground.Count} ground, {second.Count} second, {unknown.Count} unknown ===");
+    }
+    void PopulateCurrentOfficeDropdown()
+    {
+        if (!currentOfficeDropdown) return;
+
+        Debug.Log("Populating current office dropdown");
+
+        // Use the same office data as the destination dropdown
+        List<string> names = cachedOfficeNames;
+
+        if (names == null || names.Count == 0)
+        {
+            names = waypointCache.Keys.ToList();
+        }
+
+        // Group by floor (same logic as destination dropdown)
+        List<string> ground = new List<string>();
+        List<string> second = new List<string>();
+        List<string> unknown = new List<string>();
+
+        foreach (var name in names)
+        {
+            string floor = GetOfficeFloorLabel(name);
             if (floor == "Ground") ground.Add(name);
             else if (floor == "Second") second.Add(name);
             else unknown.Add(name);
         }
 
-        // Rebuild dropdown
-        officeDropdown.ClearOptions();
-        nonSelectableIndices.Clear();
-
+        // Build dropdown options
+        currentOfficeDropdown.ClearOptions();
         var options = new List<TMP_Dropdown.OptionData>();
-        options.Add(new TMP_Dropdown.OptionData("Select an Office...")); // placeholder
+        options.Add(new TMP_Dropdown.OptionData("Select Current Office"));
 
-        int idx = 1; // running index after placeholder
-
-        // Helper to add a section
+        int idx = 1;
         void AddSection(string header, List<string> items)
         {
             if (items.Count == 0) return;
@@ -336,49 +580,72 @@ public class ManilaServeUI : MonoBehaviour
 
         if (options.Count == 1)
         {
-            // Nothing matched filter
             options.Add(new TMP_Dropdown.OptionData("No offices found"));
             nonSelectableIndices.Add(1);
         }
 
-        officeDropdown.AddOptions(options);
-        officeDropdown.SetValueWithoutNotify(0);   // select placeholder without firing event
-        officeDropdown.RefreshShownValue();
-        officeDropdown.interactable = options.Count > 1 && !options[1].text.StartsWith("No offices");
+        currentOfficeDropdown.AddOptions(options);
+        currentOfficeDropdown.SetValueWithoutNotify(0);
+        currentOfficeDropdown.RefreshShownValue();
+        currentOfficeDropdown.interactable = options.Count > 1 && !options[1].text.StartsWith("No offices");
 
-        Debug.Log($"Dropdown: {ground.Count} ground, {second.Count} second, {unknown.Count} unknown. Cached {cachedOfficeNames.Count} offices for search.");
+        Debug.Log($"Current office dropdown populated with {options.Count} options");
     }
-
     void OnOfficeSelected(int index)
     {
-        Debug.Log($"===== OnOfficeSelected CALLED with index: {index} =====");
-        if (!officeDropdown) return;
+        Debug.Log($"===== OnOfficeSelected CALLED =====");
+        Debug.Log($"Selected index: {index}");
+
+        if (!officeDropdown)
+        {
+            Debug.LogError("officeDropdown is null!");
+            return;
+        }
+
+        if (index < 0 || index >= officeDropdown.options.Count)
+        {
+            Debug.LogError($"Invalid index {index}, dropdown has {officeDropdown.options.Count} options");
+            return;
+        }
+
+        string selectedText = officeDropdown.options[index].text;
+        Debug.Log($"Selected text: '{selectedText}'");
 
         if (index <= 0 || nonSelectableIndices.Contains(index))
         {
+            Debug.Log("Index is placeholder or non-selectable");
             selectedOffice = "";
             UpdateNavigationUI();
             return;
         }
 
-        string text = officeDropdown.options[index].text;
-        if (text == "No offices found" || text == "Loading offices...")
+        if (selectedText == "No offices found" || selectedText == "Loading offices..." || selectedText.StartsWith("—"))
         {
+            Debug.Log("Selected text is header or placeholder");
             selectedOffice = "";
             UpdateNavigationUI();
             return;
         }
 
-        // Mirror search result behavior: prepare, stop active path, show popup first
-        HandleOfficePicked(text, resetDropdown: true);
-    }
+        Debug.Log($"✅ Valid office selected: '{selectedText}'");
 
+        // Verify this is actually an office by checking with SmartNavigationSystem
+        var allOffices = navigationSystem?.GetAllOfficeNames() ?? new List<string>();
+        if (!allOffices.Contains(selectedText))
+        {
+            Debug.LogError($"❌ '{selectedText}' is NOT in the office list from SmartNavigationSystem!");
+            Debug.Log($"Available offices: {string.Join(", ", allOffices)}");
+            return;
+        }
+
+        HandleOfficePicked(selectedText, resetDropdown: true);
+    }
 
     void OnNavigateClicked()
     {
         if (string.IsNullOrEmpty(selectedOffice))
         {
-            ShowSearchFeedback("Please select an office first", Color.yellow);
+            ShowSearchFeedback("Please select a destination office first", Color.yellow);
             return;
         }
         if (!navigationSystem)
@@ -387,11 +654,7 @@ public class ManilaServeUI : MonoBehaviour
             return;
         }
 
-        Debug.Log($"Starting navigation to: {selectedOffice}");
-        navigationSystem.StartNavigationToOffice(selectedOffice);
-        isNavigationActive = true;
-        UpdateNavigationUI();
-        ShowSearchFeedback($"Navigating to {selectedOffice}...", Color.green);
+        StartNavigationWithOffices();
     }
 
     void OnStopClicked()
@@ -404,29 +667,68 @@ public class ManilaServeUI : MonoBehaviour
 
     public void ShowArrivalConfirmation(string officeName)
     {
-        if (!arrivalPanel || !arrivalText) return;
+        if (!arrivalPanel || !arrivalText)
+        {
+            Debug.LogWarning("Arrival UI elements not assigned!");
+            return;
+        }
 
-        arrivalText.text = $"You have arrived at {officeName}!";
+        Debug.Log($"[UI] Showing arrival confirmation for: {officeName}");
+
+        // Set arrival message
+        arrivalText.text = $"🎯 You have arrived at\n{officeName}!";
+        arrivalText.fontSize = 40;
+        arrivalText.color = Color.white;
+
+        // Show panel
         arrivalPanel.SetActive(true);
 
-        if (arrivalCanvasGroup) arrivalCanvasGroup.alpha = 1f;
+        // Fade in
+        if (arrivalCanvasGroup)
+        {
+            arrivalCanvasGroup.alpha = 0f;
+            StartCoroutine(FadeInArrival());
+        }
+
+        // Auto-hide after delay
         StartCoroutine(AutoHideArrivalPanel());
+    }
+
+    IEnumerator FadeInArrival()
+    {
+        float duration = 0.5f;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            arrivalCanvasGroup.alpha = Mathf.Lerp(0f, 1f, elapsed / duration);
+            yield return null;
+        }
+
+        arrivalCanvasGroup.alpha = 1f;
     }
 
     IEnumerator AutoHideArrivalPanel()
     {
+        // Wait for display time
         yield return new WaitForSeconds(arrivalDisplayTime);
 
+        // Fade out
         if (arrivalPanel && arrivalPanel.activeInHierarchy && arrivalCanvasGroup)
         {
-            float fade = 0.5f, t = 0f;
+            float fade = 0.5f;
+            float t = 0f;
+
             while (t < fade)
             {
                 t += Time.deltaTime;
                 arrivalCanvasGroup.alpha = 1f - Mathf.Clamp01(t / fade);
                 yield return null;
             }
+
             arrivalPanel.SetActive(false);
+            arrivalCanvasGroup.alpha = 0f;
         }
     }
 
@@ -438,8 +740,14 @@ public class ManilaServeUI : MonoBehaviour
 
     void UpdateNavigationUI()
     {
-        bool canNavigate = !string.IsNullOrEmpty(selectedOffice) &&
+        bool hasDestination = !string.IsNullOrEmpty(selectedOffice);
+
+        // ⭐ NEW: Check if start location is valid based on mode
+        bool hasValidStart = useAutoDetection || !string.IsNullOrEmpty(selectedCurrentOffice);
+
+        bool canNavigate = hasDestination && hasValidStart &&
                            (navigationSystem == null || navigationSystem.CanStartNavigation());
+
         bool isNav = SmartNavigationSystem.IsAnyNavigationActive();
 
         if (navigateButton)
@@ -447,9 +755,31 @@ public class ManilaServeUI : MonoBehaviour
             navigateButton.gameObject.SetActive(!isNav);
             navigateButton.interactable = canNavigate;
         }
+
         if (stopButton)
         {
             stopButton.gameObject.SetActive(isNav);
+        }
+
+        // ⭐ Smart status messages based on mode
+        if (statusText && !isNav)
+        {
+            if (!hasDestination)
+            {
+                statusText.text = "Select a destination office";
+            }
+            else if (useAutoDetection)
+            {
+                statusText.text = $"Ready to navigate from current location to {selectedOffice}";
+            }
+            else if (string.IsNullOrEmpty(selectedCurrentOffice))
+            {
+                statusText.text = "Select your current office first";
+            }
+            else
+            {
+                statusText.text = $"Ready to navigate from {selectedCurrentOffice} to {selectedOffice}";
+            }
         }
 
         UpdateNavigationStatusDisplay();
@@ -473,6 +803,7 @@ public class ManilaServeUI : MonoBehaviour
 
     void Update()
     {
+        // Update navigation status periodically (every 30 frames ~ 0.5 seconds)
         if (Time.frameCount % 30 == 0)
         {
             bool was = isNavigationActive;
@@ -481,17 +812,36 @@ public class ManilaServeUI : MonoBehaviour
             UpdateNavigationStatusDisplay();
         }
 
-        // Replace the old input code with this:
+        // ⭐ NEW: Update auto-detected location (only when in auto-detection mode)
+        if (useAutoDetection && Time.frameCount % 15 == 0 && autoDetectedLocationLabel && navigationSystem)
+        {
+            UpdateAutoDetectedLocation();
+        }
+
+        // Handle search results panel click-outside-to-close
         if (searchResultsPanel && searchResultsPanel.activeInHierarchy)
         {
-            // Check if mouse/touch is clicked anywhere
+            // Check for mouse/touch input
             if (UnityEngine.InputSystem.Mouse.current != null &&
                 UnityEngine.InputSystem.Mouse.current.leftButton.wasPressedThisFrame)
             {
                 Vector2 mousePos = UnityEngine.InputSystem.Mouse.current.position.ReadValue();
                 RectTransform panelRect = searchResultsPanel.GetComponent<RectTransform>();
 
+                // If clicked outside the panel, close it
                 if (!RectTransformUtility.RectangleContainsScreenPoint(panelRect, mousePos))
+                {
+                    searchResultsPanel.SetActive(false);
+                }
+            }
+
+            // Alternative: Handle touch input for mobile devices
+            if (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)
+            {
+                Vector2 touchPos = Input.GetTouch(0).position;
+                RectTransform panelRect = searchResultsPanel.GetComponent<RectTransform>();
+
+                if (!RectTransformUtility.RectangleContainsScreenPoint(panelRect, touchPos))
                 {
                     searchResultsPanel.SetActive(false);
                 }
@@ -505,6 +855,7 @@ public class ManilaServeUI : MonoBehaviour
         if (stopButton) stopButton.onClick.RemoveAllListeners();
         if (arrivalOKButton) arrivalOKButton.onClick.RemoveAllListeners();
         if (officeDropdown) officeDropdown.onValueChanged.RemoveAllListeners();
+        if (currentOfficeDropdown) currentOfficeDropdown.onValueChanged.RemoveAllListeners(); // Add this line
         if (officeSearchInput) officeSearchInput.onValueChanged.RemoveAllListeners();
         if (currentFloorOnlyToggle) currentFloorOnlyToggle.onValueChanged.RemoveAllListeners();
 
@@ -570,6 +921,7 @@ public class ManilaServeUI : MonoBehaviour
         return y > FloorThresholdY ? "Second" : "Ground";
     }
 
+    // Add this to ManilaServeUI class if it doesn't exist
     static string Normalize(string s) =>
         string.IsNullOrWhiteSpace(s) ? "" :
         s.ToLowerInvariant().Replace(" ", "").Replace("-", "").Replace("_", "");
@@ -958,7 +1310,7 @@ public class ManilaServeUI : MonoBehaviour
 
         var itemText = textObj.AddComponent<TextMeshProUGUI>();
         itemText.text = officeName;
-        itemText.fontSize = 14;
+        itemText.fontSize = 30;
         itemText.color = Color.white;
         itemText.alignment = TextAlignmentOptions.MidlineLeft;
 
@@ -1136,26 +1488,94 @@ public class ManilaServeUI : MonoBehaviour
         officeInfoPopup.SetActive(true);
     }
 
-
     public void CloseOfficeInfoPopup()
     {
         if (officeInfoPopup) officeInfoPopup.SetActive(false);
     }
 
-    void StartNavigationFromPopup(string officeName)
+    void StartNavigationFromPopup(string destinationOffice)
     {
-        selectedOffice = officeName;
+        selectedOffice = destinationOffice;
+        CloseOfficeInfoPopup();
 
-        if (navigationSystem)
+        if (!navigationSystem)
         {
-            navigationSystem.StartNavigationConfirmedByUI(officeName); // <-- use this
-            isNavigationActive = true;
-            UpdateNavigationUI();
-            ShowSearchFeedback($"Navigating to {officeName}...", Color.green);
+            ShowSearchFeedback("Navigation system not found", Color.red);
+            return;
         }
 
-        CloseOfficeInfoPopup();
-        Debug.Log($"Started navigation from popup to: {officeName}");
+        // ⭐ Choose navigation mode based on toggle
+        if (useAutoDetection)
+        {
+            // MODE 1: Auto-Detection (Camera Position)
+            Debug.Log($"[AUTO] Starting navigation from current camera location to: {destinationOffice}");
+            navigationSystem.StartNavigationFromCurrentLocation(destinationOffice);
+            ShowSearchFeedback($"Navigating from current location to {destinationOffice}", Color.green);
+        }
+        else
+        {
+            // MODE 2: Manual Selection (Office Dropdown)
+            if (string.IsNullOrEmpty(selectedCurrentOffice))
+            {
+                ShowSearchFeedback("Please select your current office first", Color.yellow);
+                return;
+            }
+
+            Debug.Log($"[MANUAL] Starting navigation from {selectedCurrentOffice} to: {destinationOffice}");
+
+            // Use office-to-office navigation
+            navigationSystem.currentUserOffice = selectedCurrentOffice;
+            navigationSystem.useOfficeAsStart = true;
+            navigationSystem.StartNavigationFromOfficeName(selectedCurrentOffice, destinationOffice);
+
+            ShowSearchFeedback($"Navigating from {selectedCurrentOffice} to {destinationOffice}", Color.green);
+        }
+
+        isNavigationActive = true;
+        UpdateNavigationUI();
+    }
+
+    // ⭐ REPLACE WITH THIS:
+    void StartNavigationWithOffices()
+    {
+        if (string.IsNullOrEmpty(selectedOffice))
+        {
+            ShowSearchFeedback("Please select a destination office first", Color.yellow);
+            return;
+        }
+
+        if (!navigationSystem)
+        {
+            ShowSearchFeedback("Navigation system not found", Color.red);
+            return;
+        }
+
+        // Use the hybrid system (auto-detection vs manual selection)
+        if (useAutoDetection)
+        {
+            // Auto-detection mode
+            Debug.Log($"[AUTO] Starting navigation from current location to: {selectedOffice}");
+            navigationSystem.StartNavigationFromCurrentLocation(selectedOffice);
+            ShowSearchFeedback($"Navigating from current location to {selectedOffice}", Color.green);
+        }
+        else
+        {
+            // Manual selection mode
+            if (string.IsNullOrEmpty(selectedCurrentOffice))
+            {
+                ShowSearchFeedback("Please select your current office first", Color.yellow);
+                return;
+            }
+
+            Debug.Log($"[MANUAL] Starting navigation from {selectedCurrentOffice} to: {selectedOffice}");
+            navigationSystem.currentUserOffice = selectedCurrentOffice;
+            navigationSystem.useOfficeAsStart = true;
+            navigationSystem.StartNavigationFromOfficeName(selectedCurrentOffice, selectedOffice);
+            ShowSearchFeedback($"Navigating from {selectedCurrentOffice} to {selectedOffice}", Color.green);
+        }
+
+        isNavigationActive = true;
+        UpdateNavigationUI();
     }
 
     private void HandleOfficePicked(string officeName, bool resetDropdown = false)
@@ -1185,29 +1605,29 @@ public class ManilaServeUI : MonoBehaviour
             officeDropdown.RefreshShownValue();
         }
     }
-
-    void InitializeOfficeNameMappings()
+void InitializeOfficeNameMappings()
+{
+    officeNameMappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
-        officeNameMappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-    {
-        // EXACT waypoint names from your scene → Firebase names
-        { "City Treasurer", "Treasurer & Assessor’s Office" },
+        // EXACT MATCHES (Waypoint officeName → Firebase OfficeName)
+        { "City Treasurer", "Treasurer & Assessor's Office" },
+        { "EDP", "e-Services / Technical Support (EDP Office)" },
         { "Cash Division", "Cash Division" },
         { "Mayor's Office", "Office of the City Mayor" },
         { "Social Welfare", "Manila Department of Social Welfare (MDSW)" },
-        { "Real Estate Division", "Real Estate Division" },
         { "Manila Health Department", "Manila Health Department (MHD)" },
-        { "OSCA", "Office of the Senior Citizens Affairs (OSCA)" },
-        { "E-Business", "E-Services / Technical Support (EDP Office)" },
-        { "Office of the City Admin", "Office of the City Administrator" },
-        { "License Division", "License Division" },
+        { "OSCA", "Office of Senior Citizens Affairs (OSCA)" },
+        { "E-Business", "e-Services / Technical Support (EDP Office)" },
+        { "Office of the City Admin", "Office of the City Administrator" }, // ADD TO FIREBASE
+        { "License Division", "License Division" }, // ADD TO FIREBASE
         { "Civil Registry", "Civil Registry Office" },
-        { "Bureu of Permits", "Bureau of Permits (BPLO)" }, // Note: typo in waypoint name
-        { "EDP", "E-Services / Technical Support (EDP Office)" },
-        { "Waypoint_SocialWelfare", "Manila Department of Social Welfare (MDSW)" }
+        { "Bureu of Permits", "Bureau of Permits (BPLO)" }, // Note: typo in waypoint
+        { "Real Estate Division", "Real Estate Division" }, // ADD TO FIREBASE
+        
+        // Handle PWD waypoint (has empty officeName, uses waypointName)
+        { "SocialWelfare", "Manila Department of Social Welfare (MDSW)" }, // PWD waypoint
     };
-    }
-
+}
     [ContextMenu("Debug Firebase Office Match")]
     void DebugFirebaseMatching()
     {
@@ -1276,6 +1696,327 @@ public class ManilaServeUI : MonoBehaviour
         else
         {
             Debug.LogError("FirebaseManager is NULL!");
+        }
+    }
+
+
+
+    void OnCurrentOfficeSelected(int index)
+    {
+        Debug.Log($"[UI] OnCurrentOfficeSelected called with index: {index}"); // ✅ ADD
+
+        if (!currentOfficeDropdown || index <= 0 || nonSelectableIndices.Contains(index))
+        {
+            Debug.Log("[UI] Invalid selection, clearing"); // ✅ ADD
+            selectedCurrentOffice = "";
+            UpdateNavigationUI();
+            return;
+        }
+
+        string text = currentOfficeDropdown.options[index].text;
+        Debug.Log($"[UI] Dropdown text: '{text}'"); // ✅ ADD
+
+        if (text == "No offices found" || text == "Loading offices..." || text.StartsWith("—"))
+        {
+            Debug.Log("[UI] Invalid office text, clearing"); // ✅ ADD
+            selectedCurrentOffice = "";
+            UpdateNavigationUI();
+            return;
+        }
+
+        selectedCurrentOffice = text;
+        Debug.Log($"[UI] ✅ Selected current office: '{selectedCurrentOffice}'"); // ✅ ADD
+
+        // ✅ ADD EXTENSIVE LOGGING:
+        Debug.Log($"[UI] nav reference is: {(nav != null ? "VALID" : "NULL")}");
+
+        if (nav != null)
+        {
+            Debug.Log("[UI] Calling FindWaypointPositionByOfficeName..."); // ✅ ADD
+            Vector3 officePosition = FindWaypointPositionByOfficeName(selectedCurrentOffice);
+
+            Debug.Log($"[UI] Office position found: {officePosition}"); // ✅ ADD
+
+            if (officePosition != Vector3.zero)
+            {
+                Debug.Log("[UI] ✅ Calling AlignBuildingToUserPosition..."); // ✅ ADD
+                nav.AlignBuildingToUserPosition(officePosition);
+            }
+            else
+            {
+                Debug.LogWarning($"[UI] ❌ Could not find waypoint position for: {selectedCurrentOffice}");
+            }
+        }
+        else
+        {
+            Debug.LogError("[UI] ❌ SmartNavigationSystem reference is NULL!");
+        }
+
+        UpdateNavigationUI();
+        Debug.Log("[UI] OnCurrentOfficeSelected completed"); // ✅ ADD
+    }
+
+
+    void SetupDropdowns()
+    {
+        Debug.Log("[UI] === SetupDropdowns ===");
+
+        // Current Office Dropdown ONLY
+        if (currentOfficeDropdown != null)
+        {
+            currentOfficeDropdown.onValueChanged.RemoveAllListeners();
+            currentOfficeDropdown.onValueChanged.AddListener(OnCurrentOfficeSelected);
+            Debug.Log("[UI] ✅ Current office dropdown listener added");
+        }
+        else
+        {
+            Debug.LogError("[UI] ❌ currentOfficeDropdown is NULL! Check Inspector assignment!");
+        }
+
+        // ❌ REMOVED destination dropdown code - you don't have it
+
+        Debug.Log("[UI] === SetupDropdowns Complete ===");
+    }
+
+    /// <summary>
+    /// Finds the waypoint position for an office name
+    /// Uses your existing NavigationWaypoint components that were mapped by FirebaseOfficeManager
+    /// </summary>
+    Vector3 FindWaypointPositionByOfficeName(string officeName)
+    {
+        if (string.IsNullOrWhiteSpace(officeName))
+        {
+            Debug.LogWarning("[WAYPOINT] Empty office name provided");
+            return Vector3.zero;
+        }
+
+        // Find all NavigationWaypoint components in the scene
+        NavigationWaypoint[] allWaypoints = FindObjectsOfType<NavigationWaypoint>();
+
+        if (allWaypoints == null || allWaypoints.Length == 0)
+        {
+            Debug.LogError("[WAYPOINT] No NavigationWaypoint components found in scene!");
+            return Vector3.zero;
+        }
+
+        Debug.Log($"[WAYPOINT] Searching {allWaypoints.Length} waypoints for office: '{officeName}'");
+
+        // Try to find exact match first
+        foreach (var waypoint in allWaypoints)
+        {
+            if (waypoint.officeName == officeName)
+            {
+                Debug.Log($"[WAYPOINT] Exact match: '{waypoint.name}' has officeName='{waypoint.officeName}'");
+                return waypoint.transform.position;
+            }
+        }
+
+        // Try normalized match (case-insensitive, trim whitespace)
+        string normalizedSearch = NormalizeOfficeName(officeName);
+
+        foreach (var waypoint in allWaypoints)
+        {
+            string normalizedWaypoint = NormalizeOfficeName(waypoint.officeName);
+
+            if (normalizedWaypoint == normalizedSearch)
+            {
+                Debug.Log($"[WAYPOINT] Normalized match: '{waypoint.name}' officeName='{waypoint.officeName}' matches '{officeName}'");
+                return waypoint.transform.position;
+            }
+        }
+
+        // Try partial match (contains)
+        foreach (var waypoint in allWaypoints)
+        {
+            string normalizedWaypoint = NormalizeOfficeName(waypoint.officeName);
+
+            if (normalizedWaypoint.Contains(normalizedSearch) || normalizedSearch.Contains(normalizedWaypoint))
+            {
+                Debug.Log($"[WAYPOINT] Partial match: '{waypoint.name}' officeName='{waypoint.officeName}' partially matches '{officeName}'");
+                return waypoint.transform.position;
+            }
+        }
+
+        // Log all available waypoints for debugging
+        Debug.LogWarning($"[WAYPOINT] No match found for '{officeName}'. Available waypoints:");
+        foreach (var wp in allWaypoints)
+        {
+            Debug.Log($"  - GameObject: '{wp.name}', officeName: '{wp.officeName}'");
+        }
+
+        return Vector3.zero;
+    }
+
+    /// <summary>
+    /// Normalizes office name for matching (lowercase, trim, remove extra spaces)
+    /// </summary>
+    string NormalizeOfficeName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "";
+
+        return name.ToLowerInvariant()
+                   .Trim()
+                   .Replace("  ", " "); // Remove double spaces
+    }
+
+    public string GetCurrentOfficeStatus()
+    {
+        if (!string.IsNullOrEmpty(selectedCurrentOffice))
+            return $"Starting from: {selectedCurrentOffice}";
+        else
+            return "Starting from: Current Location";
+    }
+
+    // Add this method to ManilaServeUI to force set the current office
+    public void SetCurrentOfficeForTesting(string officeName)
+    {
+        selectedCurrentOffice = officeName;
+        Debug.Log($"Forced current office to: {selectedCurrentOffice}");
+
+        if (currentOfficeDropdown)
+        {
+            // Find the office in the dropdown and select it
+            for (int i = 0; i < currentOfficeDropdown.options.Count; i++)
+            {
+                if (currentOfficeDropdown.options[i].text == officeName)
+                {
+                    currentOfficeDropdown.SetValueWithoutNotify(i);
+                    currentOfficeDropdown.RefreshShownValue();
+                    break;
+                }
+            }
+        }
+    }
+
+    Transform FindTargetWaypointAdvanced(string officeName)
+    {
+        var allWaypoints = Resources.FindObjectsOfTypeAll<NavigationWaypoint>()
+            .Where(w => w.gameObject.scene.name != null && w.waypointType == WaypointType.Office)
+            .ToArray();
+
+        Debug.Log($"FindTargetWaypointAdvanced: Looking for '{officeName}' among {allWaypoints.Length} office waypoints");
+
+        // Special handling for Social Welfare (pick the best one)
+        if (officeName.Equals("Social Welfare", StringComparison.OrdinalIgnoreCase))
+        {
+            var socialWelfareWaypoints = allWaypoints
+                .Where(w => w.officeName != null && w.officeName.Contains("Social Welfare"))
+                .ToArray();
+
+            if (socialWelfareWaypoints.Length > 0)
+            {
+                // Prefer SocialWelfare3 (seems to be the main one based on connections)
+                var preferred = socialWelfareWaypoints.FirstOrDefault(w => w.name.Contains("SocialWelfare3"))
+                               ?? socialWelfareWaypoints.First();
+                Debug.Log($"Selected Social Welfare waypoint: {preferred.name}");
+                return preferred.transform;
+            }
+        }
+
+        // Exact match by officeName
+        foreach (var wp in allWaypoints)
+        {
+            if (!string.IsNullOrEmpty(wp.officeName) &&
+                wp.officeName.Equals(officeName, StringComparison.OrdinalIgnoreCase))
+            {
+                Debug.Log($"Exact match found: {wp.name} for '{officeName}'");
+                return wp.transform;
+            }
+        }
+
+        // Partial match by officeName
+        foreach (var wp in allWaypoints)
+        {
+            if (!string.IsNullOrEmpty(wp.officeName))
+            {
+                string normalizedWaypoint = Normalize(wp.officeName);
+                string normalizedSearch = Normalize(officeName);
+
+                if (normalizedWaypoint.Contains(normalizedSearch) || normalizedSearch.Contains(normalizedWaypoint))
+                {
+                    Debug.Log($"Partial match found: {wp.name} for '{officeName}'");
+                    return wp.transform;
+                }
+            }
+        }
+
+        Debug.LogWarning($"No waypoint found for office: '{officeName}'");
+        return null;
+    }
+    public void CacheAllOffices()
+    {
+        if (officeLookup == null)
+            officeLookup = new Dictionary<string, GameObject>();
+
+        officeLookup.Clear();
+
+        // Find all NavigationWaypoint components in the scene
+        NavigationWaypoint[] allWaypoints = FindObjectsByType<NavigationWaypoint>(FindObjectsSortMode.None);
+
+        foreach (var wp in allWaypoints)
+        {
+            // Skip prefabs and non-scene objects
+            if (wp.gameObject.scene.name == null) continue;
+
+            // ONLY cache Office type waypoints
+            if (wp.waypointType != WaypointType.Office) continue;
+
+            Debug.Log($"Office waypoint found: {wp.gameObject.name}, type={wp.waypointType}, officeName={wp.officeName}");
+
+            // Use officeName if available, fallback to GameObject name
+            string name = !string.IsNullOrEmpty(wp.officeName) ? wp.officeName : wp.gameObject.name;
+
+            if (!string.IsNullOrEmpty(name))
+            {
+                if (!officeLookup.ContainsKey(name))
+                {
+                    officeLookup[name] = wp.gameObject;
+                    Debug.Log($"✅ Cached office: {name}");
+                }
+                else
+                {
+                    Debug.LogWarning($"⚠ Duplicate office name skipped: {name}");
+                }
+            }
+        }
+
+        Debug.Log($"✅ Cached {officeLookup.Count} OFFICES ONLY (excluded corridors/stairs).");
+    }
+
+    [ContextMenu("Debug Dropdown Contents")]
+    void DebugDropdownContents()
+    {
+        Debug.Log("=== DROPDOWN DEBUG ===");
+
+        if (officeDropdown && officeDropdown.options.Count > 0)
+        {
+            Debug.Log($"Dropdown has {officeDropdown.options.Count} options:");
+            for (int i = 0; i < officeDropdown.options.Count; i++)
+            {
+                string optionText = officeDropdown.options[i].text;
+                Debug.Log($"  [{i}] {optionText}");
+            }
+        }
+
+        if (currentOfficeDropdown && currentOfficeDropdown.options.Count > 0)
+        {
+            Debug.Log($"Current office dropdown has {currentOfficeDropdown.options.Count} options:");
+            for (int i = 0; i < currentOfficeDropdown.options.Count; i++)
+            {
+                string optionText = currentOfficeDropdown.options[i].text;
+                Debug.Log($"  [{i}] {optionText}");
+            }
+        }
+
+        // Check what SmartNavigationSystem returns
+        if (navigationSystem)
+        {
+            var officeNames = navigationSystem.GetAllOfficeNames();
+            Debug.Log($"SmartNavigationSystem returns {officeNames.Count} offices:");
+            foreach (var name in officeNames)
+            {
+                Debug.Log($"  Office: {name}");
+            }
         }
     }
 }
