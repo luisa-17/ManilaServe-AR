@@ -5,6 +5,9 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System;
+using System.Text.RegularExpressions;
+using UnityEngine.Events;
+
 
 public class ManilaServeUI : MonoBehaviour
 {
@@ -26,7 +29,7 @@ public class ManilaServeUI : MonoBehaviour
     [Header("Filters (Optional)")]
     public TMP_InputField officeSearchInput;
     public Toggle currentFloorOnlyToggle;
-
+    
     [Header("Location Display")]
     public TextMeshProUGUI currentLocationLabel;
 
@@ -52,6 +55,13 @@ public class ManilaServeUI : MonoBehaviour
     private string selectedCurrentOffice = "";   // Selected office name
 
     private bool useAutoDetection = true;        // Which mode is active
+
+    // Entrance display options (you can tweak in Inspector)
+    [SerializeField] string entranceDisplayName = "City Hall Entrance";
+    [SerializeField, Range(0.5f, 6f)] float entranceNearRadiusMeters = 2.5f;
+
+    // Office “near” radius (replace your hardcoded 2f with this)
+    [SerializeField, Range(1f, 10f)] float officeNearRadiusMeters = 5f;
 
     [Header("Navigation Status")]
     public GameObject navigationStatusPanel;
@@ -144,11 +154,23 @@ public class ManilaServeUI : MonoBehaviour
     };
 
 
+    // Destination Office dropdown (Select an Office)
+    private readonly HashSet<int> nonSelectableIndices = new HashSet<int>();
+    private int lastValidOfficeIndex = 0;
+    private bool suppressOfficeSelection = false;
 
-    // Dropdown helpers
-    readonly HashSet<int> nonSelectableIndices = new HashSet<int>();
+    // Current Office dropdown (Select Current Office)
+    private readonly HashSet<int> currentHeaderIndices = new HashSet<int>();
+    private int lastValidCurrentIndex = 0;
+    private bool suppressCurrentSelection = false;
+
+
     readonly Dictionary<string, NavigationWaypoint> waypointCache = new Dictionary<string, NavigationWaypoint>();
     const float FloorThresholdY = 5f;
+
+
+    Color headerTextColor = new Color(1f, 1f, 1f, 0.6f); // dimmed
+    Color headerBgColor = new Color(0f, 0f, 0f, 0f); // transparent (or a subtle tint)
 
     // Cache for search functionality
     private List<string> allAvailableOffices = new List<string>();
@@ -332,16 +354,32 @@ public class ManilaServeUI : MonoBehaviour
 
     void OnUseSpecificOfficeToggled(bool isOn)
     {
-        if (!isOn) return; // Only act when turning ON
+        if (!isOn) return;
+
+// Close any open dropdown list before switching UI
+ForceCloseCurrentOfficeDropdown();
 
         useAutoDetection = false;
-
         if (useCurrentLocationToggle) useCurrentLocationToggle.isOn = false;
 
         UpdateLocationModeUI();
         UpdateNavigationUI();
 
         Debug.Log("Switched to: Use Specific Office (manual selection)");
+    }
+
+    void ForceCloseCurrentOfficeDropdown()
+    {
+        if (!currentOfficeDropdown) return;
+
+// Ask TMP to close
+currentOfficeDropdown.Hide();
+
+        // Destroy any stray runtime list instance
+        var root = currentOfficeDropdown.transform.root;
+        foreach (var rt in root.GetComponentsInChildren<RectTransform>(true))
+            if (rt.name == "TMP Dropdown List" || rt.name == "Dropdown List")
+                Destroy(rt.gameObject);
     }
 
     void UpdateLocationModeUI()
@@ -372,59 +410,103 @@ public class ManilaServeUI : MonoBehaviour
 
     void UpdateAutoDetectedLocation()
     {
-        if (!autoDetectedLocationLabel || !navigationSystem) return;
+        if (!autoDetectedLocationLabel) return;
+        if (!navigationSystem) navigationSystem = FindFirstObjectByType<SmartNavigationSystem>();
 
-        Vector3 camPos = Camera.main ? Camera.main.transform.position : Vector3.zero;
+        // Camera position (use nav’s current position; falls back to Camera.main)
+        Vector3 camPos = navigationSystem ? navigationSystem.GetCurrentPosition()
+                                          : (Camera.main ? Camera.main.transform.position : Vector3.zero);
+
         if (camPos == Vector3.zero)
         {
-            autoDetectedLocationLabel.text = "📍 Current Location";
+            autoDetectedLocationLabel.text = "Current Location";
             autoDetectedLocationLabel.color = Color.white;
             return;
         }
 
-        // ⭐ DEBUG: Log camera position
-        Debug.Log($"[AUTO-DETECT] Camera at: {camPos}");
+        float mpu = navigationSystem ? Mathf.Max(0.0001f, navigationSystem.metersPerUnit) : 1f;
 
-        // Find nearest office within 5 meters
+        // 1) Detect if we are near the ENTRANCE
+        Transform entranceT = ResolveEntranceNode();
+        bool atEntrance = false;
+        float entranceMeters = float.MaxValue;
+
+        if (entranceT != null)
+        {
+            Vector3 cf = new Vector3(camPos.x, 0f, camPos.z);
+            Vector3 ef = new Vector3(entranceT.position.x, 0f, entranceT.position.z);
+            entranceMeters = Vector3.Distance(cf, ef) * mpu;
+            atEntrance = entranceMeters <= entranceNearRadiusMeters;
+        }
+
+        // 2) Detect nearest OFFICE within officeNearRadiusMeters
         var allWaypoints = Resources.FindObjectsOfTypeAll<NavigationWaypoint>()
-            .Where(w => w.gameObject.scene.name != null && w.waypointType == WaypointType.Office)
+            .Where(w => w != null && w.gameObject.scene.IsValid() && w.waypointType == WaypointType.Office)
             .ToArray();
 
-        string nearest = "";
-        float minDist = 2f; // Only show if within 5 meters
+        string nearestOffice = "";
+        float nearestOfficeMeters = float.MaxValue;
 
-        // ⭐ DEBUG: Log all office distances
-        Debug.Log($"[AUTO-DETECT] Checking {allWaypoints.Length} office waypoints:");
-
-        foreach (var wp in allWaypoints)
+        for (int i = 0; i < allWaypoints.Length; i++)
         {
-            float dist = Vector3.Distance(camPos, wp.transform.position);
+            var wp = allWaypoints[i];
+            Vector3 cf = new Vector3(camPos.x, 0f, camPos.z);
+            Vector3 wf = new Vector3(wp.transform.position.x, 0f, wp.transform.position.z);
+
+            float meters = Vector3.Distance(cf, wf) * mpu;
             string officeName = !string.IsNullOrEmpty(wp.officeName) ? wp.officeName : wp.waypointName;
 
-            // ⭐ DEBUG: Log each office distance
-            Debug.Log($"  - {officeName}: {dist:F2}m away at {wp.transform.position}");
-
-            if (dist < minDist)
+            if (meters < nearestOfficeMeters)
             {
-                minDist = dist;
-                nearest = officeName;
+                nearestOfficeMeters = meters;
+                nearestOffice = officeName;
             }
         }
 
-        if (!string.IsNullOrEmpty(nearest))
+        bool nearOffice = !string.IsNullOrEmpty(nearestOffice) && nearestOfficeMeters <= officeNearRadiusMeters;
+
+        // 3) Reflect in UI and inform nav how to start
+        if (atEntrance)
         {
-            autoDetectedLocationLabel.text = $"📍 Near: {nearest}";
+            // Show entrance and set nav to route from entrance
+            autoDetectedLocationLabel.text = $"📍 Entrance — {entranceDisplayName}";
             autoDetectedLocationLabel.color = Color.green;
-            Debug.Log($"[AUTO-DETECT] ✅ Selected: {nearest} ({minDist:F2}m away)");
+            if (navigationSystem) navigationSystem.SetStartFromEntrance(true);
+        }
+        else if (nearOffice)
+        {
+            // Show nearest office and route from camera
+            autoDetectedLocationLabel.text = $"📍 Near: {nearestOffice}";
+            autoDetectedLocationLabel.color = Color.green;
+            if (navigationSystem) navigationSystem.SetStartFromEntrance(false);
         }
         else
         {
+            // Default current location (camera)
             autoDetectedLocationLabel.text = "📍 Current Location";
             autoDetectedLocationLabel.color = Color.white;
-            Debug.Log($"[AUTO-DETECT] ❌ No office within 5m");
+            if (navigationSystem) navigationSystem.SetStartFromEntrance(false);
         }
     }
 
+    // Try to use nav.entranceNode; otherwise find a waypoint named like "Waypoint_Entrance_*"
+    Transform ResolveEntranceNode()
+    {
+        if (navigationSystem && navigationSystem.entranceNode != null)
+            return navigationSystem.entranceNode;
+
+        var all = Resources.FindObjectsOfTypeAll<NavigationWaypoint>()
+            .Where(w => w != null && w.gameObject.scene.IsValid())
+            .ToArray();
+
+        // Common naming pattern
+        var byName = all.FirstOrDefault(w => w.name.IndexOf("Entrance", System.StringComparison.OrdinalIgnoreCase) >= 0);
+        if (byName) return byName.transform;
+
+        // Fallback: any marker tagged as Entrance if you use tags
+        var tagged = GameObject.FindGameObjectWithTag("Entrance");
+        return tagged ? tagged.transform : null;
+    }
     void ShowLoadingPlaceholder()
     {
         if (!officeDropdown) return;
@@ -435,6 +517,19 @@ public class ManilaServeUI : MonoBehaviour
         officeDropdown.interactable = false;
     }
 
+    static bool IsDividerOrPlaceholder(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return true;
+        var plain = StripRichText(s).Trim();
+        if (plain.Equals("Select Current Office", System.StringComparison.OrdinalIgnoreCase)) return true;
+        if (plain.Equals("No offices found", System.StringComparison.OrdinalIgnoreCase)) return true;
+        if ((plain.StartsWith("—") && plain.EndsWith("—")) || (plain.StartsWith("--") && plain.EndsWith("--")))
+            return true;
+        return false;
+    }
+
+    static string StripRichText(string s) => Regex.Replace(s ?? "", "<.*?>", string.Empty);
+
     public void PopulateOfficeDropdown()
     {
         if (!officeDropdown) return;
@@ -443,7 +538,6 @@ public class ManilaServeUI : MonoBehaviour
 
         // Get ONLY office names from SmartNavigationSystem
         List<string> officeNames = navigationSystem ? navigationSystem.GetAllOfficeNames() : new List<string>();
-
         Debug.Log($"Got {officeNames.Count} office names from SmartNavigationSystem");
 
         if (officeNames.Count == 0)
@@ -453,7 +547,7 @@ public class ManilaServeUI : MonoBehaviour
             return;
         }
 
-        // Apply search filter if any
+        // Filter
         string filter = Normalize(officeSearchInput ? officeSearchInput.text : null);
         bool currentFloorOnly = currentFloorOnlyToggle && currentFloorOnlyToggle.isOn;
         string currentFloor = GetCurrentFloorLabel();
@@ -464,24 +558,17 @@ public class ManilaServeUI : MonoBehaviour
 
         foreach (var officeName in officeNames)
         {
-            // Apply text filter
-            if (!string.IsNullOrEmpty(filter) && !Normalize(officeName).Contains(filter))
-                continue;
+            if (!string.IsNullOrEmpty(filter) && !Normalize(officeName).Contains(filter)) continue;
 
             string floor = GetOfficeFloorLabel(officeName);
-
-            // Apply floor filter
-            if (currentFloorOnly && floor != currentFloor)
-                continue;
-
-            Debug.Log($"Adding office to dropdown: {officeName} (floor: {floor})");
+            if (currentFloorOnly && floor != currentFloor) continue;
 
             if (floor == "Ground") ground.Add(officeName);
             else if (floor == "Second") second.Add(officeName);
             else unknown.Add(officeName);
         }
 
-        // Build dropdown options
+        // Build options
         officeDropdown.ClearOptions();
         nonSelectableIndices.Clear();
 
@@ -492,14 +579,15 @@ public class ManilaServeUI : MonoBehaviour
         void AddSection(string header, List<string> items)
         {
             if (items.Count == 0) return;
-            options.Add(new TMP_Dropdown.OptionData($"— {header} —"));
+
+            // Centered header; mark as non-selectable
+            options.Add(new TMP_Dropdown.OptionData($"<align=center><b>— {header} —</b></align>"));
             nonSelectableIndices.Add(idx);
             idx++;
 
-            foreach (var officeName in items)
+            foreach (var name in items)
             {
-                options.Add(new TMP_Dropdown.OptionData(officeName));
-                Debug.Log($"Added to dropdown: [{idx}] {officeName}");
+                options.Add(new TMP_Dropdown.OptionData(name));
                 idx++;
             }
         }
@@ -515,63 +603,106 @@ public class ManilaServeUI : MonoBehaviour
         }
 
         officeDropdown.AddOptions(options);
+
+        // Reset selection to the prompt
+        lastValidOfficeIndex = 0;
         officeDropdown.SetValueWithoutNotify(0);
         officeDropdown.RefreshShownValue();
-        officeDropdown.interactable = options.Count > 1 && !options[1].text.StartsWith("No offices");
 
-        // Cache for search
+        // Enable only if there’s at least one real office
+        officeDropdown.interactable = options.Count > 1 && !StripRichText(options[1].text).StartsWith("No offices");
+
+        // Wire handler (guard headers)
+        officeDropdown.onValueChanged.RemoveListener(OnOfficeDropdownChanged);
+        officeDropdown.onValueChanged.AddListener(OnOfficeDropdownChanged);
+
+        // Style caption + template so runtime rows inherit correct font/size/colors
+        CustomizeDropdownAppearance();
+
+        // Cache for search; use original names (not the filtered lists)
         cachedOfficeNames = new List<string>(officeNames);
 
-        // Also populate current office dropdown
+        // Also refresh current office dropdown
         PopulateCurrentOfficeDropdown();
 
         Debug.Log($"=== PopulateOfficeDropdown COMPLETE: {ground.Count} ground, {second.Count} second, {unknown.Count} unknown ===");
     }
-    void PopulateCurrentOfficeDropdown()
+
+    private bool suppressSelection = false;
+
+    void OnOfficeDropdownChanged(int index)
+    {
+        if (suppressOfficeSelection) return;
+
+        string raw = officeDropdown.options[index].text;
+        bool isBlocked = index == 0 || nonSelectableIndices.Contains(index) || IsDividerOrPlaceholder(raw);
+
+        if (isBlocked)
+        {
+            suppressOfficeSelection = true;
+            officeDropdown.SetValueWithoutNotify(lastValidOfficeIndex);
+            officeDropdown.RefreshShownValue();
+            suppressOfficeSelection = false;
+
+            StartCoroutine(ReopenDropdown(officeDropdown));
+            return;
+        }
+
+        // Accept real office
+        lastValidOfficeIndex = index;
+
+        string officeName = StripRichText(raw).Trim();
+        ShowOfficeInfoPopup(officeName); // your existing logic
+    }
+
+    System.Collections.IEnumerator ReopenDropdownNextFrame()
+    {
+        yield return null; // wait for TMP to close the popup
+        officeDropdown.Show(); // re-open so user can pick another
+    }
+
+    System.Collections.IEnumerator ReopenDropdown(TMP_Dropdown dd)
+    {
+        yield return null; // wait one frame for TMP to close popup
+        dd.Show();
+    }
+
+    public void PopulateCurrentOfficeDropdown()
     {
         if (!currentOfficeDropdown) return;
 
-        Debug.Log("Populating current office dropdown");
+        // Use the same source list you use elsewhere (cachedOfficeNames or waypointCache)
+        var names = (cachedOfficeNames != null && cachedOfficeNames.Count > 0)
+            ? cachedOfficeNames
+            : waypointCache.Keys.ToList();
 
-        // Use the same office data as the destination dropdown
-        List<string> names = cachedOfficeNames;
-
-        if (names == null || names.Count == 0)
+        // Partition by floor (reuse your GetOfficeFloorLabel)
+        var ground = new List<string>();
+        var second = new List<string>();
+        var unknown = new List<string>();
+        foreach (var n in names)
         {
-            names = waypointCache.Keys.ToList();
+            var f = GetOfficeFloorLabel(n);
+            if (f == "Ground") ground.Add(n);
+            else if (f == "Second") second.Add(n);
+            else unknown.Add(n);
         }
 
-        // Group by floor (same logic as destination dropdown)
-        List<string> ground = new List<string>();
-        List<string> second = new List<string>();
-        List<string> unknown = new List<string>();
-
-        foreach (var name in names)
-        {
-            string floor = GetOfficeFloorLabel(name);
-            if (floor == "Ground") ground.Add(name);
-            else if (floor == "Second") second.Add(name);
-            else unknown.Add(name);
-        }
-
-        // Build dropdown options
+        // Build options
         currentOfficeDropdown.ClearOptions();
+        currentHeaderIndices.Clear();
+
         var options = new List<TMP_Dropdown.OptionData>();
         options.Add(new TMP_Dropdown.OptionData("Select Current Office"));
 
         int idx = 1;
-        void AddSection(string header, List<string> items)
+        void AddSection(string header, List<string> list)
         {
-            if (items.Count == 0) return;
-            options.Add(new TMP_Dropdown.OptionData($"— {header} —"));
-            nonSelectableIndices.Add(idx);
+            if (list.Count == 0) return;
+            options.Add(new TMP_Dropdown.OptionData($"<align=center><b>— {header} —</b></align>"));
+            currentHeaderIndices.Add(idx); // mark header index
             idx++;
-
-            foreach (var nm in items)
-            {
-                options.Add(new TMP_Dropdown.OptionData(nm));
-                idx++;
-            }
+            foreach (var n in list) { options.Add(new TMP_Dropdown.OptionData(n)); idx++; }
         }
 
         AddSection("Ground Floor", ground);
@@ -581,19 +712,137 @@ public class ManilaServeUI : MonoBehaviour
         if (options.Count == 1)
         {
             options.Add(new TMP_Dropdown.OptionData("No offices found"));
-            nonSelectableIndices.Add(1);
+            currentHeaderIndices.Add(1);
         }
 
         currentOfficeDropdown.AddOptions(options);
+
+        // Reset selection and show prompt
+        lastValidCurrentIndex = 0;
         currentOfficeDropdown.SetValueWithoutNotify(0);
         currentOfficeDropdown.RefreshShownValue();
-        currentOfficeDropdown.interactable = options.Count > 1 && !options[1].text.StartsWith("No offices");
 
-        Debug.Log($"Current office dropdown populated with {options.Count} options");
+        // Make it clickable only if we have real items
+        currentOfficeDropdown.interactable = options.Count > 1 &&
+            !StripRichText(options[1].text).StartsWith("No offices", System.StringComparison.OrdinalIgnoreCase);
+
+        // Wire handler
+        currentOfficeDropdown.onValueChanged.RemoveListener(OnCurrentOfficeSelected);
+        currentOfficeDropdown.onValueChanged.AddListener(OnCurrentOfficeSelected);
+
+        // Optional: style caption + template so runtime rows inherit correct font/size
+        CustomizeDropdownAppearance();
     }
+
+    List<TMP_Dropdown.OptionData> BuildOptionsByFloor(IEnumerable<string> names, HashSet<int> headerIndices, string prompt)
+    {
+        var options = new List<TMP_Dropdown.OptionData>();
+        options.Add(new TMP_Dropdown.OptionData(prompt));
+
+        var ground = new List<string>();
+        var second = new List<string>();
+        var unknown = new List<string>();
+        foreach (var n in names)
+        {
+            var f = GetOfficeFloorLabel(n); // your existing method
+            if (f == "Ground") ground.Add(n);
+            else if (f == "Second") second.Add(n);
+            else unknown.Add(n);
+        }
+
+        int idx = 1;
+        void AddSection(string header, List<string> list)
+        {
+            if (list.Count == 0) return;
+            options.Add(new TMP_Dropdown.OptionData($"<align=center><b>— {header} —</b></align>"));
+            headerIndices.Add(idx); idx++;
+            foreach (var n in list) { options.Add(new TMP_Dropdown.OptionData(n)); idx++; }
+        }
+
+        AddSection("Ground Floor", ground);
+        AddSection("Second Floor", second);
+        AddSection("Unknown Floor", unknown);
+
+        if (options.Count == 1)
+        {
+            options.Add(new TMP_Dropdown.OptionData("No offices found"));
+            headerIndices.Add(1);
+        }
+        return options;
+    }
+
+    void SetupDropdown(TMP_Dropdown dd, List<TMP_Dropdown.OptionData> options, UnityAction<int> onChanged, out int lastValidIndex)
+    {
+        dd.ClearOptions();
+        dd.AddOptions(options);
+        dd.SetValueWithoutNotify(0);
+        dd.RefreshShownValue();
+
+
+        dd.onValueChanged.RemoveAllListeners();
+        dd.onValueChanged.AddListener(onChanged);
+
+        lastValidIndex = 0; // start on prompt
+    }
+
+
+    void ApplyDropdownStyle(TMP_Dropdown dd, TMP_FontAsset font, float size, Color itemColor, Color itemTextColor)
+    {
+        if (!dd) return;
+
+        // Caption (selected value on button)
+        if (dd.captionText)
+        {
+            if (font) dd.captionText.font = font;
+            dd.captionText.enableAutoSizing = false;
+            dd.captionText.fontSize = size;
+            dd.captionText.overflowMode = TextOverflowModes.Ellipsis;
+            dd.captionText.alignment = TextAlignmentOptions.MidlineLeft;
+        }
+
+        // Template item label
+        TMP_Text templateLabel = dd.itemText;
+        if (!templateLabel && dd.template)
+        {
+            var path = dd.template.Find("Viewport/Content/Item/Item Label");
+            if (path) templateLabel = path.GetComponent<TextMeshProUGUI>();
+        }
+
+        if (templateLabel)
+        {
+            if (font) templateLabel.font = font;
+            templateLabel.enableAutoSizing = false;
+            templateLabel.fontSize = size;
+            templateLabel.overflowMode = TextOverflowModes.Ellipsis;
+            templateLabel.alignment = TextAlignmentOptions.MidlineLeft;
+
+            // Make sure the Dropdown uses this label as the template source
+            dd.itemText = templateLabel;
+
+            // Row height (so 30pt text isn’t cramped)
+            var item = templateLabel.transform.parent; // "Item" (Toggle)
+            if (item)
+            {
+                var le = item.GetComponent<LayoutElement>() ?? item.gameObject.AddComponent<LayoutElement>();
+                le.minHeight = Mathf.Max(36, size + 10);
+
+                var itemBG = item.GetComponent<Image>();
+                if (itemBG) itemBG.color = itemColor;
+            }
+        }
+
+        // Optional visuals
+        if (dd.template)
+        {
+            var templateBG = dd.template.GetComponent<Image>();
+            if (templateBG) templateBG.color = itemColor;
+        }
+    }
+
+
     void OnOfficeSelected(int index)
     {
-        Debug.Log($"===== OnOfficeSelected CALLED =====");
+        Debug.Log("===== OnOfficeSelected CALLED =====");
         Debug.Log($"Selected index: {index}");
 
         if (!officeDropdown)
@@ -611,14 +860,14 @@ public class ManilaServeUI : MonoBehaviour
         string selectedText = officeDropdown.options[index].text;
         Debug.Log($"Selected text: '{selectedText}'");
 
-        if (index <= 0 || nonSelectableIndices.Contains(index))
+        // Placeholder/header guards
+        if (index <= 0 || (nonSelectableIndices != null && nonSelectableIndices.Contains(index)))
         {
             Debug.Log("Index is placeholder or non-selectable");
             selectedOffice = "";
             UpdateNavigationUI();
             return;
         }
-
         if (selectedText == "No offices found" || selectedText == "Loading offices..." || selectedText.StartsWith("—"))
         {
             Debug.Log("Selected text is header or placeholder");
@@ -629,16 +878,40 @@ public class ManilaServeUI : MonoBehaviour
 
         Debug.Log($"✅ Valid office selected: '{selectedText}'");
 
-        // Verify this is actually an office by checking with SmartNavigationSystem
-        var allOffices = navigationSystem?.GetAllOfficeNames() ?? new List<string>();
-        if (!allOffices.Contains(selectedText))
+        // Persist selection (if other UI depends on it)
+        selectedOffice = selectedText;
+        UpdateNavigationUI();
+
+        // Start nav using your existing API; internally it resolves via GetOfficeWaypointPosition()
+        if (!navigationSystem) navigationSystem = FindFirstObjectByType<SmartNavigationSystem>();
+        if (!navigationSystem)
         {
-            Debug.LogError($"❌ '{selectedText}' is NOT in the office list from SmartNavigationSystem!");
-            Debug.Log($"Available offices: {string.Join(", ", allOffices)}");
+            Debug.LogError("SmartNavigationSystem not found in scene.");
             return;
         }
 
-        HandleOfficePicked(selectedText, resetDropdown: true);
+        navigationSystem.StartNavigationToOffice(selectedText);
+    }
+
+    void RefreshOfficeDropdown()
+    {
+        if (!navigationSystem) navigationSystem = FindFirstObjectByType<SmartNavigationSystem>();
+
+        // Use index-based list (not GetAllOfficeNames which might differ)
+        var names = navigationSystem.GetAllOfficeNamesFromIndex();
+
+        officeDropdown.onValueChanged.RemoveListener(OnOfficeSelected);
+        officeDropdown.ClearOptions();
+
+        // Optional: add a placeholder at index 0
+        var options = new List<TMPro.TMP_Dropdown.OptionData> { new TMPro.TMP_Dropdown.OptionData("— Select office —") };
+        options.AddRange(names.ConvertAll(n => new TMPro.TMP_Dropdown.OptionData(n)));
+        officeDropdown.AddOptions(options);
+
+        officeDropdown.value = 0;
+        officeDropdown.RefreshShownValue();
+
+        officeDropdown.onValueChanged.AddListener(OnOfficeSelected);
     }
 
     void OnNavigateClicked()
@@ -928,23 +1201,31 @@ public class ManilaServeUI : MonoBehaviour
 
     void CustomizeDropdownAppearance()
     {
-        if (!officeDropdown) return;
+        var dd = officeDropdown;
+        if (!dd) return;
 
-        var bgImage = officeDropdown.GetComponent<Image>();
+        // Button background
+        var bgImage = dd.GetComponent<Image>();
         if (bgImage)
         {
             if (customDropdownSprite) bgImage.sprite = customDropdownSprite;
             bgImage.color = customBackgroundColor;
         }
 
-        if (officeDropdown.captionText)
+        // Caption (selected value on the button)
+        TMP_Text cap = dd.captionText;
+        if (cap)
         {
-            officeDropdown.captionText.color = customTextColor;
-            officeDropdown.captionText.fontSize = customFontSize;
-            if (customFont) officeDropdown.captionText.font = customFont;
+            if (customFont) cap.font = customFont;
+            cap.enableAutoSizing = false;
+            cap.fontSize = customFontSize;
+            cap.color = customTextColor;
+            cap.richText = true;
+            cap.overflowMode = TextOverflowModes.Ellipsis;
         }
 
-        var arrow = officeDropdown.transform.Find("Arrow");
+        // Arrow
+        var arrow = dd.transform.Find("Arrow");
         if (arrow)
         {
             var arrowImage = arrow.GetComponent<Image>();
@@ -955,41 +1236,54 @@ public class ManilaServeUI : MonoBehaviour
             }
         }
 
-        if (officeDropdown.template)
+        // Template list background
+        if (dd.template)
         {
-            var templateBg = officeDropdown.template.GetComponent<Image>();
+            var templateBg = dd.template.GetComponent<Image>();
             if (templateBg) templateBg.color = customDropdownBgColor;
 
-            var templateText = officeDropdown.template.GetComponentInChildren<TextMeshProUGUI>();
-            if (templateText)
+            // EXPLICITLY find the template item and its label (this is what all rows clone)
+            var item = dd.template.Find("Viewport/Content/Item");
+            if (item)
             {
-                templateText.color = customItemTextColor;
-                templateText.fontSize = customFontSize;
-                if (customFont) templateText.font = customFont;
+                var label = item.Find("Item Label")?.GetComponent<TMP_Text>();
+                if (label)
+                {
+                    if (customFont) label.font = customFont;
+                    label.enableAutoSizing = false;       // avoid shrinking to 14 at runtime
+                    label.fontSize = customFontSize;
+                    label.color = customItemTextColor;
+                    label.richText = true;
+                    label.overflowMode = TextOverflowModes.Ellipsis;
+
+                    // Ensure the dropdown uses THIS label as the clone source
+                    dd.itemText = label;
+                }
+
+                // Row height to fit the font
+                var le = item.GetComponent<LayoutElement>() ?? item.gameObject.AddComponent<LayoutElement>();
+                le.minHeight = Mathf.Max(40, (int)customFontSize + 10);
+
+                // Optional: per-row background color
+                var itemBgImage = item.GetComponent<Image>();
+                if (itemBgImage) itemBgImage.color = customItemColor;
             }
 
-            var scrollbar = officeDropdown.template.GetComponentInChildren<Scrollbar>();
+            // Scrollbar and viewport colors (optional)
+            var scrollbar = dd.template.GetComponentInChildren<Scrollbar>(true);
             if (scrollbar)
             {
                 var scrollbarImage = scrollbar.GetComponent<Image>();
                 if (scrollbarImage) scrollbarImage.color = customDropdownBgColor;
 
-                var handleImage = scrollbar.handleRect?.GetComponent<Image>();
+                var handleImage = scrollbar.handleRect ? scrollbar.handleRect.GetComponent<Image>() : null;
                 if (handleImage) handleImage.color = customArrowColor;
             }
-
-            var viewport = officeDropdown.template.Find("Viewport");
+            var viewport = dd.template.Find("Viewport");
             if (viewport)
             {
                 var viewportImage = viewport.GetComponent<Image>();
                 if (viewportImage) viewportImage.color = customDropdownBgColor;
-            }
-
-            var itemBackground = officeDropdown.template.Find("Viewport/Content/Item");
-            if (itemBackground)
-            {
-                var itemBgImage = itemBackground.GetComponent<Image>();
-                if (itemBgImage) itemBgImage.color = customItemColor;
             }
         }
     }
@@ -1335,6 +1629,42 @@ public class ManilaServeUI : MonoBehaviour
         Debug.Log($"User selected: {officeName}");
     }
 
+    void StyleCurrentOfficeTemplate()
+    {
+        if (!currentOfficeDropdown) return;
+
+        // Caption (button text)
+        var cap = currentOfficeDropdown.captionText;
+        if (cap != null)
+        {
+            if (customFont) cap.font = customFont;
+            cap.enableAutoSizing = false;
+            cap.fontSize = customFontSize;              // e.g., 30
+            cap.color = customTextColor;                // e.g., black
+            cap.richText = true;
+            cap.overflowMode = TMPro.TextOverflowModes.Ellipsis;
+        }
+
+        // Template item label (what runtime rows clone)
+        var itemLabel = currentOfficeDropdown.itemText;
+        if (itemLabel != null)
+        {
+            if (customFont) itemLabel.font = customFont;
+            itemLabel.enableAutoSizing = false;         // avoid shrinking to 14
+            itemLabel.fontSize = customFontSize;
+            itemLabel.color = customItemTextColor;      // e.g., black
+            itemLabel.richText = true;
+            itemLabel.overflowMode = TMPro.TextOverflowModes.Ellipsis;
+
+            // Ensure row height fits the font
+            var row = itemLabel.transform.parent;       // "Item" (Toggle)
+            if (row)
+            {
+                var le = row.GetComponent<LayoutElement>() ?? row.gameObject.AddComponent<LayoutElement>();
+                le.minHeight = Mathf.Max(40, (int)customFontSize + 10);
+            }
+        }
+    }
     List<string> GetSearchMatches(string searchText)
     {
         if (string.IsNullOrWhiteSpace(searchText)) return new List<string>();
@@ -1396,6 +1726,12 @@ public class ManilaServeUI : MonoBehaviour
     public void ShowOfficeInfoPopup(string officeName)
     {
         if (!officeInfoPopup) return;
+
+        if (IsDividerOrPlaceholder(officeName))
+        {
+            Debug.Log($"[OfficePopup] Ignored divider/placeholder: {officeName}");
+            return;
+        }
 
         Debug.Log($"ShowOfficeInfoPopup called for: '{officeName}'");
 
@@ -1703,59 +2039,30 @@ void InitializeOfficeNameMappings()
 
     void OnCurrentOfficeSelected(int index)
     {
-        Debug.Log($"[UI] OnCurrentOfficeSelected called with index: {index}"); // ✅ ADD
+        if (suppressCurrentSelection) return;
 
-        if (!currentOfficeDropdown || index <= 0 || nonSelectableIndices.Contains(index))
+        var raw = currentOfficeDropdown.options[index].text;
+
+        // Block prompt, headers, and “no data” rows
+        if (index == 0 || currentHeaderIndices.Contains(index) || IsDividerOrPlaceholder(raw))
         {
-            Debug.Log("[UI] Invalid selection, clearing"); // ✅ ADD
-            selectedCurrentOffice = "";
-            UpdateNavigationUI();
+            suppressCurrentSelection = true;
+            currentOfficeDropdown.SetValueWithoutNotify(lastValidCurrentIndex);
+            currentOfficeDropdown.RefreshShownValue();
+            suppressCurrentSelection = false;
+
+            // Keep list open so the user can pick a real office (optional)
+            StartCoroutine(ReopenDropdown(currentOfficeDropdown));
             return;
         }
 
-        string text = currentOfficeDropdown.options[index].text;
-        Debug.Log($"[UI] Dropdown text: '{text}'"); // ✅ ADD
+        // Accept normal selection
+        lastValidCurrentIndex = index;
 
-        if (text == "No offices found" || text == "Loading offices..." || text.StartsWith("—"))
-        {
-            Debug.Log("[UI] Invalid office text, clearing"); // ✅ ADD
-            selectedCurrentOffice = "";
-            UpdateNavigationUI();
-            return;
-        }
-
-        selectedCurrentOffice = text;
-        Debug.Log($"[UI] ✅ Selected current office: '{selectedCurrentOffice}'"); // ✅ ADD
-
-        // ✅ ADD EXTENSIVE LOGGING:
-        Debug.Log($"[UI] nav reference is: {(nav != null ? "VALID" : "NULL")}");
-
-        if (nav != null)
-        {
-            Debug.Log("[UI] Calling FindWaypointPositionByOfficeName..."); // ✅ ADD
-            Vector3 officePosition = FindWaypointPositionByOfficeName(selectedCurrentOffice);
-
-            Debug.Log($"[UI] Office position found: {officePosition}"); // ✅ ADD
-
-            if (officePosition != Vector3.zero)
-            {
-                Debug.Log("[UI] ✅ Calling AlignBuildingToUserPosition..."); // ✅ ADD
-                nav.AlignBuildingToUserPosition(officePosition);
-            }
-            else
-            {
-                Debug.LogWarning($"[UI] ❌ Could not find waypoint position for: {selectedCurrentOffice}");
-            }
-        }
-        else
-        {
-            Debug.LogError("[UI] ❌ SmartNavigationSystem reference is NULL!");
-        }
-
-        UpdateNavigationUI();
-        Debug.Log("[UI] OnCurrentOfficeSelected completed"); // ✅ ADD
+        string officeName = StripRichText(raw).Trim();
+        // TODO: Use the selected current office (set a field, update UI, etc.)
+        // e.g., selectedCurrentOffice = officeName;
     }
-
 
     void SetupDropdowns()
     {

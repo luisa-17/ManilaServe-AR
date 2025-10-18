@@ -20,9 +20,14 @@ public class FirebaseOfficeManager : MonoBehaviour
     [Serializable] public class OfficeData { public List<Office> offices; }
 
     public static event Action<Dictionary<string, Office>> OnOfficeDataLoaded;
+
+    // In-memory DB
     private Dictionary<string, Office> officeDatabase = new Dictionary<string, Office>(); // keyed by original OfficeName
     private Dictionary<string, Office> officeDatabaseById = new Dictionary<string, Office>();
     private Dictionary<string, Office> officeDatabaseByNameNormalized = new Dictionary<string, Office>(); // normalized -> Office
+
+    // Optional helper if you want to check readiness
+    public bool IsReady => isInitialized && (officeDatabaseById.Count > 0 || officeDatabase.Count > 0);
 
     void Start()
     {
@@ -166,6 +171,36 @@ public class FirebaseOfficeManager : MonoBehaviour
         return s;
     }
 
+    // NEW: ID lookup
+    public Office GetOfficeById(string officeId)
+    {
+        if (string.IsNullOrWhiteSpace(officeId)) return null;
+
+        if (officeDatabaseById.TryGetValue(officeId, out var byId))
+            return byId;
+
+        // Fallbacks: sometimes you might accidentally pass a name in here
+        if (officeDatabase.TryGetValue(officeId, out var byNameExact))
+            return byNameExact;
+
+        var norm = Normalize(officeId);
+        if (officeDatabaseByNameNormalized.TryGetValue(norm, out var byNameNorm))
+            return byNameNorm;
+
+        Debug.LogWarning($"GetOfficeById: no match for '{officeId}'");
+        return null;
+    }
+
+    // NEW: return list of all offices currently loaded
+    public List<Office> GetAllOffices()
+    {
+        // Prefer the ID dictionary (keys are stable)
+        if (officeDatabaseById != null && officeDatabaseById.Count > 0)
+            return officeDatabaseById.Values.ToList();
+
+        return officeDatabase.Values.ToList();
+    }
+
     // Robust name lookup using several heuristics
     public Office GetOfficeByName(string officeName)
     {
@@ -218,6 +253,7 @@ public class FirebaseOfficeManager : MonoBehaviour
         s = s.Replace("ImageTarget_", "").Replace("Target_", "");
         return s.Trim();
     }
+
     // Attempts to find your NavigationWaypoint objects and fill their OfficeName and Services if possible.
     // It uses reflection so it will work whether the fields are public or [SerializeField] private fields.
     public void MapOfficesToWaypoints()
@@ -280,27 +316,25 @@ public class FirebaseOfficeManager : MonoBehaviour
                         wp.services = new string[0];
 
                     mapped++;
-
-                    // If you want these changes persisted in the Editor (not required at runtime), mark object dirty:
 #if UNITY_EDITOR
-                if (!Application.isPlaying)
-                {
-                    UnityEditor.Undo.RecordObject(wp, "Map Office to Waypoint");
-                    UnityEditor.EditorUtility.SetDirty(wp);
-                }
+if (!Application.isPlaying)
+{
+UnityEditor.Undo.RecordObject(wp, "Map Office to Waypoint");
+UnityEditor.EditorUtility.SetDirty(wp);
+}
 #endif
                 }
                 else
                 {
-                    Debug.LogWarning($"No office match for Waypoint '{wp.name}' (officeName='{wp.officeName}', waypointName='{wp.waypointName}').");
+                    Debug.LogWarning("No office match for Waypoint '{wp.name}' (officeName='{wp.officeName}', waypointName='{wp.waypointName}').");
                 }
             }
             catch (Exception ex)
             {
-                Debug.LogError($"MapOfficesToWaypoints error for {wp.name}: {ex}");
+                Debug.LogError("MapOfficesToWaypoints error for {wp.name}: {ex}");
             }
         }
 
-        Debug.Log($"MapOfficesToWaypoints done. Matched {mapped}/{waypoints.Length} waypoints.");
+    Debug.Log($"MapOfficesToWaypoints done. Matched {mapped}/{waypoints.Length} waypoints.");
     }
 }

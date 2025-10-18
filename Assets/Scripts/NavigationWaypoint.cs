@@ -2,6 +2,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 using UnityEditor;
+using System.Linq;
 
 
 public class NavigationWaypoint : MonoBehaviour
@@ -30,6 +31,7 @@ public class NavigationWaypoint : MonoBehaviour
     public Color waypointColor = Color.cyan;
     public bool showInEditor = true;
 
+
     void Reset()
     {
         waypointName = gameObject.name;
@@ -53,7 +55,7 @@ public class NavigationWaypoint : MonoBehaviour
     }
 
     // --------- LOS + link helpers ---------
-    bool HasLineOfSight(Vector3 from, Vector3 to)
+    public bool HasLineOfSight(Vector3 from, Vector3 to)
     {
         Vector3 a = from + Vector3.up * 0.6f;
         Vector3 b = to + Vector3.up * 0.6f;
@@ -73,7 +75,7 @@ public class NavigationWaypoint : MonoBehaviour
         return true;
     }
 
-    void AddLinkBidirectional(NavigationWaypoint other)
+    public void AddLinkBidirectional(NavigationWaypoint other)
     {
         if (!other || other == this) return;
 
@@ -84,14 +86,13 @@ public class NavigationWaypoint : MonoBehaviour
         if (!other.connectedWaypoints.Contains(this)) other.connectedWaypoints.Add(this);
     }
 
-    void RemoveLinkBidirectional(NavigationWaypoint other)
+    public void RemoveLinkBidirectional(NavigationWaypoint other)
     {
         if (!other) return;
         connectedWaypoints?.Remove(other);
         other.connectedWaypoints?.Remove(this);
     }
 
-    // --------- Rebuild API (called by editor script) ---------
     public void RebuildConnectionsThisOnly(NavigationWaypoint[] all)
     {
         connectedWaypoints ??= new List<NavigationWaypoint>();
@@ -113,8 +114,8 @@ public class NavigationWaypoint : MonoBehaviour
     public static int RebuildConnectionsAll()
     {
         var all = FindObjectsByType<NavigationWaypoint>(FindObjectsSortMode.None);
-
-        foreach (var wp in all)
+    
+foreach (var wp in all)
         {
             wp.connectedWaypoints ??= new List<NavigationWaypoint>();
             wp.connectedWaypoints.Clear();
@@ -161,6 +162,95 @@ public class NavigationWaypoint : MonoBehaviour
         }
     }
 
+    public static int MakeLinksBidirectional(bool removeInvalid = true, bool deduplicate = true)
+    {
+        var all = Resources.FindObjectsOfTypeAll<NavigationWaypoint>()
+        .Where(wp => wp && wp.gameObject.scene.IsValid())
+        .ToArray();
+
+int added = 0, removed = 0, deduped = 0;
+
+        foreach (var a in all)
+        {
+            a.connectedWaypoints ??= new List<NavigationWaypoint>();
+
+            // Remove invalid/self links
+            if (removeInvalid)
+            {
+                for (int i = a.connectedWaypoints.Count - 1; i >= 0; i--)
+                {
+                    var b = a.connectedWaypoints[i];
+                    if (b == null || !b.gameObject.scene.IsValid() || b == a)
+                    {
+                        a.connectedWaypoints.RemoveAt(i);
+                        removed++;
+                    }
+                }
+            }
+
+            // De-duplicate
+            if (deduplicate && a.connectedWaypoints.Count > 1)
+            {
+                int before = a.connectedWaypoints.Count;
+                a.connectedWaypoints = a.connectedWaypoints.Distinct().ToList();
+                deduped += before - a.connectedWaypoints.Count;
+            }
+        }
+
+        // Ensure reverse links
+        foreach (var a in all)
+        {
+            foreach (var b in a.connectedWaypoints)
+            {
+                if (b == null) continue;
+                b.connectedWaypoints ??= new List<NavigationWaypoint>();
+                if (!b.connectedWaypoints.Contains(a))
+                {
+                    b.connectedWaypoints.Add(a);
+                    added++;
+                }
+            }
+        }
+
+        Debug.Log($"[Waypoints] MakeLinksBidirectional: added reverse={added}, removed invalid={removed}, deduped={deduped}.");
+        return added;
+    }
+
+    public static void ReportGraphIssues()
+    {
+        var all = Resources.FindObjectsOfTypeAll<NavigationWaypoint>()
+        .Where(wp => wp && wp.gameObject.scene.IsValid())
+        .ToArray();
+    
+int oneSided = 0, selfRefs = 0, nullRefs = 0, dups = 0, noConn = 0;
+
+        foreach (var a in all)
+        {
+            if (a.connectedWaypoints == null || a.connectedWaypoints.Count == 0)
+            {
+                noConn++;
+                Debug.LogWarning($"⚠ {a.name} has NO connections!");
+                continue;
+            }
+
+            var seen = new HashSet<NavigationWaypoint>();
+            foreach (var b in a.connectedWaypoints)
+            {
+                if (b == null) { nullRefs++; continue; }
+                if (b == a) { selfRefs++; continue; }
+                if (!seen.Add(b)) dups++;
+
+                if (b.connectedWaypoints == null || !b.connectedWaypoints.Contains(a))
+                {
+                    oneSided++;
+                    Debug.LogWarning($"↔ One-sided: {a.name} → {b.name} (missing reverse).");
+                }
+            }
+        }
+
+        Debug.Log($"[Waypoints] Report: oneSided={oneSided}, self={selfRefs}, null={nullRefs}, dups={dups}, noConn={noConn}, nodes={all.Length}");
+    }
+
     public void RemoveAllLinksThisOnly()
     {
         if (connectedWaypoints == null) return;
@@ -169,28 +259,87 @@ public class NavigationWaypoint : MonoBehaviour
         connectedWaypoints.Clear();
     }
 
-    // Pair stair nodes across floors
-    private void LinkStairPairs()
+    // Pair stair nodes across floors (robust)
+    public void LinkStairPairs()
     {
+        // Tolerances
+        float maxHorizontal = 2.0f;  // meters
+        float minVertical = 1.2f;  // meters
+
         var all = FindObjectsByType<NavigationWaypoint>(FindObjectsSortMode.None);
+        Vector2 myXZ = new Vector2(transform.position.x, transform.position.z);
+        float myY = transform.position.y;
+
+        // Prefer exact id if you added a 'stairId' field
+        string myId = null;
+        var t = GetType();
+        var fi = t.GetField("stairId", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+        if (fi != null) myId = fi.GetValue(this) as string;
+
+        NavigationWaypoint best = null;
+        float bestScore = float.MaxValue;
 
         foreach (var wp in all)
         {
-            if (wp == this) continue;
+            if (wp == null || wp == this) continue;
             if (wp.waypointType != WaypointType.Stairs) continue;
 
-            float horizontalDist = Vector2.Distance(
-                new Vector2(transform.position.x, transform.position.z),
-                new Vector2(wp.transform.position.x, wp.transform.position.z)
-            );
-            float verticalDist = Mathf.Abs(transform.position.y - wp.transform.position.y);
+            float v = Mathf.Abs(wp.transform.position.y - myY);
+            if (v < minVertical) continue; // must be another floor
 
-            if (horizontalDist <= 1.5f && verticalDist > 1.5f)
+            float h = Vector2.Distance(new Vector2(wp.transform.position.x, wp.transform.position.z), myXZ);
+            if (h > maxHorizontal) continue;
+
+            // If stairId exists, require same id
+            if (!string.IsNullOrEmpty(myId))
             {
-                AddLinkBidirectional(wp);
+                string otherId = null;
+                var t2 = wp.GetType();
+                var fi2 = t2.GetField("stairId", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+                if (fi2 != null) otherId = fi2.GetValue(wp) as string;
+                if (!string.Equals(myId, otherId, System.StringComparison.OrdinalIgnoreCase)) continue;
+            }
+
+            float score = h + v * 0.1f; // prefer close horizontally
+            if (score < bestScore)
+            {
+                bestScore = score;
+                best = wp;
             }
         }
+
+        if (best != null)
+        {
+            AddLinkBidirectional(best);
+            // Also ensure each stairs node has links to nearby corridor nodes on its floor
+            LinkLocalCorridorNeighbors(this);
+            LinkLocalCorridorNeighbors(best);
+            // Debug.Log($"[STAIRS] Paired {name} ↔ {best.name}");
+        }
     }
+
+    void LinkLocalCorridorNeighbors(NavigationWaypoint stair)
+    {
+        var all = FindObjectsByType<NavigationWaypoint>(FindObjectsSortMode.None);
+        float radius = 3.0f; // meters
+        float yTol = 0.75f;
+        Vector2 sxz = new Vector2(stair.transform.position.x, stair.transform.position.z);
+        float sy = stair.transform.position.y;
+
+        foreach (var wp in all)
+        {
+            if (wp == null || wp == stair) continue;
+            if (wp.waypointType == WaypointType.Stairs) continue;
+
+            float v = Mathf.Abs(wp.transform.position.y - sy);
+            if (v > yTol) continue;
+
+            float h = Vector2.Distance(new Vector2(wp.transform.position.x, wp.transform.position.z), sxz);
+            if (h <= radius)
+                stair.AddLinkBidirectional(wp);
+        }
+    }
+
 
     // --------- Gizmos ---------
     void OnDrawGizmos()

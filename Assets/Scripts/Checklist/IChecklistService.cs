@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 
+
 [Serializable]
 public class ChecklistDTO
 {
@@ -8,14 +9,13 @@ public class ChecklistDTO
     public string OfficeName;
     public string ServiceName;
 
-    public List<string> Requirements = new List<string>();
+public List<string> Requirements = new List<string>();
     public List<bool> CheckedItems = new List<bool>();
 
-    // NEW: admin-driven ordering
-    public List<int> Priorities = new List<int>();      // aligns 1:1 with Requirements
-    public List<float> Fees = new List<float>();        // optional, can stay empty
+    public List<int> Priorities = new List<int>();   // optional
+    public List<float> Fees = new List<float>();     // optional
 
-    public float Progress; // 0..1
+    public float Progress; // 0..1 (your UI recomputes, so can be ignored)
 }
 
 public interface IChecklistService

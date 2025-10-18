@@ -1,7 +1,9 @@
-﻿using UnityEngine;
+﻿
+using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using System.Collections;
+using System.Threading.Tasks; // add
 
 public class ChecklistFAB : MonoBehaviour
 {
@@ -9,14 +11,13 @@ public class ChecklistFAB : MonoBehaviour
     public Button button;
     public CanvasGroup canvasGroup;
 
+    [Header("Auth Panel")]
+    public AuthPanelController authPanelPrefab;
+    public Transform uiParent; // drag your overlay Canvas here
+
     [Header("Navigation")]
-    [Tooltip("The scene to load for the checklist page")]
     public string checklistSceneName = "ChecklistScene";
-
-    [Tooltip("Additive keeps your AR scene alive. Switch to Single for a hard scene change.")]
     public LoadSceneMode loadMode = LoadSceneMode.Additive;
-
-    [Tooltip("If additive, make the Checklist scene the active one after load")]
     public bool makeChecklistSceneActive = true;
 
     [Header("Animation")]
@@ -93,21 +94,79 @@ public class ChecklistFAB : MonoBehaviour
         canvasGroup.interactable = visible;
     }
 
-    void OnClick()
+    async void OnClick()
     {
         if (isOpening) return;
-        StartCoroutine(OpenChecklistScene());
+        isOpening = true;
+
+canvasGroup.blocksRaycasts = false;
+        canvasGroup.interactable = false;
+        canvasGroup.alpha = 0.8f;
+
+        var initOk = await AuthService.EnsureInitializedAsync();
+        if (!initOk)
+        {
+            Debug.LogError("Auth init failed");
+            EnableChecklistButtonAgain();
+            return;
+        }
+
+        await AuthService.WaitForAuthRestorationAsync(1500);
+        Debug.Log($"Auth IsSignedIn = {AuthService.IsSignedIn}");
+
+        if (AuthService.IsSignedIn)
+        {
+            // Already signed in -> go straight to checklist (Single load)
+            StartCoroutine(OpenChecklistScene());
+            return;
+        }
+
+        // Not signed in -> open auth popup
+        var panel = SpawnAuthPanel();
+        if (panel == null)
+        {
+            Debug.LogError("AuthPanel prefab not assigned on ChecklistFAB.");
+            EnableChecklistButtonAgain();
+            isOpening = false;
+            return;
+        }
+
+        panel.OnClosed += success =>
+        {
+            if (success)
+            {
+                StartCoroutine(OpenChecklistScene());
+            }
+            else
+            {
+                EnableChecklistButtonAgain();
+                isOpening = false;
+            }
+        };
+    }
+
+    AuthPanelController SpawnAuthPanel()
+    {
+        if (!authPanelPrefab) return null;
+        Transform parent = uiParent;
+        if (parent == null)
+        {
+            // Fallback: find a Canvas, but this may pick a world-space canvas.
+            // Prefer explicitly assigning uiParent to your overlay Canvas in the Inspector.
+            var canvas = FindFirstObjectByType<Canvas>(FindObjectsInactive.Include);
+            if (canvas != null) parent = canvas.transform;
+        }
+
+
+        var panel = Instantiate(authPanelPrefab, parent, false);
+        panel.gameObject.SetActive(true);
+        panel.OpenLoginMode();
+        return panel;
     }
 
     IEnumerator OpenChecklistScene()
     {
-        isOpening = true;
-
-        // 🔹 Completely disable FAB's raycasts to allow clicks behind (signup/login)
-        canvasGroup.blocksRaycasts = false;
-        canvasGroup.interactable = false;
-        canvasGroup.alpha = 0.8f; // 🔹 optional visual dim (can remove)
-
+        // leave FAB disabled while transitioning
         var ui = FindFirstObjectByType<ManilaServeUI>();
         if (ui != null) ChecklistContext.SelectedOffice = ui.GetSelectedOffice();
 
@@ -128,12 +187,11 @@ public class ChecklistFAB : MonoBehaviour
         }
     }
 
-    // 🔹 Called when login/signup closes or checklist scene exits
     public void EnableChecklistButtonAgain()
     {
         isOpening = false;
         canvasGroup.interactable = true;
         canvasGroup.blocksRaycasts = true;
-        canvasGroup.alpha = 1f; // 🔹 restore full visibility
+        canvasGroup.alpha = 1f;
     }
 }

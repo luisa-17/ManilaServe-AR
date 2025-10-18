@@ -3,15 +3,23 @@
 using Vuforia;
 #endif
 
-using UnityEngine;
+    using UnityEngine;
     using UnityEngine.UI;
     using TMPro;
     using System.Collections.Generic;
-    using System.Collections;   // ✅ needed for IEnumerator
+    using System.Collections; 
     using System.Linq;
     using UnityEngine.Rendering;
-using System;
-using Random = UnityEngine.Random;
+    using System;
+    using Random = UnityEngine.Random;
+    using System.Text;
+
+
+#if UNITY_EDITOR
+using UnityEditor;
+using UnityEditor.SceneManagement;
+#endif
+
 
 
 
@@ -43,22 +51,106 @@ public class SmartNavigationSystem : MonoBehaviour
     // Bake flag: true once the world has been placed (markerless or marker-based)
     [SerializeField] private bool worldBaked = false;
 
-    [Header("World horizontal ground (ARCore)")]
+    // Force using waypoint graph (no direct shortcuts)
+[SerializeField] private bool forceWaypointRouting = true;
+
+// Path containers (add if you don’t already have them)
+[SerializeField] private List<NavigationWaypoint> currentPathNodes = new List<NavigationWaypoint>();
+[SerializeField] private List<Vector3> currentPath = new List<Vector3>();
+private HashSet<int> stairsSegments = new HashSet<int>();
+    [SerializeField] private bool drawRouteLine = false;
+
+
+
+    // Tiny lift on stair segments (if you already have it, keep your value)
+    [SerializeField] private float stairsExtraLift = 0.05f;
+
+[Header("World horizontal ground (ARCore)")]
     bool groundPlaneReady = false;
     Vector3 groundPlanePoint;
     Vector3 groundPlaneNormal = Vector3.up;
 
+    [Header("AR Ground Snap")]
+    public UnityEngine.XR.ARFoundation.ARRaycastManager raycastMgr; // set by placement
+    public bool preferARGroundRaycast = true;
+    public float groundRayHeight = 2f;
+    public float groundOffset = 0.02f;
+    public float fallbackGroundY = 0f; // set on placement
+
+    // ===== ENTRANCE START / DETECTION =====
+    [Header("Entrance Start")]
+    [Tooltip("If true, route start uses the entrance node when available; otherwise uses the camera pose.")]
+    public bool startFromEntrance = true;
+
+    [Tooltip("Entrance waypoint/node (your Waypoint_Entrance_*). Assign in Inspector or via PlaceOnFloorARF.")]
+    public Transform entranceNode;
+
+    [Tooltip("Label used by UI when showing entrance detected.")]
+    public string entranceDisplayName = "City Hall Entrance";
+
+    [Tooltip("Entrance detection radius in meters (planar).")]
+    [Range(0.3f, 6f)] public float entranceDetectRadiusMeters = 2f;
+
+    [Header("Arrows Root (World)")]
+    public Transform worldRootForArrows; // assign ContentAnchor or WorldRoot in Inspector
+
+    // Turn Hints (UI + settings    
     [Header("Turn Hints (Optional)")]
-    public TMPro.TMP_Text turnText; // assign DirectionText if you want
+    public TMP_Text turnText;                    // assign in Inspector (or use UnityEngine.UI.Text)
     [Range(1f, 10f)] public float turnAnnounceDistance = 3f;
     [Range(0.3f, 3f)] public float turnPassDistance = 0.7f;
-    struct TurnEvent { public int index; public Vector3 pos; public int dir; /* -1 left, +1 right, 0 u/straight */ }
-    readonly System.Collections.Generic.List<TurnEvent> _turns = new();
+
+    [Header("Turn Hints UI")]
+    public GameObject turnPanel;                 // optional: panel to toggle visibility
+
+    [Header("Turn Hints Settings")]
+    public bool useCompassHeading = true;        // use HeadingService on device; editor falls back to camera yaw
+    [Range(5, 30)] public float straightTolerance = 15f;
+    [Range(25, 60)] public float slightTolerance = 45f;
+    [Tooltip("Smooth the turn angle to avoid flicker (seconds)")]
+    public float angleSmoothTau = 0.2f;
+
+
+    // Internal state for turn guidance
+    struct TurnEvent { public int index; public Vector3 pos; public int dir; } // -1 left, +1 right
+    readonly List<TurnEvent> _turns = new List<TurnEvent>();
     int _nextTurn = -1;
     bool _turnAnnounced = false;
+    float _angleSmoothedDeg = 0f;
 
-    private Queue<GameObject> arrowPool = new Queue<GameObject>();
-    public int arrowPoolPrewarm = 24;
+    // Distance calibration and mode for UI
+    [Header("Turn Hint Distance")]
+    [Tooltip("If true, show distance ALONG the path instead of straight line.")]
+    public bool usePathDistanceForHints = true;
+
+    // Start-facing gate (optional)
+    [Header("Start Facing Gate")]
+    public bool requireFacingGate = true;                 // hide arrows until user faces route
+    [Range(5f, 60f)] public float startFacingTolerance = 25f; // degrees
+    [Range(0.5f, 10f)] public float gateRevealTimeout = 6f;   // seconds
+    Coroutine facingGateRoutine = null;                        // store the running coroutine (optional)
+
+    [Tooltip("Meters per Unity unit (1 if your world is meter-scaled). Adjust if your floorplan is not to real scale.")]
+    public float metersPerUnit = 1f;
+
+    // ===== Multi-floor routing =====
+    [Header("Multi-floor")]
+    [Tooltip("Y difference (meters) to consider two nodes on the same floor.")]
+    public float floorMatchTolerance = 1.5f;
+
+    [SerializeField] private float floorSplitY = 5f;
+    private bool IsSecondFloor(Vector3 p) => p.y > floorSplitY;
+
+    [Tooltip("If BFS fails across floors, horizontal radius (meters) to search stairs around start/goal.")]
+    public float stairsSearchRadiusMeters = 30f;
+
+    [Tooltip("Tokens used to detect stair nodes in name if stairId is not present.")]
+    public string[] stairNameTokens = new[] { "stairs", "stair" };
+
+    // ===== Stairs Handling =====
+    [Header("Stairs Handling")]
+    [Tooltip("World Y delta (meters) above which a segment is considered a stairs segment.")]
+    public float stairsElevationDeltaMin = 0.5f;
 
     [Header("Debug (optional)")]
     [Tooltip("Assign any debug/test GameObjects you want hidden while navigating")]
@@ -68,6 +160,7 @@ public class SmartNavigationSystem : MonoBehaviour
 
     [HideInInspector] public string currentUserOffice = ""; // User's current office location
     [HideInInspector] public bool useOfficeAsStart = false; // Whether to use office position instead of camera
+
 
 
     // Auto-locate anchors if not assigned (so PathRoot has a valid parent)
@@ -145,6 +238,31 @@ Debug.Log("[Anchor] baked under WorldRoot.");
 }
 #endif
 
+    // Floorplan visibility control
+    [Header("Floorplan Visibility")]
+    [Tooltip("Root Transform of your 3D floor model (e.g., WorldRoot/ContentAnchor/GroundFloor_Building)")]
+    public Transform floorsRoot;                // drag GroundFloor_Building here
+    [Tooltip("Optional UI overlay for the floorplan image, if any")]
+    public GameObject floorPlanUIRoot;          // drag the UI image/panel if you showed it before
+    [Tooltip("Hide floors only while navigation is running")]
+    public bool hideFloorsOnlyDuringNav = true;
+
+    [Header("Progressive Arrows")]
+    public bool progressiveReveal = true;
+    public float revealAheadMeters = 10f;
+    public float redrawMoveThresholdMeters = 0.5f;
+
+    int _lastProjSeg = -1;
+    Vector3 _lastProjPos;
+
+    bool floorsWereVisibleBeforeNav = true;     // captured when nav starts
+    bool navSessionActive = false;              // true between StartNavigationProceed and CancelNavigate/arrival
+
+    [Header("Corridor Recentering")]
+    public LayerMask wallsLayerMask;            // set to "Walls"
+    [Range(0.5f, 5f)] public float corridorProbeHalfWidth = 1.5f;
+    [Range(0f, 0.5f)] public float recenterRayOriginHeight = 0.4f;
+
     // add once near the other fields at top of SmartNavigationSystem class
     [HideInInspector] public bool startedFromOffice = false;
 
@@ -191,17 +309,22 @@ Debug.Log("[Anchor] baked under WorldRoot.");
     public GameObject arrowPrefab;               // arrow prefab to instantiate
     public Material arrowMaterial;
     public Color arrowColor = Color.cyan;
-    public float arrowSpacing = 3f;
     public float arrowSize = 0.6f;
-    public float groundOffset = 0.1f;
     public bool useGroundDetection = true;
+    public Transform arrowsParent;
+    [Min(0)] public int arrowPoolPrewarm = 48;
+
+    // Path Arrows spawn settings
+    [Range(0.2f, 2f)] public float arrowSpacing = 0.8f;
+
+    readonly List<GameObject> activeArrows = new List<GameObject>();
+    Queue<GameObject> arrowPool;           // backing pool
 
     [Header("Arrow spawn / scale")]
     public float arrowBaseScale = 1.0f;
     public float arrowVerticalOffset = 0.02f;
 
     [HideInInspector] public List<GameObject> pathArrows = new List<GameObject>();
-    [HideInInspector] public List<Vector3> currentPath = new List<Vector3>();
 
     // optional organization transform
     [SerializeField] private Transform pathRoot; // will be created if null
@@ -343,31 +466,60 @@ Debug.Log("[Anchor] baked under WorldRoot.");
 
     private Dictionary<string, GameObject> officeLookup = new Dictionary<string, GameObject>();
 
-    // Returns all NavigationWaypoint components that actually live in the loaded scene
-    // (filters out prefab assets and editor-only objects).
-    static NavigationWaypoint[] GetAllRuntimeWaypoints()
-    {
-        var all = Resources.FindObjectsOfTypeAll<NavigationWaypoint>();
-        var list = new System.Collections.Generic.List<NavigationWaypoint>();
-        foreach (var wp in all)
-            if (wp && wp.gameObject.scene.IsValid())
-                list.Add(wp);
-        return list.ToArray();
-    }
 
     [Header("Arrival Detection")]
-    [Tooltip("Distance threshold to consider user has arrived at destination")]
-    [Range(0.5f, 5f)] public float arrivalDistanceThreshold = 2.0f;
+    public float arrivalDistanceThreshold = 1.0f; // meters
+    public float arrivalConfirmTime = 1.0f;       // seconds inside the zone before confirming
+    public bool autoCancelOnArrival = true;
+    public GameObject arrivalPanel;               // optional: assign your ArrivalPanel if you have one
+    public ServiceArrivalManager serviceArrivalManager; // optional: assign if you want the popup
 
-    [Tooltip("Time user must stay within threshold to confirm arrival")]
-    [Range(0f, 3f)] public float arrivalConfirmTime = 1.0f;
+    // ---------------- Start override (for "I'm at <Office>") ----------------
+    [SerializeField] bool useStartOverride = false;
+    [SerializeField] Vector3 startOverrideWorldPos;
+    [SerializeField] Transform startOverrideTransform; // for debug
 
-    [Tooltip("Show arrival notification")]
-    public bool enableArrivalNotification = true;
+    // Internal
+    float timeWithinArrivalZone = 0f;
+    bool hasReachedDestination = false;
+    bool hasShownArrivalNotification = false;
 
-    private float timeWithinArrivalZone = 0f;
-    private bool hasShownArrivalNotification = false;
+    [SerializeField] private GameObject targetMarkerPrefab;
+    [SerializeField] private Material routeMat;
+    [SerializeField] private Color routeColor = new Color(0f, 0.65f, 1f, 0.85f);
+    [SerializeField] private float routeWidth = 0.07f;
 
+    private GameObject arrowGO;
+    private GameObject targetMarkerGO;
+    private LineRenderer routeLR;
+    private Transform navRoot; // parent for nav visuals
+
+    private NavigationWaypoint currentDestinationWaypoint = null;
+    private float targetMarkerBaseY = float.NaN; // for bobbing
+
+    // Call this from UI when user selects "I'm at <Office>"
+    public bool SetStartOfficeByDisplay(string displayName)
+    {
+        var t = ResolveOfficeTransformByDisplay(displayName); // uses the office index
+        if (!t)
+        {
+            Debug.LogError($"[NAV] Could not resolve start office '{displayName}'.");
+            return false;
+        }
+        useStartOverride = true;
+        startOverrideTransform = t;
+        startOverrideWorldPos = t.position;
+        Debug.Log($"[NAV] Start override set to '{displayName}' → {t.name} at {t.position}");
+        return true;
+    }
+
+    // Call when user switches back to "Use My Current Location"
+    public void ClearStartOverride()
+    {
+        useStartOverride = false;
+        startOverrideTransform = null;
+        Debug.Log("[NAV] Start override cleared (using camera position).");
+    }
 
     public List<Vector3> GetCurrentPathWorld() => currentPath;
 
@@ -385,31 +537,107 @@ Debug.Log("[Anchor] baked under WorldRoot.");
     public bool useProxyFloor = true;
     public bool pathPositionsAreLocalToWorldRoot = false;
 
-    // Ensure pathArrows list exists and clear existing arrows safely
-    public void ClearPathArrowsIfNeeded()
+    // CanonicalName -> list of Office waypoints (active or inactive)
+    Dictionary<string, List<NavigationWaypoint>> officeIndex = new Dictionary<string, List<NavigationWaypoint>>();
+
+    public void BuildOfficeIndexFromScene()
     {
-        if (pathArrows == null) pathArrows = new System.Collections.Generic.List<GameObject>();
-        for (int i = pathArrows.Count - 1; i >= 0; i--)
+        if (officeIndex == null) officeIndex = new Dictionary<string, List<NavigationWaypoint>>();
+        officeIndex.Clear();
+
+        var all = Resources.FindObjectsOfTypeAll<NavigationWaypoint>();
+        foreach (var wp in all)
         {
-            var go = pathArrows[i];
-            if (go == null) continue;
-            if (Application.isPlaying) Destroy(go);
-            else DestroyImmediate(go);
+            if (wp == null) continue;
+            if (wp.waypointType != WaypointType.Office) continue;
+            if (!wp.gameObject.scene.IsValid()) continue; // skip prefab assets
+
+            string display = !string.IsNullOrWhiteSpace(wp.officeName)
+                ? wp.officeName
+                : (!string.IsNullOrWhiteSpace(wp.waypointName) ? wp.waypointName : wp.name);
+
+            string key = CanonicalOfficeKey(GetCorrectWaypointName(display));
+            if (!officeIndex.TryGetValue(key, out var list))
+            {
+                list = new List<NavigationWaypoint>();
+                officeIndex[key] = list;
+            }
+            list.Add(wp);
         }
-        pathArrows.Clear();
+
+        Debug.Log($"[INDEX] Built OfficeIndex: {officeIndex.Count} unique office names");
+        foreach (var kv in officeIndex.Where(k => k.Value.Count > 1))
+            Debug.LogWarning($"[INDEX] Duplicate '{kv.Key}' → {string.Join(", ", kv.Value.Select(v => v.name))}");
     }
+
+    static string CanonicalOfficeKey(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return "";
+        s = s.Trim().ToLowerInvariant();
+        s = s.Replace("waypoint_", "");
+        var sb = new System.Text.StringBuilder(s.Length);
+        foreach (char c in s)
+            if (char.IsLetterOrDigit(c)) sb.Append(c);
+        return sb.ToString();
+    }
+
+    NavigationWaypoint ChooseBestOffice(List<NavigationWaypoint> list)
+    {
+        if (list == null || list.Count == 0) return null;
+        if (list.Count == 1) return list[0];
+
+        var cam = Camera.main ? Camera.main.transform : null;
+        if (!cam) return list[0];
+
+        float camY = cam.position.y;
+        return list
+            .OrderBy(wp => Mathf.Abs(wp.transform.position.y - camY))
+            .ThenBy(wp => (wp.transform.position - cam.position).sqrMagnitude)
+            .First();
+    }
+
+    float GetUserHeadingDeg()
+    {
+        var hs = HeadingService.Instance;
+        if (useCompassHeading && hs != null && hs.IsRunning)
+            return hs.GetHeading();
+
+        Transform c = userCamera != null ? userCamera : (Camera.main ? Camera.main.transform : null);
+        if (!c) return 0f;
+        float y = c.eulerAngles.y; y %= 360f; if (y < 0) y += 360f;
+        return y;
+    }
+
+    static string FormatDistance(float meters)
+    {
+        if (meters < 1f) return $"{Mathf.RoundToInt(meters * 100f)} cm";
+        if (meters < 10f) return $"{meters:0.0} m";
+        return $"{Mathf.RoundToInt(meters)} m";
+    }
+
+    public List<string> GetAllOfficeNamesFromIndex()
+    {
+        if (officeIndex == null || officeIndex.Count == 0) BuildOfficeIndexFromScene();
+
+        return officeIndex.Values
+            .Select(list => list[0])
+            .Select(wp => string.IsNullOrWhiteSpace(wp.officeName) ? wp.waypointName : wp.officeName)
+            .Distinct()
+            .OrderBy(n => n)
+            .ToList();
+    }
+
+    public void BuildOfficeIndex() => BuildOfficeIndexFromScene();
+    static string Canonical(string s) => CanonicalOfficeKey(s);
+    NavigationWaypoint ChooseBest(List<NavigationWaypoint> list) => ChooseBestOffice(list);
 
     public void CreateGroundArrowsForPath()
     {
         if (hudOnly) return;
 
-        Debug.Log($"[ARROWS] CreateGroundArrowsForPath called");
-        Debug.Log($"[ARROWS] currentPath count: {currentPath?.Count ?? 0}");
-        Debug.Log($"[ARROWS] arrowPrefab: {(arrowPrefab != null ? "EXISTS" : "NULL")}");
-        Debug.Log($"[ARROWS] pathRoot: {(pathRoot != null ? "EXISTS" : "NULL")}");
-
         EnsureActiveChain();
-        ClearPathArrowsIfNeeded();
+        EnsureArrowPool();              // <— make sure pool exists/parent is set
+        ClearPathArrowsIfNeeded();      // <— returns all previously spawned arrows to the pool
         ClearFlowLine();
 
         if (currentPath == null || currentPath.Count < 2)
@@ -418,54 +646,39 @@ Debug.Log("[Anchor] baked under WorldRoot.");
             return;
         }
 
-        // Ensure prefab exists
         if (arrowPrefab == null)
         {
-            Debug.LogError("[ARROWS] arrowPrefab is NULL! Creating default...");
-            CreateEnhancedArrowPrefab();
-            if (arrowPrefab == null)
-            {
-                Debug.LogError("[ARROWS] Failed to create arrow prefab!");
-                return;
-            }
+            Debug.LogError("[ARROWS] arrowPrefab is NULL. Assign a prefab in the Inspector.");
+            return;
         }
 
+        // Spawn per segment
         switch (pathStyle)
         {
             case PathVisualStyle.Arrows:
-                Debug.Log("[ARROWS] Creating arrows...");
                 for (int i = 0; i < currentPath.Count - 1; i++)
-                {
-                    Debug.Log($"[ARROWS] Segment {i}: {currentPath[i]} → {currentPath[i + 1]}");
                     CreateGroundArrowsForSegment(currentPath[i], currentPath[i + 1]);
-                }
-                Debug.Log($"[ARROWS] Total arrows created: {pathArrows?.Count ?? 0}");
-
-                // Force arrows visible
-                if (pathArrows != null)
-                {
-                    foreach (var arrow in pathArrows)
-                    {
-                        if (arrow != null)
-                        {
-                            arrow.SetActive(true);
-                            Debug.Log($"[ARROWS] Arrow at {arrow.transform.position} - Active: {arrow.activeSelf}");
-                        }
-                    }
-                }
                 break;
 
             case PathVisualStyle.FlowLine:
                 BuildFlowLineFromCurrentPath();
                 break;
         }
+
+        // Force arrows visible
+        if (pathArrows != null)
+        {
+            foreach (var a in pathArrows)
+                if (a) a.SetActive(true);
+        }
     }
-    
-    
+
     void Start()
     {
         playerCamera = Camera.main ?? FindFirstObjectByType<Camera>();
         ResolveAnchors();
+
+        if (hideFloorsOnlyDuringNav) SetFloorsVisible(true);
 
         // Set floor layers without touching camera culling mask
         int floorLayer = LayerMask.NameToLayer("FloorPlan");
@@ -522,6 +735,8 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         cachedWaypoints = GetAllRuntimeWaypoints();
         Debug.Log($"Smart Navigation ready (Vuforia: {useVuforiaPositioning})");
     }
+
+
 
     void SetupVuforiaImageTargets()
     {
@@ -596,6 +811,65 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         AlignAnchorYawToCamera(); // this snaps the content anchor to the real-world marker
     }
 
+    void EnsureArrowPool()
+    {
+        if (arrowPool == null) arrowPool = new Queue<GameObject>(Mathf.Max(arrowPoolPrewarm, 0));
+
+        if (!arrowsParent)
+        {
+            var pathRootGO = GameObject.Find("PathRoot");
+            arrowsParent = pathRootGO ? pathRootGO.transform : this.transform;
+        }
+
+        if (arrowPool.Count == 0 && arrowPrefab)
+        {
+            for (int i = 0; i < arrowPoolPrewarm; i++)
+            {
+                var go = Instantiate(arrowPrefab, arrowsParent);
+                go.SetActive(false);
+                arrowPool.Enqueue(go);
+            }
+        }
+    }
+
+
+    GameObject RentArrow()
+    {
+        EnsureArrowPool();
+
+        if (!arrowPrefab)
+        {
+            Debug.LogWarning("[ARROWS] arrowPrefab is not assigned.");
+            return null;
+        }
+
+        GameObject go = null;
+
+        // Dequeue until we find a non-destroyed object
+        while (arrowPool != null && arrowPool.Count > 0 && go == null)
+            go = arrowPool.Dequeue();
+
+        if (!go) go = Instantiate(arrowPrefab, arrowsParent);
+
+        go.SetActive(true);
+        activeArrows.Add(go);
+        return go;
+    }
+
+    void ReturnArrowToPool(GameObject go)
+    {
+        if (!go) return;
+        go.SetActive(false);
+        activeArrows.Remove(go);
+        if (arrowPool == null) arrowPool = new Queue<GameObject>();
+        arrowPool.Enqueue(go);
+    }
+
+    void ReturnAllArrowsToPool()
+    {
+        for (int i = activeArrows.Count - 1; i >= 0; i--)
+            ReturnArrowToPool(activeArrows[i]);
+    }
 
     void PrewarmArrowPool()
     {
@@ -617,14 +891,9 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         return go;
     }
 
+
     private NavigationWaypoint[] cachedWaypoints;
 
-    void ReturnArrowToPool(GameObject go)
-    {
-        if (go == null) return;
-        go.SetActive(false);
-        arrowPool.Enqueue(go);
-    }
 
     public void OnImageTargetLost()
     {/*
@@ -650,11 +919,77 @@ Debug.Log("[Anchor] baked under WorldRoot.");
    */
     }
 
-
-    Vector3 GetCurrentPosition()
+    private void EnsureTargetMarker()
     {
-        // MODE 1: Manual office selection (if enabled)
-        if (useOfficeAsStart && !string.IsNullOrEmpty(currentUserOffice))
+        if (!targetMarker) CreateEnhancedTargetMarker();
+    }
+
+    private void PlaceTargetMarkerAt(Vector3 worldPos, bool preserveYIfElevated = true)
+    {
+        EnsureTargetMarker();
+
+// Determine if this point is “elevated” (second floor) vs AR floor
+float floorYAtXZ = GetGroundPosition(new Vector3(worldPos.x, 0f, worldPos.z)).y;
+        bool elevated = Mathf.Abs(worldPos.y - floorYAtXZ) > 1.0f;
+
+        Vector3 pos = (preserveYIfElevated && elevated) ? worldPos : GetGroundPosition(worldPos);
+        targetMarker.transform.position = pos;
+        targetMarkerBaseY = pos.y;
+        targetMarker.SetActive(true);
+    }
+
+    private void HideTargetMarker()
+    {
+        if (targetMarker) targetMarker.SetActive(false);
+        targetMarkerBaseY = float.NaN;
+    }
+
+    private void UpdateTargetMarkerAnimation()
+    {
+        if (!targetMarker || !targetMarker.activeSelf) return;
+        if (float.IsNaN(targetMarkerBaseY)) targetMarkerBaseY = targetMarker.transform.position.y;
+
+
+        // Bobbing
+        var p = targetMarker.transform.position;
+        p.y = targetMarkerBaseY + Mathf.Sin(Time.time * bobSpeed) * bobHeight;
+        targetMarker.transform.position = p;
+
+        // Spin
+        targetMarker.transform.Rotate(Vector3.up, rotationSpeed * Time.deltaTime, Space.World);
+    }
+
+    private void ResetNavSessionBeforeNewRoute(NavigationWaypoint goal)
+    {
+        hasReachedDestination = false;
+        hasShownArrivalNotification = false;
+        timeWithinArrivalZone = 0f;
+
+        currentDestinationWaypoint = goal;
+        currentDestination = !string.IsNullOrEmpty(goal.officeName)
+                            ? goal.officeName
+                            : (!string.IsNullOrEmpty(goal.waypointName) ? goal.waypointName : goal.name);
+
+        isNavigating = true;
+    }
+
+    // Toggle visibility null-safely
+    void SetArrowsActive(bool on)
+    {
+        if (pathArrows == null) return;
+        for (int i = pathArrows.Count - 1; i >= 0; i--)
+        {
+            var a = pathArrows[i];
+            if (!a) { pathArrows.RemoveAt(i); continue; }
+            a.SetActive(on);
+        }
+    }
+
+
+    public Vector3 GetCurrentPosition()
+    {
+        // Use the office override ONLY before navigation begins (to build the initial route)
+        if (!isNavigating && useOfficeAsStart && !string.IsNullOrEmpty(currentUserOffice))
         {
             var officeWP = FindTargetWaypointAdvanced(currentUserOffice);
             if (officeWP != null)
@@ -668,13 +1003,8 @@ Debug.Log("[Anchor] baked under WorldRoot.");
             }
         }
 
-        // MODE 2: Auto-detection (camera position) - fallback or default
-        if (arCamera)
-        {
-            Debug.Log($"[GetCurrentPosition] Using camera position: {arCamera.transform.position}");
-            return arCamera.transform.position;
-        }
-
+        // Live AR camera during nav (or when no override)
+        if (arCamera) return arCamera.transform.position;
         if (Camera.main) return Camera.main.transform.position;
 
         return Vector3.zero;
@@ -847,8 +1177,10 @@ Debug.Log("[Anchor] baked under WorldRoot.");
 
     void Awake()
     {
-        // Ensure departments are discovered before any UI tries to read them
         FindAllWaypoints();
+
+        if (!raycastMgr) raycastMgr = FindFirstObjectByType<UnityEngine.XR.ARFoundation.ARRaycastManager>();
+
     }
 
     void SetupUI()
@@ -912,8 +1244,51 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         StartNavigationProceed(officeName);
     }
 
+
     // Add to SmartNavigationSystem
     public bool IsWorldPlaced => worldBaked;
+
+
+    // Returns true if the user (camera) is within entranceDetectRadiusMeters of the entrance (XZ only).
+    public bool IsAtEntrance(out float meters)
+    {
+        meters = 0f;
+        if (entranceNode == null) return false;
+
+        Vector3 cam = GetCurrentPosition();
+        Vector3 e = entranceNode.position;
+        Vector3 cf = new Vector3(cam.x, 0f, cam.z);
+        Vector3 ef = new Vector3(e.x, 0f, e.z);
+
+        float unityDist = Vector3.Distance(cf, ef);
+        meters = unityDist * Mathf.Max(0.0001f, metersPerUnit); // metersPerUnit already in your class
+        return meters <= entranceDetectRadiusMeters;
+    }
+
+    // Allows PlaceOnFloorARF or UI to set the entrance node after placement
+    public void SetEntranceNode(Transform t)
+    {
+        entranceNode = t;
+        Debug.Log($"[ENTRANCE] SetEntranceNode → {(t ? t.name : "NULL")}");
+    }
+
+    public void SetStartFromEntrance(bool on)
+    {
+        startFromEntrance = on;
+        Debug.Log($"[ENTRANCE] startFromEntrance={on}");
+    }
+
+
+
+    // Compute start position for path-building (entrance → fallback camera)
+    Vector3 GetRoutingStartPosition()
+    {
+        if (startFromEntrance && entranceNode != null)
+            return entranceNode.position;
+
+        // fallback: live camera start
+        return GetCurrentPosition();
+    }
 
     public void StartNavigationConfirmedByUI(string officeName)
     {
@@ -923,95 +1298,172 @@ Debug.Log("[Anchor] baked under WorldRoot.");
 
     public bool IsNavigating => isNavigating;
 
-    // Everything that actually starts navigation lives here (moved from StartNavigationToOffice)
     public void StartNavigationProceed(string officeName)
     {
-        // If navigation was started manually from an office dropdown, skip the automatic start.
-        if (startedFromOffice)
+        // Stop any previous gate coroutine (if running)
+        try
         {
-            Debug.Log("[NAV] StartNavigationProceed: manual start in effect, aborting automatic start.");
-            startedFromOffice = false; // clear the flag so future automatic starts can run
-            return;
+            if (facingGateRoutine != null) { StopCoroutine(facingGateRoutine); facingGateRoutine = null; }
         }
+        catch { }
 
+        // If something is still navigating, cleanly cancel so this start is fresh
+        if (isNavigating) CancelNavigate();
+
+        // 0) Clear turn/hint state and hide panel while building
+        if (_turns != null) _turns.Clear();
+        _nextTurn = 0;
+        _turnAnnounced = false;
+        ShowTurnUI(false);
+
+        enabled = true; // ensure Update() will tick hints/progressive arrows
+
+        // 1) Optional alignment for Vuforia
         if (!hudOnly && useVuforiaPositioning)
             AlignAnchorYawToCamera();
 
-        // Mark localized so Vuforia requirement doesn’t block world mode
         hasEverLocalized = true;
 
-        Debug.Log($"[NAV] Finding waypoint for: {officeName}");
+        // 2) Resolve target waypoint or object
+        Debug.Log($"[NAV] StartNavigationProceed → '{officeName}'");
+
         Transform targetWaypoint = FindTargetWaypointAdvanced(officeName);
         if (targetWaypoint == null)
         {
-            if (!officeLookup.TryGetValue(officeName, out GameObject targetObject) || targetObject == null)
+            if (officeLookup != null && officeLookup.TryGetValue(officeName, out GameObject targetObject) && targetObject)
             {
-                Debug.LogError($"[NAV] Waypoint not found for: {officeName}");
-                return;
+                var waypoint = targetObject.GetComponent<NavigationWaypoint>();
+                if (!waypoint)
+                {
+                    waypoint = targetObject.AddComponent<NavigationWaypoint>();
+                    waypoint.waypointName = officeName;
+                    waypoint.officeName = officeName;
+                    waypoint.waypointType = WaypointType.Office;
+                }
+                targetWaypoint = targetObject.transform;
             }
-            var waypoint = targetObject.GetComponent<NavigationWaypoint>();
-            if (!waypoint)
-            {
-                waypoint = targetObject.AddComponent<NavigationWaypoint>();
-                waypoint.waypointName = officeName;
-                waypoint.officeName = officeName;
-                waypoint.waypointType = WaypointType.Office;
-            }
-            targetWaypoint = targetObject.transform;
         }
 
-        // Init nav state
+        if (targetWaypoint == null)
+        {
+            Debug.LogError($"[NAV] Waypoint not found for: {officeName}");
+            return;
+        }
+
+        // 3) Init session state
         targetDestination = targetWaypoint.position;
         originalTargetPosition = targetDestination;
         currentDestination = officeName;
 
-        // Keep floor plan hidden
-        SetFloorsVisible(false);
+        // Make sure arrows parent cannot be hidden by floors/Canvas
+        EnsureArrowsParentVisible();
 
-        Debug.Log($"[NAV-DBG] targetWaypoint={targetWaypoint?.name} waypointWorldPos={targetWaypoint?.position} targetDestination(before)={targetDestination}");
+        // Hide floors only during an active nav session
+        floorsWereVisibleBeforeNav = AreFloorsVisible();
+        navSessionActive = true;
+        if (hideFloorsOnlyDuringNav) SetFloorsVisible(false);
 
-        if (isNavigating)
-        {
-            Debug.Log("Already navigating. Press Cancel first.");
-            return;
-        }
-
-        // Build route
+        // 4) Compute the route (BFS builder with safe fallbacks)
         Debug.Log("[NAV] Calculating path...");
-        CalculateWallAvoidingPath();   // must populate currentPath (world-space or local)
-        BuildTurnEvents();
+        CalculateWallAvoidingPath(); // fills 'currentPath' (uses entrance or camera per GetRoutingStartPosition)
 
-        // WORLD MODE: prepare path and show arrows
+        // WORLD MODE visuals
         if (!hudOnly)
         {
             EnsureActiveChain();
             ClearFlowLine();
             ClearPathArrows();
 
-            // fallback if path came back empty (only if not manual start — already ensured above)
+            // Ensure we have some path points; fallback if needed
             if (currentPath == null || currentPath.Count < 2)
             {
-                var a = GetGroundPosition(GetCurrentPosition());
+                var a = GetGroundPosition(GetRoutingStartPosition());
                 var b = GetGroundPosition(targetDestination);
                 currentPath = new List<Vector3> { a, b };
+                Debug.LogWarning("[NAV] Path builder returned empty. Using 2‑point fallback.");
             }
 
-            // Snap each path point's Y to the ground plane BEFORE creating arrows
-            for (int i = 0; i < currentPath.Count; i++)
-            {
-                Vector3 wp = currentPath[i];
-                Vector3 ground = GetGroundPosition(wp);
-                currentPath[i] = new Vector3(wp.x, ground.y, wp.z);
-            }
+            // 5) Snap path Y to AR floor and optionally recenter to corridor
+            SnapPathYsRespectingStairs(currentPath); 
 
-            // ensure arrows drawn after snapping
+            // Optional: center line to corridor midline (requires proper wall colliders + layer)
+            try { RecenterPathToCorridor(currentPath); } catch { } // safe if you removed this helper
+
+            // 6) Draw arrows (progressive window or full)
             pathStyle = PathVisualStyle.Arrows;
             ClearPathArrows();
-            CreateGroundArrowsForPath();
+            EnsureArrowsParentVisible(); // keep arrows in world space and active
+
+            // Start near the user's projection onto the path (or entrance if GetRoutingStartPosition() returns that)
+            Vector3 proj;
+            int startSeg = FindClosestSegmentAndProjection(GetRoutingStartPosition(), out proj);
+            if (startSeg < 0) startSeg = 0;
+
+            if (progressiveReveal)
+            {
+                CreateProgressiveArrowsFromProjection(startSeg, proj, revealAheadMeters);
+                _lastProjSeg = startSeg;
+                _lastProjPos = proj;
+            }
+            else
+            {
+                CreateGroundArrowsForPathFromSegment(startSeg, proj); // legacy full draw
+            }
+
+            SetArrowsActive(true);
+            int spawned = pathArrows?.Count ?? 0;
+
+            // Fallbacks if nothing spawned
+            if (spawned == 0)
+            {
+                Debug.LogWarning("[ARROWS] Spawned 0 – trying full path fallback.");
+                CreateGroundArrowsForPathFromSegment(0, null);
+                SetArrowsActive(true);
+                spawned = pathArrows?.Count ?? 0;
+            }
+            if (spawned == 0 && currentPath != null && currentPath.Count >= 2)
+            {
+                Debug.LogWarning("[ARROWS] Full path fallback spawned 0 – trying minimal 2‑point arrow.");
+                ClearPathArrows();
+                var go = RentArrow();
+                if (go)
+                {
+                    var a = GetGroundPosition(currentPath[0]);
+                    var b = GetGroundPosition(currentPath[1]);
+                    var dir = (b - a); dir.y = 0f;
+                    if (dir.sqrMagnitude < 1e-4f) dir = Vector3.forward;
+                    go.transform.SetPositionAndRotation(a, Quaternion.LookRotation(dir, Vector3.up));
+                    if (pathArrows == null) pathArrows = new List<GameObject>();
+                    pathArrows.Add(go);
+                    SetArrowsActive(true);
+                    spawned = 1;
+                }
+            }
+            Debug.Log($"[ARROWS] spawned={spawned}, parentActive={arrowsParent?.gameObject.activeSelf}");
+
+            // 7) Target marker (keep after arrows)
             ShowEnhancedTargetMarker();
         }
 
-        // Proxy floor setup
+        // If hudOnly, still ensure we have a simple fallback path
+        if (currentPath == null || currentPath.Count < 2)
+        {
+            var a = GetGroundPosition(GetRoutingStartPosition());
+            var b = GetGroundPosition(targetDestination);
+            currentPath = new List<Vector3> { a, b };
+        }
+
+        // 8) Turn hints from finalized path
+        BuildTurnEventsFromPath(currentPath);
+        _nextTurn = 0;
+        _turnAnnounced = false;
+        ShowTurnUI(true);
+
+        // 9) Switch to live camera updates so distance/turn hints update while walking
+        useOfficeAsStart = false;
+        currentUserOffice = null;
+
+        // 10) (Optional) proxy floor setup
         if (!hudOnly && useProxyFloor)
         {
             EnsureFloorProxy();
@@ -1023,9 +1475,7 @@ Debug.Log("[Anchor] baked under WorldRoot.");
             }
         }
 
-        Debug.Log($"[NAV] Path calculated with {currentPath?.Count ?? 0} points");
-
-        // Direction + UI
+        // 11) Final UI/buttons
         currentPathIndex = 0;
         lastPlayerPosition = GetCurrentPosition();
 
@@ -1033,10 +1483,74 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         if (navigateButton) navigateButton.gameObject.SetActive(false);
         if (stopButton) stopButton.gameObject.SetActive(true);
 
-        isNavigating = true;
-
+        isNavigating = true; // Update() will now tick UpdateTurnHints/CheckArrival/ProgressiveArrowsTick
         string mode = hudOnly ? "HUD" : (useVuforiaPositioning ? "Vuforia" : "Camera");
-        Debug.Log($"Navigation started to {currentDestination} ({mode} mode)");
+        Debug.Log($"[NAV] Navigation started to '{currentDestination}' ({mode} mode)");
+    }
+
+    // Snap only flat segments to floor; preserve Y for any node adjacent to a stairs segment.
+    void SnapPathYsRespectingStairs(List<Vector3> path)
+    {
+        if (path == null || path.Count < 2) return;
+    
+        // Mark nodes that must preserve Y if adjacent to a stairs segment
+        bool[] preserveY = new bool[path.Count];
+
+        for (int i = 0; i < path.Count - 1; i++)
+        {
+            Vector3 a = path[i];
+            Vector3 b = path[i + 1];
+            if (IsStairsSegment(a, b))
+            {
+                preserveY[i] = true;
+                preserveY[i + 1] = true;
+            }
+        }
+
+        for (int i = 0; i < path.Count; i++)
+        {
+            if (preserveY[i]) continue; // keep original Y on stair-adjacent nodes
+            path[i] = GetGroundPosition(path[i]); // AR-floor snap for flat-only nodes
+        }
+    }
+
+
+    void StartFacingGateFromSegment(int segIdx)
+    {
+        if (!requireFacingGate || currentPath == null || currentPath.Count < 2)
+        {
+            SetArrowsActive(true);
+            return;
+        }
+
+        var hs = HeadingService.Instance;
+        if (hs == null || !hs.IsRunning)
+        {
+            SetArrowsActive(true);
+            return;
+        }
+
+        segIdx = Mathf.Clamp(segIdx, 0, currentPath.Count - 2);
+        float bearing = BearingUtil.WorldBearingDeg(currentPath[segIdx], currentPath[segIdx + 1]);
+
+        SetArrowsActive(false);
+        if (facingGateRoutine != null) { StopCoroutine(facingGateRoutine); facingGateRoutine = null; }
+        facingGateRoutine = StartCoroutine(WaitForFacingAndRevealArrows(bearing));
+    }
+
+    IEnumerator WaitForFacingAndRevealArrows(float targetBearing)
+    {
+        float t = 0f;
+        while (t < gateRevealTimeout)
+        {
+            float heading = GetUserHeadingDeg();
+            float err = Mathf.Abs(Mathf.DeltaAngle(heading, targetBearing));
+            if (err <= startFacingTolerance) break;
+            t += Time.deltaTime;
+            yield return null;
+        }
+        SetArrowsActive(true);
+        facingGateRoutine = null;
     }
     // Public helper to ensure pathRoot exists and attach it under the given parent
     public void ReparentPathRoot(Transform parent)
@@ -1051,6 +1565,161 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         pathRoot.localPosition = Vector3.zero;
         pathRoot.localRotation = Quaternion.identity;
         pathRoot.localScale = Vector3.one;
+    }
+
+    void RealignCompassToFirstSegment()
+    {
+        var hs = HeadingService.Instance;
+        if (hs == null || !hs.IsRunning || !hs.useCompassIfAvailable) return;
+        if (currentPath == null || currentPath.Count < 2) return;
+
+        // Bearing of first segment in world space
+        float segBearing = BearingUtil.WorldBearingDeg(currentPath[0], currentPath[1]);
+
+        // Raw device heading = displayed - offset
+        float displayed = hs.GetHeading();
+        float offset = hs.GetNorthOffset();
+        float raw = (displayed - offset + 360f) % 360f;
+
+        float delta = Mathf.DeltaAngle(raw, segBearing);
+        hs.SetNorthOffset(offset - delta);
+
+        Debug.Log($"[Compass] Realign to first segment: seg={segBearing:0.0} raw={raw:0.0} newOffset={hs.GetNorthOffset():0.0}");
+    }
+
+
+    private NavigationWaypoint[] GetAllRuntimeWaypoints()
+    {
+        return Resources.FindObjectsOfTypeAll<NavigationWaypoint>()
+        .Where(wp => wp && wp.gameObject.scene.IsValid())
+        .ToArray();
+    }
+
+    private void MarkStairsSegmentsFromNodes()
+    {
+        stairsSegments.Clear();
+        if (currentPathNodes == null) return;
+
+for (int i = 0; i < currentPathNodes.Count - 1; i++)
+        {
+            var a = currentPathNodes[i];
+            var b = currentPathNodes[i + 1];
+            if (a == null || b == null) continue;
+
+            if (a.waypointType == WaypointType.Stairs ||
+                b.waypointType == WaypointType.Stairs ||
+                Mathf.Abs(a.transform.position.y - b.transform.position.y) > 1.0f)
+            {
+                stairsSegments.Add(i);
+            }
+        }
+    }
+
+    private bool IsStairsSegment(int segIndex) => stairsSegments.Contains(segIndex);
+
+    private void ApplyGraphPath(List<NavigationWaypoint> nodes)
+    {
+        if (nodes == null || nodes.Count < 2)
+        {
+            Debug.LogWarning("ApplyGraphPath: invalid nodes");
+            currentPathNodes = new List<NavigationWaypoint>();
+            currentPath = new List<Vector3>();
+            stairsSegments.Clear();
+            return;
+        }
+
+        currentPathNodes = nodes;
+        currentPath = nodes.Select(n => n.transform.position).ToList();
+        MarkStairsSegmentsFromNodes();
+
+        Debug.Log($"[Route] {nodes.Count} nodes\n{DescribePath(nodes)}");
+
+        // If you have a LineRenderer, refresh here (optional):
+        // RefreshRouteLineRenderer(); 
+    }
+
+    public bool BuildWaypointPathToOffice(string officeName)
+    {
+        if (string.IsNullOrEmpty(officeName))
+        {
+            Debug.LogWarning("BuildWaypointPathToOffice: officeName is null/empty");
+            return false;
+        }
+
+        // Resolve goal waypoint (Office type)
+        NavigationWaypoint goal = null;
+        if (officeLookup != null && officeLookup.TryGetValue(officeName, out var go) && go)
+            goal = go.GetComponent<NavigationWaypoint>();
+        if (!goal)
+        {
+            var all = Resources.FindObjectsOfTypeAll<NavigationWaypoint>()
+                .Where(wp => wp && wp.gameObject.scene.IsValid()).ToArray();
+            goal = all.FirstOrDefault(wp => wp.officeName == officeName);
+        }
+        if (!goal)
+        {
+            Debug.LogError($"BuildWaypointPathToOffice: no waypoint found for '{officeName}'");
+            return false;
+        }
+
+        // Choose start near player
+        var waypoints = Resources.FindObjectsOfTypeAll<NavigationWaypoint>()
+            .Where(wp => wp && wp.gameObject.scene.IsValid()).ToArray();
+        var playerPos = (playerCamera ? playerCamera.transform.position : Vector3.zero);
+        var start = FindNearestWaypoint(waypoints, playerPos); // your helper
+
+        if (!start)
+        {
+            Debug.LogError("BuildWaypointPathToOffice: no start waypoint near player");
+            return false;
+        }
+
+        // A* (use your enhanced version or the basic one)
+        var nodes = RunStrictWaypointAStar(start, goal);
+        if (nodes == null || nodes.Count == 0)
+        {
+            Debug.LogError($"BuildWaypointPathToOffice: A* failed from {start.name} to {goal.name}");
+            return false;
+        }
+
+        // Force use of waypoints — no direct-line fallback
+        ApplyGraphPath(nodes);
+        return true;
+    }
+
+    public static string DescribePath(IList<NavigationWaypoint> nodes)
+    {
+        if (nodes == null) return "(null)";
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < nodes.Count; i++)
+        {
+            var n = nodes[i];
+            sb.AppendLine($"{i:D2} | {n.name} | {n.waypointType} | y={n.transform.position.y:F2}");
+        }
+        return sb.ToString();
+    }
+
+    public string DetectNearestOfficeDisplayName(float maxRadius = 6f)
+    {
+        var all = Resources.FindObjectsOfTypeAll<NavigationWaypoint>();
+        var cam = Camera.main ? Camera.main.transform.position : Vector3.zero;
+
+        float best = float.MaxValue;
+        NavigationWaypoint bestWp = null;
+
+        foreach (var wp in all)
+        {
+            if (wp == null || !wp.gameObject.scene.IsValid()) continue;
+            if (wp.waypointType != WaypointType.Office) continue;
+
+            float d = Vector3.Distance(new Vector3(cam.x, 0, cam.z), new Vector3(wp.transform.position.x, 0, wp.transform.position.z));
+            if (d < best && d <= maxRadius)
+            {
+                best = d;
+                bestWp = wp;
+            }
+        }
+        return bestWp ? (string.IsNullOrWhiteSpace(bestWp.officeName) ? bestWp.waypointName : bestWp.officeName) : null;
     }
 
     void CacheDebugOriginalStates()
@@ -1183,114 +1852,67 @@ Debug.Log("[Anchor] baked under WorldRoot.");
     private float lastPathCalcTime = -999f;
     public float minPathRecalcInterval = 0.6f; // seconds
 
-    void CalculateWallAvoidingPath()
+
+
+    public void CalculateWallAvoidingPath()
     {
+        if (currentPath == null) currentPath = new List<Vector3>();
+        else currentPath.Clear();
 
-        currentPath.Clear();
-        Vector3 startPos = GetGroundPosition(GetCurrentPosition());
-        Vector3 targetPos = GetGroundPosition(targetDestination);
+        // Start/goal positions (snap to floor)
+        Vector3 fromStart = GetGroundPosition(GetRoutingStartPosition()); // entrance or camera
+        Vector3 toGoal = GetGroundPosition(targetDestination);
 
-        Debug.Log("=== CALCULATING ADVANCED WALL-AVOIDING PATH ===");
-        Debug.Log($"From: {startPos} To: {targetPos}");
+        // Get all scene waypoints (skip prefabs)
+        var all = Resources.FindObjectsOfTypeAll<NavigationWaypoint>()
+                 .Where(wp => wp != null && wp.gameObject.scene.IsValid())
+                 .ToList();
 
-  
-         NavigationWaypoint[] allWaypoints = Resources.FindObjectsOfTypeAll<NavigationWaypoint>()
-        .Where(w => w.gameObject.scene.name != null)
-        .ToArray();
-
-         if (cachedWaypoints == null) cachedWaypoints = GetAllRuntimeWaypoints();
-                    allWaypoints = cachedWaypoints;
-       
-        // ADD THIS DEBUG
-        Debug.Log($"Total waypoints found: {allWaypoints.Length}");
-        int corridorCount = allWaypoints.Count(w => w.waypointType == WaypointType.Corridor || w.waypointType == WaypointType.Junction);
-        Debug.Log($"Corridor/Junction waypoints: {corridorCount}");
-
-        if (allWaypoints.Length == 0)
+        if (all == null || all.Count == 0)
         {
-            Debug.LogWarning("No waypoints found - using direct path");
-            currentPath.Add(startPos);
-            currentPath.Add(targetPos);
+            Debug.LogWarning("[PATH] No waypoints in scene. Using direct fallback.");
+            currentPath.Add(fromStart);
+            currentPath.Add(toGoal);
             return;
         }
 
-        // 🔹 Check floor difference
-        bool startIsSecond = startPos.y > 5f;
-        bool targetIsSecond = targetPos.y > 5f;
+        // Find nearest graph nodes
+        var start = FindNearestWaypoint(all, fromStart);
+        var goal = FindNearestWaypoint(all, toGoal);
 
-        if (startIsSecond != targetIsSecond)
+        if (start == null || goal == null)
         {
-            Debug.Log("Cross-floor navigation required - inserting stair waypoints");
+            Debug.LogWarning("[PATH] Start or goal waypoint is null. Using direct fallback.");
+            currentPath.Add(fromStart);
+            currentPath.Add(toGoal);
+            return;
+        }
 
-            // Collect stairs
-            var stairs = allWaypoints.Where(wp => wp.waypointType == WaypointType.Stairs).ToArray();
-            Debug.Log($"Found {stairs.Length} stair waypoints in scene");
+        // 1) Try BFS on graph
+        var nodes = BFSWaypoints(start, goal);
+        if (nodes != null && nodes.Count > 0)
+        {
+            BuildPathFromNodes(nodes, fromStart, toGoal);
+            return;
+        }
 
-            foreach (var s in stairs)
+        // 2) If BFS failed and we’re likely on different floors, try stair fallback
+        if (Mathf.Abs(fromStart.y - toGoal.y) > floorMatchTolerance)
+        {
+            List<Vector3> mfPath;
+            if (TryBuildMultiFloorPathFallback(all, fromStart, toGoal, out mfPath))
             {
-                Debug.Log($"[STAIR] {s.waypointName} at {s.transform.position}");
-            }
-
-            if (stairs.Length >= 2)
-            {
-                // Nearest stair on player's current floor
-                var nearestStartStair = stairs
-                    .Where(s => (startIsSecond && s.transform.position.y > 5f) ||
-                                (!startIsSecond && s.transform.position.y <= 5f))
-                    .OrderBy(s => Vector3.Distance(startPos, s.transform.position))
-                    .FirstOrDefault();
-
-                // Nearest stair on destination floor
-                var nearestTargetStair = stairs
-                    .Where(s => (targetIsSecond && s.transform.position.y > 5f) ||
-                                (!targetIsSecond && s.transform.position.y <= 5f))
-                    .OrderBy(s => Vector3.Distance(targetPos, s.transform.position))
-                    .FirstOrDefault();
-
-                if (nearestStartStair != null && nearestTargetStair != null)
-                {
-                    // Path pieces
-                    var pathToStair = FindComplexPath(startPos, nearestStartStair.transform.position, allWaypoints);
-                    var stairToStair = FindComplexPath(nearestStartStair.transform.position, nearestTargetStair.transform.position, allWaypoints);
-                    var stairToTarget = FindComplexPath(nearestTargetStair.transform.position, targetPos, allWaypoints);
-
-                    // Merge, skip duplicates
-                    currentPath.AddRange(pathToStair);
-
-                    // Instead of a direct line, generate a sloped stair path
-                    List<Vector3> stairRamp = GenerateStairRamp(
-                        nearestStartStair.transform.position,
-                        nearestTargetStair.transform.position,
-                        12 // number of intermediate points, tweak for smoother arrows
-                    );
-
-                    currentPath.AddRange(stairRamp.Skip(1)); // skip(1) so we don’t duplicate the bottom point
-
-                    // Trigger floor fade when switching floors
-                    if (floorManager != null)
-                    {
-                        bool goingUp = targetPos.y > startPos.y;
-                        if (!hudOnly && floorManager != null)
-                            floorManager.CrossFadeFloors(goingUp);
-                    }
-
-
-                    if (stairToTarget.Count > 0) currentPath.AddRange(stairToTarget.Skip(1));
-
-                    Debug.Log($"✅ Cross-floor path created with {currentPath.Count} points");
-                    return;
-                }
+                currentPath = mfPath;
+                Debug.Log("[PATH] Multi-floor fallback succeeded (via stairs).");
+                return;
             }
         }
 
-        currentPath = FindComplexPath(startPos, targetPos, allWaypoints);
-
-        Debug.Log($"[NAV-DBG] currentPath count={currentPath?.Count}");
-        if (currentPath != null && currentPath.Count > 0)
-            Debug.Log($"[NAV-DBG] path final point={currentPath[currentPath.Count - 1]} targetDestination(after)={targetDestination}");
-
+        // 3) Final fallback (direct line)
+        Debug.LogWarning("[PATH] BFS failed and multi-floor fallback failed. Using direct fallback.");
+        currentPath.Add(fromStart);
+        currentPath.Add(toGoal);
     }
-
 
     void RequestRecalculatePath()
     {
@@ -1710,6 +2332,229 @@ Debug.Log("[Anchor] baked under WorldRoot.");
 
         return selected;
     }
+
+    private NavigationWaypoint GetWaypointFromUnknown(UnityEngine.Object o)
+    {
+        if (!o) return null;
+        if (o is NavigationWaypoint wp) return wp;
+        if (o is GameObject go) return go.GetComponent<NavigationWaypoint>();
+        if (o is Component comp) return comp.GetComponent<NavigationWaypoint>();
+        return null;
+    }
+
+    List<NavigationWaypoint> BFSWaypoints(NavigationWaypoint start, NavigationWaypoint goal)
+    {
+        var cameFrom = new Dictionary<NavigationWaypoint, NavigationWaypoint>();
+        var visited = new HashSet<NavigationWaypoint>();
+        var q = new Queue<NavigationWaypoint>();
+
+        q.Enqueue(start);
+        visited.Add(start);
+
+        bool found = false;
+        while (q.Count > 0)
+        {
+            var cur = q.Dequeue();
+            if (cur == null) continue;
+
+            if (cur == goal) { found = true; break; }
+
+            var neighbors = cur.connectedWaypoints;
+            if (neighbors == null) continue;
+
+            for (int i = 0; i < neighbors.Count; i++)
+            {
+                var nb = neighbors[i];
+                if (nb == null || visited.Contains(nb)) continue;
+                visited.Add(nb);
+                cameFrom[nb] = cur;
+                q.Enqueue(nb);
+            }
+        }
+
+        if (!found) return null;
+
+        var nodes = new List<NavigationWaypoint>();
+        var node = goal;
+        nodes.Add(node);
+        while (cameFrom.TryGetValue(node, out var prev))
+        {
+            node = prev;
+            nodes.Add(node);
+        }
+        nodes.Reverse();
+        return nodes;
+    }
+
+    void BuildPathFromNodes(List<NavigationWaypoint> nodes, Vector3 fromStart, Vector3 toGoalWorld)
+    {
+        if (nodes == null || nodes.Count == 0)
+        {
+            currentPathNodes = new List<NavigationWaypoint>();
+            currentPath = new List<Vector3>();
+            stairsSegments.Clear();
+            HideTargetMarker();
+            isNavigating = false;
+            return;
+        }
+
+        currentPathNodes = nodes;
+        currentPath = new List<Vector3>();
+
+        // Start anchor on ground (entrance/camera)
+        if (Vector3.Distance(fromStart, nodes[0].transform.position) > 0.5f)
+            currentPath.Add(GetGroundPosition(fromStart));
+
+        // Waypoints as-is (keep Y for stairs/second floor)
+        foreach (var wp in nodes)
+            if (wp) currentPath.Add(wp.transform.position);
+
+        // End anchor: only add if goal differs from last node
+        var lastNodePos = nodes[nodes.Count - 1].transform.position;
+        if (Vector3.Distance(lastNodePos, toGoalWorld) > 0.5f)
+        {
+            float floorYAtGoal = GetGroundPosition(new Vector3(toGoalWorld.x, 0f, toGoalWorld.z)).y;
+            bool goalElevated = Mathf.Abs(toGoalWorld.y - floorYAtGoal) > 1.0f;
+
+            currentPath.Add(goalElevated ? toGoalWorld : GetGroundPosition(toGoalWorld));
+        }
+
+        if (!forceWaypointRouting) SimplifyPathInPlace(currentPath, 0.05f);
+
+        MarkStairsSegmentsFromNodes();
+
+        // Place marker at final path point, preserve Y if elevated
+        var finalPoint = currentPath[currentPath.Count - 1];
+        PlaceTargetMarkerAt(finalPoint, preserveYIfElevated: true);
+        Debug.Log($"[Marker] Final place at {finalPoint} (y={finalPoint.y:F2})");
+
+        isNavigating = true;
+    }
+
+    bool TryBuildMultiFloorPathFallback(List<NavigationWaypoint> all, Vector3 fromStart, Vector3 toGoal, out List<Vector3> outPath)
+    {
+        outPath = null;
+
+        var stairs = all.Where(wp => wp.waypointType == WaypointType.Stairs).ToList();
+        if (stairs.Count == 0) return false;
+
+        float mpu = Mathf.Max(0.0001f, metersPerUnit);
+        float searchUnits = stairsSearchRadiusMeters / mpu;
+
+        // Find stairs near start floor (prefer |Δy| small)
+        var startStairsCandidates = stairs
+            .OrderBy(wp => Mathf.Abs(wp.transform.position.y - fromStart.y))
+            .ThenBy(wp => Vector3.Distance(new Vector3(wp.transform.position.x, 0, wp.transform.position.z),
+                                           new Vector3(fromStart.x, 0, fromStart.z)))
+            .Take(6) // limit work
+            .ToList();
+
+        // Find stairs near goal floor
+        var goalStairsCandidates = stairs
+            .OrderBy(wp => Mathf.Abs(wp.transform.position.y - toGoal.y))
+            .ThenBy(wp => Vector3.Distance(new Vector3(wp.transform.position.x, 0, wp.transform.position.z),
+                                           new Vector3(toGoal.x, 0, toGoal.z)))
+            .Take(6)
+            .ToList();
+
+        // Try pair by stairId/name prefix first; else nearest across floors
+        foreach (var s in startStairsCandidates)
+        {
+            var pair = FindPairedStairs(s, goalStairsCandidates);
+            if (pair == null) continue;
+
+            // BFS floor 1: start → s
+            var s1 = FindNearestWaypoint(all, fromStart);
+            var sGoal = s;
+            var path1Nodes = BFSWaypoints(s1, sGoal);
+            if (path1Nodes == null) continue;
+
+            // BFS floor 2: pair → goal
+            var g2 = FindNearestWaypoint(all, toGoal);
+            var path2Nodes = BFSWaypoints(pair, g2);
+            if (path2Nodes == null) continue;
+
+            // Build combined world path: start -> ... s -> pair -> ... -> goal
+            var path = new List<Vector3>();
+            path.Add(GetGroundPosition(fromStart));
+            foreach (var n in path1Nodes) path.Add(GetGroundPosition(n.transform.position));
+            path.Add(GetGroundPosition(pair.transform.position));
+            foreach (var n in path2Nodes) path.Add(GetGroundPosition(n.transform.position));
+            path.Add(GetGroundPosition(toGoal));
+
+            // Clean up: remove duplicates and very short steps
+            SimplifyPathInPlace(path, 0.05f);
+            outPath = path;
+            return true;
+        }
+
+        return false;
+    }
+
+    NavigationWaypoint FindPairedStairs(NavigationWaypoint s1, List<NavigationWaypoint> goalStairs)
+    {
+        if (s1 == null || goalStairs == null || goalStairs.Count == 0) return null;
+
+        // Try stairId field/property if you have it on NavigationWaypoint
+        string id1 = ReadStairId(s1);
+        if (!string.IsNullOrEmpty(id1))
+        {
+            var byId = goalStairs.FirstOrDefault(x => string.Equals(ReadStairId(x), id1, System.StringComparison.OrdinalIgnoreCase));
+            if (byId) return byId;
+        }
+
+        // Try name prefix (strip floor tokens like -1st, -2nd, 1F, 2F, etc.)
+        string prefix = NormalizeStairName(s1.name);
+        var byPrefix = goalStairs.FirstOrDefault(x => string.Equals(NormalizeStairName(x.name), prefix, System.StringComparison.OrdinalIgnoreCase));
+        if (byPrefix) return byPrefix;
+
+        // Fallback: nearest by horizontal distance on other floor
+        var baseY = s1.transform.position.y;
+        var target = goalStairs
+            .OrderBy(x => Mathf.Abs(x.transform.position.y - baseY)) // prefer different floor but close
+            .ThenBy(x => Vector2.Distance(new Vector2(x.transform.position.x, x.transform.position.z),
+                                          new Vector2(s1.transform.position.x, s1.transform.position.z)))
+            .FirstOrDefault();
+
+        return target;
+    }
+
+    // Reads a 'stairId' field/property if present; else empty
+    string ReadStairId(NavigationWaypoint wp)
+    {
+        if (wp == null) return null;
+        // If you added a public string stairId to NavigationWaypoint, this will work directly:
+        // return wp.stairId;
+
+        // Reflection – safe if not present
+        var t = wp.GetType();
+        var fi = t.GetField("stairId", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+        if (fi != null) return fi.GetValue(wp) as string;
+        var pi = t.GetProperty("stairId", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+        if (pi != null) return pi.GetValue(wp, null) as string;
+        return null;
+    }
+
+    string NormalizeStairName(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return name;
+        string n = name.ToLowerInvariant();
+
+        // Quick filter: require token (stairs/stair) to be considered
+        if (!stairNameTokens.Any(tok => n.Contains(tok))) return n;
+
+        // strip common floor tokens
+        n = n.Replace("-1st", "").Replace("-2nd", "").Replace("-3rd", "");
+        n = n.Replace("1st", "").Replace("2nd", "").Replace("3rd", "");
+        n = n.Replace("-1f", "").Replace("-2f", "").Replace("-3f", "");
+        n = n.Replace("1f", "").Replace("2f", "").Replace("3f", "");
+        n = n.Replace("floor", "");
+        // collapse underscores/dashes
+        n = n.Replace("__", "_").Replace("--", "-");
+        // trim trailing separators
+        return n.Trim('-', '_', ' ');
+    }
+
     private List<NavigationWaypoint> RunOptimizedAStar(NavigationWaypoint start, NavigationWaypoint goal)
     {
         var openSet = new List<NavigationWaypoint> { start };
@@ -1977,8 +2822,8 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         float distance = Vector3.Distance(from.transform.position, to.transform.position);
 
         // Add penalty for floor changes
-        bool fromSecondFloor = from.transform.position.y > 5f;
-        bool toSecondFloor = to.transform.position.y > 5f;
+        bool fromSecondFloor = IsSecondFloor(from.transform.position);
+        bool toSecondFloor = IsSecondFloor(to.transform.position);
         if (fromSecondFloor != toSecondFloor)
             distance += 5f; // Penalty for floor change
 
@@ -2095,6 +2940,157 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         return true;
     }
 
+    private void EnsureNavVisuals()
+    {
+        if (!navRoot)
+        {
+            var rootGO = GameObject.Find("NavigationVisuals");
+            if (!rootGO)
+            {
+                rootGO = new GameObject("NavigationVisuals");
+                rootGO.layer = LayerMask.NameToLayer("Default");
+            }
+            navRoot = rootGO.transform;
+            if (contentAnchor) navRoot.SetParent(contentAnchor, false);
+        }
+
+
+// Route line disabled: remove any existing line object
+if (routeLR)
+        {
+            if (Application.isPlaying) Destroy(routeLR.gameObject); else DestroyImmediate(routeLR.gameObject);
+            routeLR = null;
+        }
+        var leftover = GameObject.Find("RouteLine");
+        if (leftover)
+        {
+            if (Application.isPlaying) Destroy(leftover); else DestroyImmediate(leftover);
+        }
+
+        // Ensure the arrow exists (only one)
+        if (!arrowGO)
+        {
+            if (arrowPrefab)
+            {
+                arrowGO = Instantiate(arrowPrefab, navRoot);
+                arrowGO.layer = LayerMask.NameToLayer("Default");
+                arrowGO.SetActive(false);
+            }
+            else
+            {
+                Debug.LogWarning("SmartNavigation: arrowPrefab not assigned; arrow will not render.");
+            }
+        }
+
+        // Optional: target marker (keep if you want the goal pin)
+        if (!targetMarkerGO && targetMarkerPrefab)
+        {
+            targetMarkerGO = Instantiate(targetMarkerPrefab, navRoot);
+            targetMarkerGO.layer = LayerMask.NameToLayer("Default");
+            targetMarkerGO.SetActive(false);
+        }
+    }
+
+    private void ShowNavigationVisuals(bool show)
+    {
+        EnsureNavVisuals();
+    
+if (arrowGO) arrowGO.SetActive(show);
+
+        if (targetMarkerGO)
+        {
+            targetMarkerGO.SetActive(show);
+            if (show && currentPath != null && currentPath.Count > 0)
+                targetMarkerGO.transform.position = currentPath[currentPath.Count - 1] + Vector3.up * 0.02f;
+        }
+    }
+    private void RefreshRouteLineRenderer()
+    {
+       
+    }
+
+    private void UpdateArrowAndHints()
+    {
+        if (!playerCamera || currentPath == null || currentPath.Count < 2) return;
+
+        Vector3 proj;
+        int seg = FindClosestSegmentAndProjection(playerCamera.transform.position, out proj);
+        if (seg >= 0)
+        {
+            if (arrowGO)
+            {
+                arrowGO.transform.position = proj;
+                Vector3 a = currentPath[seg];
+                Vector3 b = currentPath[seg + 1];
+                Vector3 dir = b - a; dir.y = 0f;
+                if (dir.sqrMagnitude > 1e-4f)
+                    arrowGO.transform.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
+            }
+            UpdateTurnHint(seg, proj);
+        }
+    }
+
+    private float DistanceToGoalFrom(int segIndex, Vector3 fromPoint)
+    {
+        if (currentPath == null || currentPath.Count < 2) return 0f;
+        float sum = 0f;
+
+ 
+        // remaining on current segment
+        Vector3 a = currentPath[segIndex];
+        Vector3 b = currentPath[segIndex + 1];
+        Vector3 ab = b - a;
+        float t = Mathf.Clamp01(Vector3.Dot(fromPoint - a, ab) / Mathf.Max(1e-6f, ab.sqrMagnitude));
+        Vector3 q = a + ab * t;
+        sum += Vector3.Distance(q, b);
+
+        for (int i = segIndex + 1; i < currentPath.Count - 1; i++)
+            sum += Vector3.Distance(currentPath[i], currentPath[i + 1]);
+        return sum;
+    }
+
+    private void UpdateTurnHint(int segIndex, Vector3 proj)
+    {
+        string turn = "Go straight";
+        float turnDist = 0f;
+
+if (segIndex < currentPath.Count - 2)
+        {
+            Vector3 p0 = currentPath[segIndex];
+            Vector3 p1 = currentPath[segIndex + 1];
+            Vector3 p2 = currentPath[segIndex + 2];
+
+            Vector3 v1 = p1 - p0; v1.y = 0f;
+            Vector3 v2 = p2 - p1; v2.y = 0f;
+
+            float angle = Vector3.SignedAngle(v1, v2, Vector3.up);
+            if (Mathf.Abs(angle) > 20f)
+                turn = angle > 0 ? "Turn left" : "Turn right";
+            else
+                turn = "Go straight";
+
+            turnDist = Vector3.Distance(proj, p1);
+        }
+        else
+        {
+            turn = "Destination ahead";
+            turnDist = DistanceToGoalFrom(segIndex, proj);
+        }
+
+        // Update HUD (non-blocking: only if UI has such method)
+        var ui = FindFirstObjectByType<ManilaServeUI>();
+        string msg = $"{turn} - {Mathf.RoundToInt(turnDist)} m";
+        if (ui)
+        {
+            ui.SendMessage("SetTurnHint", msg, SendMessageOptions.DontRequireReceiver);
+            ui.SendMessage("OnTurnHint", msg, SendMessageOptions.DontRequireReceiver);
+        }
+        else
+        {
+            Debug.Log($"[TURN] {msg}");
+        }
+    }
+
     void EnsureFloorProxy()
     {
         if (!worldRoot) return;
@@ -2131,6 +3127,24 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         // Ensure ground raycasts can hit the proxy
         if (layer >= 0)
             groundLayerMask |= (1 << layer);
+    }
+    
+    public void CreateGroundArrowsForPathFromSegment(int startSegment, Vector3? firstPosOverride = null)
+    {
+        EnsureArrowPool();
+        if (currentPath == null || currentPath.Count < 2) return;
+        if (pathArrows == null) pathArrows = new System.Collections.Generic.List<GameObject>();
+
+        int segIdx = Mathf.Clamp(startSegment, 0, currentPath.Count - 2);
+
+        // First segment can start from the projection point
+        Vector3 segFrom = firstPosOverride.HasValue ? firstPosOverride.Value : currentPath[segIdx];
+        Vector3 segTo = currentPath[segIdx + 1];
+        CreateGroundArrowsForSegment(segFrom, segTo);
+
+        // Remaining segments
+        for (int j = segIdx + 1; j < currentPath.Count - 1; j++)
+            CreateGroundArrowsForSegment(currentPath[j], currentPath[j + 1]);
     }
 
     private NavigationWaypoint FindNearestAccessibleWaypoint(Vector3 position, NavigationWaypoint[] waypoints)
@@ -2301,118 +3315,164 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         return;
     }
 
-    // ✅ Required helper for pathfinding
-    private NavigationWaypoint FindNearestWaypoint(Vector3 position, NavigationWaypoint[] waypoints)
+
+    void EnsureArrowsParentVisible()
     {
+        // Create PathRoot if missing
+        if (!arrowsParent)
+        {
+            var pathRootGO = GameObject.Find("PathRoot");
+            if (!pathRootGO) pathRootGO = new GameObject("PathRoot");
+            Transform preferred = worldRootForArrows ? worldRootForArrows : transform;
+            pathRootGO.transform.SetParent(preferred, false);
+            arrowsParent = pathRootGO.transform;
+        }
+
+        // If arrowsParent ended under a Canvas or floors root, reparent it to world
+        if (IsUnderCanvas(arrowsParent))
+        {
+            var preferred = worldRootForArrows ? worldRootForArrows : transform;
+            arrowsParent.SetParent(preferred, true);
+            Debug.Log("[ARROWS] Reparented PathRoot from Canvas to world.");
+        }
+        if (floorsRoot && IsDescendantOf(arrowsParent, floorsRoot))
+        {
+            var preferred = worldRootForArrows ? worldRootForArrows
+                           : (floorsRoot.parent ? floorsRoot.parent : transform);
+            arrowsParent.SetParent(preferred, true);
+            Debug.Log("[ARROWS] Reparented PathRoot away from floorsRoot to avoid being hidden.");
+        }
+
+        if (!arrowsParent.gameObject.activeSelf)
+            arrowsParent.gameObject.SetActive(true);
+    }
+
+
+    bool IsUnderCanvas(Transform t)
+    {
+        for (var cur = t; cur; cur = cur.parent)
+            if (cur.GetComponent<Canvas>() != null) return true;
+        return false;
+    }
+    bool IsDescendantOf(Transform t, Transform ancestor)
+    {
+        for (var cur = t ? t.parent : null; cur; cur = cur.parent)
+            if (cur == ancestor) return true;
+        return false;
+    }
+
+
+    void SimplifyPathInPlace(List<Vector3> path, float minStep)
+    {
+        if (path == null || path.Count < 2) return;
+        for (int i = path.Count - 2; i >= 1; i--)
+        {
+            float d = Vector3.Distance(path[i], path[i - 1]);
+            if (d < minStep) path.RemoveAt(i);
+        }
+    }
+
+    // ---------- Nearest waypoint helpers (support both parameter orders) ----------
+
+    // Core implementation (ground-projected XZ, null-safe, skip prefab assets)
+    private NavigationWaypoint FindNearestWaypointCore(IEnumerable<NavigationWaypoint> waypoints, Vector3 position)
+    {
+        if (waypoints == null) return null;
+
+        Vector3 pFlat = new Vector3(position.x, 0f, position.z);
         NavigationWaypoint nearest = null;
-        float minDist = Mathf.Infinity;
+        float minSqr = float.MaxValue;
 
         foreach (var wp in waypoints)
         {
-            float dist = Vector3.Distance(position, wp.transform.position);
-            if (dist < minDist)
+            if (wp == null) continue;
+
+            // Skip prefab assets (Resources.FindObjectsOfTypeAll returns them)
+            if (!wp.gameObject.scene.IsValid()) continue;
+
+            Vector3 w = wp.transform.position;
+            Vector3 wFlat = new Vector3(w.x, 0f, w.z);
+
+            float d2 = (wFlat - pFlat).sqrMagnitude;
+            if (d2 < minSqr)
             {
-                minDist = dist;
+                minSqr = d2;
                 nearest = wp;
             }
         }
-
         return nearest;
     }
 
+    // List-first (new calls)
+    private NavigationWaypoint FindNearestWaypoint(List<NavigationWaypoint> waypoints, Vector3 position)
+        => FindNearestWaypointCore(waypoints, position);
+
+    // Array-first (some legacy calls)
+    private NavigationWaypoint FindNearestWaypoint(NavigationWaypoint[] waypoints, Vector3 position)
+        => FindNearestWaypointCore(waypoints, position);
+
+    // Position-first (legacy calls) – list version
+    private NavigationWaypoint FindNearestWaypoint(Vector3 position, List<NavigationWaypoint> waypoints)
+        => FindNearestWaypointCore(waypoints, position);
+
+    // Position-first (legacy calls) – array version
+    private NavigationWaypoint FindNearestWaypoint(Vector3 position, NavigationWaypoint[] waypoints)
+        => FindNearestWaypointCore(waypoints, position);
+
     public Vector3 GetGroundPosition(Vector3 worldPos)
     {
-        // For waypoint positions, keep them exactly where they are
-        // Only adjust Y for non-waypoint positions if needed
-
-        if (useProxyFloor && floorProxy)
+        if (preferARGroundRaycast && raycastMgr != null)
         {
-            // Keep X,Z but use proxy Y + offset
-            return new Vector3(worldPos.x, floorProxy.position.y + groundOffset, worldPos.z);
-        }
-
-        // For waypoints, keep original position
-        return worldPos;
-    }
-
-    public void CreateGroundArrowsForSegment(Vector3 start, Vector3 end)
-    {
-        if (hudOnly) return;
-
-        Debug.Log($"[SEGMENT] Creating arrows from {start} to {end}");
-
-        // ✅ CHANGED: Use GetValidFloorPosition instead of ClampToFloorBounds
-        Vector3 worldStart = GetValidFloorPosition(start);
-        Vector3 worldEnd = GetValidFloorPosition(end);
-
-        Debug.Log($"[SEGMENT] AR-adjusted Start: {worldStart}, End: {worldEnd}");
-
-        Vector3 seg = worldEnd - worldStart;
-        float dist = seg.magnitude;
-
-        Debug.Log($"[SEGMENT] Distance: {dist}m, Spacing: {arrowSpacing}m");
-
-        if (dist < 0.01f)
-        {
-            Debug.LogWarning("[SEGMENT] Distance too short, skipping");
-            return;
-        }
-
-        EnsurePathRoot();
-        if (!arrowPrefab)
-        {
-            Debug.LogError("[SEGMENT] No arrowPrefab!");
-            return;
-        }
-
-        if (!pathRoot)
-        {
-            Debug.LogError("[SEGMENT] pathRoot is NULL!");
-            return;
-        }
-
-        int num = Mathf.Max(1, Mathf.CeilToInt(dist / Mathf.Max(0.05f, arrowSpacing)));
-        Debug.Log($"[SEGMENT] Creating {num} arrows");
-
-        Vector3 direction = seg.normalized;
-        Quaternion rotation = Quaternion.LookRotation(direction, Vector3.up);
-        Quaternion modelCorrection = Quaternion.Euler(-90f, 0f, 0f);
-
-        for (int i = 0; i < num; i++)
-        {
-            float t = (i + 1f) / (num + 1f);
-            Vector3 arrowPos = Vector3.Lerp(worldStart, worldEnd, t);
-
-            // ✅ CHANGED: Only call GetValidFloorPosition once
-            arrowPos = GetValidFloorPosition(arrowPos);
-
-            GameObject go = Instantiate(arrowPrefab, arrowPos, rotation * modelCorrection, pathRoot);
-            go.name = $"Arrow_{i}_{Time.frameCount}";
-
-            // ✅ CHANGED: Increased minimum scale for visibility
-            float baseScale = Mathf.Clamp(arrowSize, 0.3f, 1.0f);
-            go.transform.localScale = Vector3.one * baseScale;
-
-            var mat = arrowSharedMat ??= CreateArrowMaterial(arrowColor);
-            foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+            var hits = new System.Collections.Generic.List<UnityEngine.XR.ARFoundation.ARRaycastHit>(1);
+            var ray = new Ray(worldPos + Vector3.up * groundRayHeight, Vector3.down);
+            if (raycastMgr.Raycast(ray, hits, UnityEngine.XR.ARSubsystems.TrackableType.PlaneWithinPolygon))
             {
-                r.sharedMaterial = mat;
-                r.enabled = true;
+                float y = hits[0].pose.position.y;
+                return new Vector3(worldPos.x, y + groundOffset, worldPos.z);
             }
-
-            go.SetActive(true);
-            pathArrows.Add(go);
-
-            Debug.Log($"[ARROW] ✅ Created '{go.name}' at {arrowPos}, Scale: {baseScale}");
         }
-
-        Debug.Log($"[SEGMENT] Completed. Total arrows: {pathArrows.Count}");
+        return new Vector3(worldPos.x, fallbackGroundY + groundOffset, worldPos.z);
     }
 
-    /// <summary>
-    /// Aligns the building model so the specified office position is at AR origin
-    /// Call this when user selects their current office location
-    /// </summary>
+    // Spawns pooled arrows along a single segment, snapping each sample to AR floor.
+    void CreateGroundArrowsForSegment(Vector3 from, Vector3 to)
+    {
+        bool stairs = IsStairsSegment(from, to);
+    
+        if (stairs)
+        {
+            float len = Vector3.Distance(from, to);
+            if (len < 0.001f) return;
+            Vector3 dir = (to - from) / len;
+            float step = Mathf.Max(0.05f, arrowSpacing);
+
+            for (float s = 0f; s <= len; s += step)
+            {
+                Vector3 sample = from + dir * s + Vector3.up * stairsExtraLift;
+                var arrow = RentArrow(); if (!arrow) continue;
+                arrow.transform.SetPositionAndRotation(sample, Quaternion.LookRotation(dir, Vector3.up));
+                if (pathArrows == null) pathArrows = new List<GameObject>();
+                pathArrows.Add(arrow);
+            }
+            return;
+        }
+
+        // Flat segment
+        Vector3 seg = to - from; seg.y = 0f;
+        float segLen = seg.magnitude;
+        if (segLen < 0.001f) return;
+        Vector3 fwd = seg / segLen;
+        float flatStep = Mathf.Max(0.05f, arrowSpacing);
+
+        for (float s = 0f; s <= segLen; s += flatStep)
+        {
+            Vector3 sample = GetGroundPosition(from + fwd * s);
+            var arrow = RentArrow(); if (!arrow) continue;
+            arrow.transform.SetPositionAndRotation(sample, Quaternion.LookRotation(fwd, Vector3.up));
+            if (pathArrows == null) pathArrows = new List<GameObject>();
+            pathArrows.Add(arrow);
+        }
+    }
     public void AlignBuildingToUserPosition(Vector3 userOfficePosition)
     {
         if (worldRoot == null)
@@ -2455,30 +3515,94 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         }
     }
 
-    /// <summary>
-    /// Gets the world position of an office waypoint by ID
-    /// You need to customize the office ID → waypoint name mapping
-    /// </summary>
+    // Centers each path point between left/right walls if both are found.
+    // Requires: wallsLayerMask, corridorProbeHalfWidth, recenterRayOriginHeight set in Inspector.
+    public void RecenterPathToCorridor(List<Vector3> path)
+    {
+        if (path == null || path.Count < 2) return;
+
+        for (int idx = 0; idx < path.Count; idx++)
+        {
+            Vector3 p = path[idx];
+
+            // Estimate forward using neighbors
+            Vector3 forward;
+            if (idx == 0) forward = path[idx + 1] - p;
+            else if (idx == path.Count - 1) forward = p - path[idx - 1];
+            else forward = (path[idx + 1] - path[idx - 1]) * 0.5f;
+
+            forward.y = 0f;
+            if (forward.sqrMagnitude < 1e-4f) continue;
+            forward.Normalize();
+
+            Vector3 right = Vector3.Cross(Vector3.up, forward);
+            Vector3 origin = p + Vector3.up * recenterRayOriginHeight;
+
+            bool hitL = Physics.Raycast(origin, -right, out var leftHit, corridorProbeHalfWidth, wallsLayerMask, QueryTriggerInteraction.Ignore);
+            bool hitR = Physics.Raycast(origin, right, out var rightHit, corridorProbeHalfWidth, wallsLayerMask, QueryTriggerInteraction.Ignore);
+
+            if (hitL && hitR)
+            {
+                Vector3 mid = (leftHit.point + rightHit.point) * 0.5f;
+                mid.y = p.y;
+                path[idx] = mid;
+            }
+            else if (hitL ^ hitR)
+            {
+                // Only one wall found → offset half width from that wall toward corridor center
+                Vector3 wall = hitL ? leftHit.point : rightHit.point;
+                float sign = hitL ? +1f : -1f;
+                Vector3 mid = wall + right * (sign * corridorProbeHalfWidth);
+                mid.y = p.y;
+                path[idx] = mid;
+            }
+        }
+    }
+
+    static readonly Dictionary<int, string> OfficeIdToDisplay = new Dictionary<int, string>
+        {
+        { 0, "Civil Registry Office" },
+        { 1, "City Treasurer" },
+        { 2, "Mayor's Office" },
+        { 3, "Office of the City Administrator" },
+        { 4, "Cash Division" },
+        { 5, "e-Services / Technical Support (EDP Office)" },
+        { 6, "E-Business" },
+        { 7, "Real Estate Division" },
+        { 8, "License Division" },
+        { 9, "S.M.A.R.T" },
+        { 10, "Manila Department of Social Welfare (MDSW)" },
+        { 11, "PWD" }, // keep only if you really have an Office waypoint for PWD
+        { 12, "Manila Department of Social Welfare (MDSW)" }, // second MDSW entry
+        { 13, "Manila Department of Social Welfare (MDSW)" }, // third MDSW entry
+        { 14, "Office of Senior Citizens Affairs (OSCA)" },
+        { 15, "Manila Health Department" },
+        { 16, "Bureau of Permits (BPLO)" },
+        };
+
     public Vector3 GetOfficeWaypointPosition(int officeId)
     {
-        string waypointName = GetWaypointNameFromOfficeId(officeId);
-
-        if (string.IsNullOrEmpty(waypointName))
+        if (officeIndex == null || officeIndex.Count == 0)
+            BuildOfficeIndex();
+    
+        if (!OfficeIdToDisplay.TryGetValue(officeId, out var display))
         {
-            Debug.LogError($"[WAYPOINT] No waypoint name for office ID {officeId}");
+            Debug.LogError($"[WAYPOINT] Unknown officeId {officeId}");
             return Vector3.zero;
         }
 
-        GameObject waypoint = GameObject.Find(waypointName);
+        string mapped = GetCorrectWaypointName(display); // your alias cleaner
+        string key = Canonical(mapped);
 
-        if (waypoint != null)
+        if (!officeIndex.TryGetValue(key, out var candidates) || candidates.Count == 0)
         {
-            Debug.Log($"[WAYPOINT] Found '{waypointName}' at {waypoint.transform.position}");
-            return waypoint.transform.position;
+            Debug.LogError($"[WAYPOINT] No Office waypoint matches '{display}' (mapped '{mapped}', key '{key}')");
+            return Vector3.zero;
         }
 
-        Debug.LogError($"[WAYPOINT] GameObject '{waypointName}' not found in scene!");
-        return Vector3.zero;
+        var chosen = ChooseBest(candidates);
+        Debug.Log($"[WAYPOINT] id={officeId} '{display}' → {chosen.name} at {chosen.transform.position}");
+        return chosen.transform.position;
     }
 
     /// <summary>
@@ -2505,7 +3629,7 @@ Debug.Log("[Anchor] baked under WorldRoot.");
             case 13: return "Waypoint SocialWelfare3";
             case 14: return "Waypoint_EA_OSCA";
             case 15: return "Waypoint_ManilaHD";
-            case 16: return "Waypoint_BureuOfPermits";
+            case 16: return "Waypoint_BureauOfPermits";
 
             default:
                 Debug.LogWarning($"[WAYPOINT] Unknown office ID: {officeId}");
@@ -2513,100 +3637,247 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         }
     }
 
-
-    public void StartNavigationFromCurrentLocation(string toOfficeName)
+    public void StartNavigationFromCurrentLocation(string officeName)
     {
-        Debug.Log($"=== StartNavigationFromCurrentLocation → {toOfficeName} ===");
+        Debug.Log($"=== StartNavigationFromCurrentLocation → {officeName} ===");
 
-        StopNavigation();
 
-        // Use camera position as start (don't set currentUserOffice)
-        useOfficeAsStart = false;
-        currentUserOffice = "";
-
-        var toWP = FindTargetWaypointAdvanced(toOfficeName);
-        if (toWP == null)
+        // 1) Resolve target office waypoint
+        NavigationWaypoint goal = null;
+        try
         {
-            Debug.LogError($"❌ Could not find waypoint: {toOfficeName}");
+            var raw = FindTargetWaypointAdvanced(officeName); // may be Transform or GameObject
+            goal = GetWaypointFromUnknown(raw);
+        }
+        catch { /* ignore */ }
+
+        if (!goal && officeLookup != null && officeLookup.TryGetValue(officeName, out var goalGO) && goalGO)
+            goal = goalGO.GetComponent<NavigationWaypoint>();
+
+        if (!goal)
+        {
+            var allScan = GetAllRuntimeWaypoints();
+            goal = allScan.FirstOrDefault(wp =>
+                   string.Equals(wp.officeName, officeName, System.StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(wp.waypointName, officeName, System.StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(wp.name, officeName, System.StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!goal)
+        {
+            Debug.LogError($"StartNavigationFromCurrentLocation: no office waypoint found for '{officeName}'");
             return;
         }
 
-        Debug.Log($"✅ Found destination waypoint: {toWP.name} at {toWP.transform.position}");
+        // 2) Reset session and push UI
+        ResetNavSessionBeforeNewRoute(goal);
+        PushDestinationInfoToUI(goal);
 
-        // Set navigation target
-        targetDestination = toWP.transform.position;
-        originalTargetPosition = targetDestination;
-        currentDestination = toOfficeName;
+        // 3) Anchors
+        Vector3 fromStart = GetGroundPosition(GetRoutingStartPosition()); // ground
+        Vector3 toGoalWorld = goal.transform.position;                    // PRESERVE Y (2nd floor ok)
 
-        // Calculate path - GetCurrentPosition() will use camera position
-        Debug.Log($"[NAV] Calculating path from camera...");
-        CalculateWallAvoidingPath();
+        // Keep legacy targetDestination at true goal (not ground)
+        targetDestination = toGoalWorld;
 
-        if (currentPath == null || currentPath.Count < 2)
+        // Place marker now at real goal height
+        PlaceTargetMarkerAt(toGoalWorld, preserveYIfElevated: true);
+        Debug.Log($"[Marker] Initial place at {toGoalWorld} (y={toGoalWorld.y:F2})");
+
+        // 4) Graph nodes
+        var all = GetAllRuntimeWaypoints();
+        var startNode = FindNearestWaypoint(all.ToList(), fromStart);
+        var goalNode = goal;
+
+        if (!startNode || !goalNode)
         {
-            Debug.LogError("❌ Path calculation failed!");
+            Debug.LogError("StartNavigationFromCurrentLocation: startNode or goalNode null.");
+            if (!forceWaypointRouting)
+            {
+                currentPathNodes.Clear();
+                currentPath = new List<Vector3> { fromStart, toGoalWorld };
+                isNavigating = true;
+            }
+            else
+            {
+                isNavigating = false;
+            }
             return;
         }
 
-        Debug.Log($"✅ Path calculated with {currentPath.Count} points");
+        // 5) Fix one-sided links, then BFS
+        NavigationWaypoint.MakeLinksBidirectional(removeInvalid: true, deduplicate: true);
 
-        // WORLD MODE: Create arrows immediately
-        if (!hudOnly)
+        var nodes = BFSWaypoints(startNode, goalNode);
+        if (nodes == null || nodes.Count < 2)
         {
-            EnsureActiveChain();
-            ClearPathArrows();
-            ClearFlowLine();
-
-            pathStyle = PathVisualStyle.Arrows;
-            CreateGroundArrowsForPath();
-
-            Debug.Log($"✅ Created {pathArrows.Count} arrows");
-
-            ShowEnhancedTargetMarker();
+            Debug.LogWarning($"[PATH] Directed BFS failed {startNode.name} → {goalNode.name}. Trying undirected BFS…");
+            nodes = BFSWaypointsUndirected(startNode, goalNode);
         }
 
-        // Update UI
-        isNavigating = true;
-        hasReachedDestination = false;
-        currentPathIndex = 0;
+        if (nodes == null || nodes.Count < 2)
+        {
+            if (forceWaypointRouting)
+            {
+                Debug.LogError($"BFS failed {startNode.name} → {goalNode.name}; forceWaypointRouting prevents 2-point fallback.");
+                isNavigating = false;
+                return;
+            }
 
-        if (statusText) statusText.text = $"Navigating to {currentDestination}";
-        if (navigateButton) navigateButton.gameObject.SetActive(false);
-        if (stopButton) stopButton.gameObject.SetActive(true);
+            currentPathNodes.Clear();
+            currentPath = new List<Vector3> { fromStart, toGoalWorld };
+            isNavigating = true;
+            Debug.LogWarning("Fallback: 2-point path used (BFS failed, forceWaypointRouting=false).");
+            return;
+        }
 
-        Debug.Log("=== Navigation from current location started ===");
+        // 6) Build precise 3D path
+        BuildPathFromNodes(nodes, fromStart, toGoalWorld);
+    }
+
+    // Returns the Transform of the office waypoint by the name you show to users.
+    public Transform ResolveOfficeTransformByDisplay(string displayName)
+    {
+        if (officeIndex == null || officeIndex.Count == 0) BuildOfficeIndexFromScene();
+
+        string mapped = GetCorrectWaypointName(displayName);   // your alias cleaner
+        string key = CanonicalOfficeKey(mapped);
+
+        if (!officeIndex.TryGetValue(key, out var list) || list.Count == 0)
+        {
+            Debug.LogError($"[OFFICE] No waypoint for '{displayName}' (mapped '{mapped}')");
+            return null;
+        }
+
+        var chosen = ChooseBestOffice(list); // prefers same floor, then nearest
+        return chosen ? chosen.transform : null;
+    }
+
+    private List<NavigationWaypoint> BFSWaypointsUndirected(NavigationWaypoint start, NavigationWaypoint goal)
+    {
+        if (!start || !goal) return null;
+
+        var all = Resources.FindObjectsOfTypeAll<NavigationWaypoint>();
+        var nodes = all.Where(wp => wp && wp.gameObject.scene.IsValid()).ToArray();
+
+        // Build undirected adjacency
+        var adj = new System.Collections.Generic.Dictionary<NavigationWaypoint, System.Collections.Generic.List<NavigationWaypoint>>();
+        foreach (var n in nodes)
+        {
+            adj[n] = new System.Collections.Generic.List<NavigationWaypoint>();
+        }
+        foreach (var a in nodes)
+        {
+            var list = a.connectedWaypoints;
+            if (list == null) continue;
+            foreach (var b in list)
+            {
+                if (!b || !b.gameObject.scene.IsValid() || b == a) continue;
+                if (!adj[a].Contains(b)) adj[a].Add(b);
+                if (!adj[b].Contains(a)) adj[b].Add(a); // add reverse for search
+            }
+        }
+
+        // BFS
+        var q = new System.Collections.Generic.Queue<NavigationWaypoint>();
+        var came = new System.Collections.Generic.Dictionary<NavigationWaypoint, NavigationWaypoint>();
+        var seen = new System.Collections.Generic.HashSet<NavigationWaypoint>();
+
+        q.Enqueue(start);
+        seen.Add(start);
+
+        while (q.Count > 0)
+        {
+            var cur = q.Dequeue();
+            if (cur == goal)
+            {
+                var path = new System.Collections.Generic.List<NavigationWaypoint> { cur };
+                while (came.TryGetValue(cur, out var prev))
+                {
+                    cur = prev;
+                    path.Add(cur);
+                }
+                path.Reverse();
+                return path;
+            }
+
+            foreach (var nb in adj[cur])
+            {
+                if (nb == null || seen.Contains(nb)) continue;
+                seen.Add(nb);
+                came[nb] = cur;
+                q.Enqueue(nb);
+            }
+        }
+        return null;
     }
 
     private Vector3 ClampToFloorBounds(Vector3 position)
     {
-        // Get the appropriate floor bounds
-        Bounds floorBounds;
-        if (position.y > 5f && secondFloor)
-        {
-            floorBounds = GetFloorBounds(secondFloor);
-        }
+        // Choose which floor’s bounds to use based on height
+        GameObject floorRoot = null;
+        if (position.y > floorSplitY && secondFloor)
+            floorRoot = secondFloor;
         else if (groundFloor)
-        {
-            floorBounds = GetFloorBounds(groundFloor);
-        }
+            floorRoot = groundFloor;
         else
-        {
-            return position; // No floor to clamp to
-        }
+            return position; // No floor root available
 
-        // Clamp X and Z to floor bounds, keep original Y
+        // Get world-space bounds for that floor
+        Bounds floorBounds = GetFloorBounds(floorRoot);
+
+        // Small margin so we don’t clamp-oscillate when right on the border
+        const float margin = 0.05f;
+
+        float minX = floorBounds.min.x + margin;
+        float maxX = floorBounds.max.x - margin;
+        float minZ = floorBounds.min.z + margin;
+        float maxZ = floorBounds.max.z - margin;
+
+        // Clamp X/Z only; keep the original Y (important for stairs/2nd floor)
         Vector3 clamped = new Vector3(
-            Mathf.Clamp(position.x, floorBounds.min.x, floorBounds.max.x),
+            Mathf.Clamp(position.x, minX, maxX),
             position.y,
-            Mathf.Clamp(position.z, floorBounds.min.z, floorBounds.max.z)
+            Mathf.Clamp(position.z, minZ, maxZ)
         );
 
-        if (Vector3.Distance(position, clamped) > 0.1f)
-        {
-            Debug.LogWarning($"Clamped position {position} to {clamped} (outside floor bounds)");
-        }
+        // Optional debug if we actually clamped something
+        if (Mathf.Abs(clamped.x - position.x) > 0.001f || Mathf.Abs(clamped.z - position.z) > 0.001f)
+            Debug.LogWarning($"Clamped position {position} to {clamped} (outside {floorRoot.name} bounds)");
 
         return clamped;
+    }
+
+
+    private void PushDestinationInfoToUI(NavigationWaypoint goal)
+    {
+        var services = goal.services != null ? goal.services.Where(s => !string.IsNullOrWhiteSpace(s)).ToArray()
+        : System.Array.Empty<string>();
+        var displayName = !string.IsNullOrEmpty(goal.officeName)
+        ? goal.officeName
+        : (!string.IsNullOrEmpty(goal.waypointName) ? goal.waypointName : goal.name);
+
+        // Try ManilaServeUI if present
+        var ui = FindFirstObjectByType<ManilaServeUI>(FindObjectsInactive.Include);
+        if (ui)
+        {
+            ui.SendMessage("SetSelectedOffice", displayName, SendMessageOptions.DontRequireReceiver);
+            ui.SendMessage("SetSelectedOfficeServices", services, SendMessageOptions.DontRequireReceiver);
+        }
+
+        // Also prime ServiceArrivalManager so arrival popup knows the same name/services
+#if UNITY_2022_2_OR_NEWER
+var mgr = serviceArrivalManager ? serviceArrivalManager
+: FindFirstObjectByType<ServiceArrivalManager>(FindObjectsInactive.Include);
+#else
+        var mgr = serviceArrivalManager ? serviceArrivalManager
+        : FindObjectOfType<ServiceArrivalManager>(true);
+#endif
+        if (mgr)
+        {
+            mgr.SendMessage("SetPendingDestination", displayName, SendMessageOptions.DontRequireReceiver);
+            mgr.SendMessage("SetPendingDestinationServices", services, SendMessageOptions.DontRequireReceiver);
+        }
     }
 
     private Vector3 GetValidFloorPosition(Vector3 position)
@@ -2674,12 +3945,18 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         }
     }
 
-    void SetFloorsVisible(bool visible)
+    bool AreFloorsVisible()
     {
-        if (groundFloor)
-            foreach (var r in groundFloor.GetComponentsInChildren<Renderer>(true)) r.enabled = visible;
-        if (secondFloor)
-            foreach (var r in secondFloor.GetComponentsInChildren<Renderer>(true)) r.enabled = visible;
+        if (floorsRoot) return floorsRoot.gameObject.activeSelf;
+        // If not assigned, assume visible
+        return true;
+    }
+
+    void SetFloorsVisible(bool on)
+    {
+        if (floorsRoot) floorsRoot.gameObject.SetActive(on);
+        if (floorPlanUIRoot) floorPlanUIRoot.SetActive(on);
+        Debug.Log($"[FLOOR] SetFloorsVisible({on})");
     }
 
     void EnsurePathRoot()
@@ -2867,64 +4144,36 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         Debug.Log($"✅ Target marker placed at: {targetMarker.transform.position}");
     }
 
-    void ClearPathArrows()
+    public void ClearPathArrows() => ClearPathArrowsIfNeeded();
+
+    // Pooled and null-safe clear (do not Destroy)
+    public void ClearPathArrowsIfNeeded()
     {
-        if (pathArrows != null)
+        if (pathArrows == null)
+            pathArrows = new System.Collections.Generic.List<GameObject>();
+
+        for (int i = pathArrows.Count - 1; i >= 0; i--)
         {
-            foreach (var a in pathArrows)
-                if (a) Destroy(a);
-            pathArrows.Clear();
+            var go = pathArrows[i];
+            if (!go) { pathArrows.RemoveAt(i); continue; }
+            ReturnArrowToPool(go); // pooled; not Destroy
+            pathArrows.RemoveAt(i);
         }
-        if (pathRoot)
-        {
-            for (int i = pathRoot.childCount - 1; i >= 0; i--)
-                Destroy(pathRoot.GetChild(i).gameObject);
-        }
+        ReturnAllArrowsToPool();
     }
+
 
     public void StopNavigation()
     {
-        startedFromOffice = false;
-        currentUserOffice = "";
-        useOfficeAsStart = false;
-
-        // Reset arrival detection
-        hasReachedDestination = false;
-        hasShownArrivalNotification = false;
-        timeWithinArrivalZone = 0f;
-
-        Debug.Log("[NAV] StopNavigation() called");
         isNavigating = false;
-        ClearPathArrows();
+        ShowNavigationVisuals(false);
+        currentPath?.Clear();
+        currentPathNodes?.Clear();
+        stairsSegments.Clear();
 
-        if (targetMarker) targetMarker.SetActive(false);
-        currentPath.Clear();
-
-        if (directionText) directionText.text = "";
-        if (distanceText) distanceText.text = "";
-
-        if (statusText)
-        {
-            statusText.text = useVuforiaPositioning
-                ? (isImageTargetTracked ? "Ready to navigate" : "Point camera at office sign")
-                : "Ready to navigate";
-        }
-
-        if (navigateButton) navigateButton.gameObject.SetActive(true);
-        if (stopButton) stopButton.gameObject.SetActive(false);
-
-        SetFloorsVisible(false);
-
-        if (stepper) stepper.OnDistance -= OnHudMeters;
-
-        _turns.Clear();
-        _nextTurn = -1;
-        _turnAnnounced = false;
-        if (turnText) turnText.text = "";
-
-        Debug.Log("[NAV] StopNavigation finished");
+        var ui = FindFirstObjectByType<ManilaServeUI>();
+        ui?.SendMessage("SetTurnHint", "", SendMessageOptions.DontRequireReceiver);
     }
-
 
     public void StartNavigation()
     {
@@ -3026,33 +4275,36 @@ Debug.Log("[Anchor] baked under WorldRoot.");
 
     void Update()
     {
-        if (!isNavigating || hasReachedDestination) return;
-
-        // Check arrival
-        CheckArrivalAtDestination();
-
-        // Update arrow visibility (your existing code)
-        if (currentPath == null || currentPath.Count == 0)
-        {
-            Vector3 userPos = GetUserPosition();
-            if (userPos != Vector3.zero)
-            {
-                CalculateAndShowPath(userPos, targetDestination);
-            }
-        }
-        else
-        {
-            UpdateArrowVisibility();
-        }
-
-        // Update directions and animations (your existing code)
-        UpdateDirections();
+        // Always bob/spin the target marker if it’s active
         AnimateEnhancedTargetMarker();
-        AnimateArrowPath();
-        UpdateArrowBaseScalesIfEnabled();
-        UpdateTurnHints();
-    }
 
+// Not navigating? Nothing to update.
+if (!isNavigating) return;
+
+        // If we already reached the destination, stop updating guidance
+        if (hasReachedDestination) return;
+
+        // Must have a usable path
+        if (currentPath == null || currentPath.Count < 2)
+        {
+            // Hide/idle arrow visuals if your implementation uses this
+            UpdateArrowVisibility();
+            return;
+        }
+
+        // Drive your existing arrow system (no route line)
+        ProgressiveArrowsTick();            // maintain/spawn breadcrumb arrows along currentPath
+        AnimateArrowPath();                  // animate arrow movement
+        UpdateArrowBaseScalesIfEnabled();    // optional scaling
+        UpdateArrowVisibility();             // show/hide as needed
+
+        // Guidance UI
+        UpdateDirections();                  // heading/next segment UI
+        UpdateTurnHints();                   // text hint: Turn left/right, Go straight
+
+        // Arrival check last so final hint shows before popup
+        CheckArrivalAtDestination();
+    }
 
     public void StartNavigationFromOfficeName(string fromOfficeName, string toOfficeName)
     {
@@ -3120,8 +4372,6 @@ Debug.Log("[Anchor] baked under WorldRoot.");
 
         Debug.Log("=== Navigation started successfully ===");
     }
-    // simple flag used by navigation flow
-    private bool hasReachedDestination = false;
 
     // Return a usable user position (prefers lastPlayerPosition if available, otherwise camera)
     public Vector3 GetUserPosition()
@@ -3271,129 +4521,388 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         s = System.Text.RegularExpressions.Regex.Replace(s, @"[^a-z0-9]", "");
         return s;
     }
+    void EnsureTurnUI()
+    {
+        // If you forgot to wire fields in the Inspector, try to find them by name
+        if (!turnText)
+        {
+            var go = GameObject.Find("DirectionsText"); // rename to your text object name
+            if (go) turnText = go.GetComponent<TMPro.TMP_Text>();
+        }
+        if (!turnPanel && turnText)
+            turnPanel = turnText.transform.parent.gameObject; // assume the text is inside the panel
+    }
 
-    // real-time turn hint updater
+    void ShowTurnUI(bool show)
+    {
+        EnsureTurnUI();
+        if (turnPanel) turnPanel.SetActive(show);
+        else if (turnText) turnText.gameObject.SetActive(show);
+    }
+
     void UpdateTurnHints()
     {
-        if (!isNavigating || _turns == null || _turns.Count == 0)
+        EnsureTurnUI();
+
+        // Only hide when NOT navigating
+        if (!isNavigating)
         {
+            ShowTurnUI(false);
             if (turnText) turnText.text = "";
             return;
         }
 
-        // clamp/ensure index
-        if (_nextTurn < 0) _nextTurn = 0;
+        // Always show while navigating
+        ShowTurnUI(true);
 
-        // If we already passed all turns
-        if (_nextTurn >= _turns.Count)
-        {
-            if (turnText) turnText.text = "Continue straight to destination";
-            return;
-        }
-
-        // Get user position (your existing method)
         Vector3 camWorld = GetCurrentPosition();
         Vector3 camFlat = new Vector3(camWorld.x, 0f, camWorld.z);
 
-        // Get camera forward (flattened). Use assigned userCamera else Camera.main else fallback.
-        Vector3 camForward;
-        if (userCamera != null) camForward = userCamera.forward;
-        else if (Camera.main != null) camForward = Camera.main.transform.forward;
-        else camForward = transform.forward;
-        Vector3 camForwardFlat = new Vector3(camForward.x, 0f, camForward.z);
-        if (camForwardFlat.sqrMagnitude < 0.0001f) camForwardFlat = Vector3.forward;
-        camForwardFlat.Normalize();
+        // If you have a path, use it to get destination fallback
+        Vector3 destPos = camWorld;
+        if (currentPath != null && currentPath.Count > 0)
+            destPos = currentPath[currentPath.Count - 1];
 
-        // Advance _nextTurn if we've passed it
-        while (_nextTurn < _turns.Count)
+        // When we DO have a turn list, maintain progress
+        if (_turns != null && _turns.Count > 0)
         {
-            Vector3 turnPos = _turns[_nextTurn].pos;
-            Vector3 turnFlat = new Vector3(turnPos.x, 0f, turnPos.z);
-            float passDist = Vector3.Distance(camFlat, turnFlat);
-            if (passDist <= turnPassDistance)
+            if (_nextTurn < 0) _nextTurn = 0;
+
+            // Advance to next turn if close
+            while (_nextTurn < _turns.Count)
             {
-                _nextTurn++;
-                _turnAnnounced = false;
+                Vector3 turnPos = _turns[_nextTurn].pos;
+                Vector3 turnFlat = new Vector3(turnPos.x, 0f, turnPos.z);
+                float passDist = Vector3.Distance(camFlat, turnFlat);
+                if (passDist <= turnPassDistance)
+                {
+                    _nextTurn++;
+                    _turnAnnounced = false;
+                }
+                else break;
             }
-            else break;
         }
 
-        if (_nextTurn >= _turns.Count)
-        {
-            if (turnText) turnText.text = "Continue straight to destination";
-            return;
-        }
+        // Pick the guidance target:
+        // - If we still have a turn ahead → aim at that turn point
+        // - Else (straight route or after last turn) → aim at the destination
+        bool hasTurns = _turns != null && _turns.Count > 0 && _nextTurn >= 0 && _nextTurn < _turns.Count;
+        Vector3 nextPos = hasTurns ? _turns[_nextTurn].pos : destPos;
 
-        // Compute direction + distance to next turn
-        Vector3 nextPos = _turns[_nextTurn].pos;
+        // Direction to target
         Vector3 nextFlat = new Vector3(nextPos.x, 0f, nextPos.z);
         Vector3 toNext = nextFlat - camFlat;
-        float d = toNext.magnitude;
-        if (d < 0.0001f) d = 0.0001f;
-        Vector3 toNextN = toNext.normalized;
+        float d = Mathf.Max(0.0001f, toNext.magnitude);
+        Vector3 toNextN = toNext / d;
 
-        float angle = Vector3.SignedAngle(camForwardFlat, toNextN, Vector3.up);
-        float absA = Mathf.Abs(angle);
+        // Heading (compass with fallback to camera yaw)
+        float headingDeg = GetUserHeadingDeg();
+        Vector3 headingV = BearingUtil.YawToVector(headingDeg);
 
+        // Signed angle user->route and smoothing
+        float signedAngle = Vector3.SignedAngle(headingV, toNextN, Vector3.up);
+        float k = angleSmoothTau <= 0f ? 1f : 1f - Mathf.Exp(-Time.deltaTime / angleSmoothTau);
+        _angleSmoothedDeg = Mathf.LerpAngle(_angleSmoothedDeg, signedAngle, k);
+        float absA = Mathf.Abs(_angleSmoothedDeg);
+
+        // Instruction
         string instruction;
-        float straightAngle = 15f;
-        float slightAngle = 45f;
-        if (absA <= straightAngle) instruction = "Go straight";
-        else if (absA <= slightAngle) instruction = angle > 0 ? "Slight left" : "Slight right";
-        else if (absA <= 135f) instruction = angle > 0 ? "Turn left" : "Turn right";
+        if (absA <= straightTolerance) instruction = hasTurns ? "Go straight" : "Proceed to destination";
+        else if (absA <= slightTolerance) instruction = _angleSmoothedDeg > 0 ? "Slight left" : "Slight right";
+        else if (absA <= 135f) instruction = _angleSmoothedDeg > 0 ? "Turn left" : "Turn right";
         else instruction = "Make a U-turn";
 
-        string distStr = d < 1f ? $"{Mathf.RoundToInt(d * 100f)} cm" : $"{d:F1} m";
+        // ----- Distance (along path with calibration) -----
+        int targetIndex = -1;
+        if (currentPath != null && currentPath.Count > 0)
+        {
+            if (hasTurns)
+            {
+                // Prefer TurnEvent.index if you set it in BuildTurnEventsFromPath
+                targetIndex = _turns[_nextTurn].index;
+                if (targetIndex <= 0) targetIndex = FindNearestPathIndex(nextPos);
+                targetIndex = Mathf.Clamp(targetIndex, 0, currentPath.Count - 1);
+            }
+            else
+            {
+                targetIndex = currentPath.Count - 1; // destination
+            }
+        }
 
-        // upcoming turn hint
+        float dMeters;
+        if (usePathDistanceForHints && targetIndex >= 0 && currentPath != null && currentPath.Count >= 2)
+        {
+            Vector3 proj;
+            int segIdx = FindClosestSegmentAndProjection(camWorld, out proj);
+            float along = DistanceAlongPathFrom(proj, segIdx, targetIndex); // unity units
+            dMeters = along * Mathf.Max(0.0001f, metersPerUnit);
+        }
+        else
+        {
+            // fallback: straight-line
+            float direct = Vector3.Distance(camFlat, nextFlat);
+            dMeters = direct * Mathf.Max(0.0001f, metersPerUnit);
+        }
+
+        string distStr = dMeters < 1f ? $"{Mathf.RoundToInt(dMeters * 100f)} cm"
+                       : (dMeters < 10f ? $"{dMeters:0.0} m" : $"{Mathf.RoundToInt(dMeters)} m");
+
+        // Upcoming preview only if there’s another turn ahead
         string upcoming = "";
-        if (_nextTurn + 1 < _turns.Count)
+        if (hasTurns && _nextTurn + 1 < _turns.Count)
         {
             Vector3 after = _turns[_nextTurn + 1].pos;
-            Vector3 afterFlat = new Vector3(after.x - nextPos.x, 0f, after.z - nextPos.z);
-            if (afterFlat.sqrMagnitude > 0.0001f)
+            Vector3 seg1 = (nextPos - camWorld); seg1.y = 0f;
+            Vector3 seg2 = (after - nextPos); seg2.y = 0f;
+            if (seg1.sqrMagnitude > 1e-4f && seg2.sqrMagnitude > 1e-4f)
             {
-                float turnAngle = Vector3.SignedAngle(toNextN, afterFlat.normalized, Vector3.up);
+                float turnAngle = Vector3.SignedAngle(seg1.normalized, seg2.normalized, Vector3.up);
                 float a2 = Mathf.Abs(turnAngle);
-                if (a2 <= straightAngle) upcoming = "Then: continue straight";
-                else if (a2 <= slightAngle) upcoming = turnAngle > 0 ? "Then: slight left" : "Then: slight right";
+                if (a2 <= straightTolerance) upcoming = "Then: continue straight";
+                else if (a2 <= slightTolerance) upcoming = turnAngle > 0 ? "Then: slight left" : "Then: slight right";
                 else if (a2 <= 135f) upcoming = turnAngle > 0 ? "Then: turn left" : "Then: turn right";
                 else upcoming = "Then: make a U-turn";
             }
         }
 
+        // Update UI (always shown during nav)
         if (turnText)
-        {
-            turnText.text = string.IsNullOrEmpty(upcoming) ? $"{instruction} • {distStr}" : $"{instruction} • {distStr} ({upcoming})";
-        }
+            turnText.text = string.IsNullOrEmpty(upcoming)
+                ? $"{instruction} • {distStr}"
+                : $"{instruction} • {distStr} ({upcoming})";
 
-        // keep announce logic if desired
-        if (!_turnAnnounced && d <= turnAnnounceDistance)
+        // Optional: announce as you approach the next turn/destination
+        if (!_turnAnnounced && dMeters <= turnAnnounceDistance)
         {
             _turnAnnounced = true;
-            // Optional: call audio announce here
+            // TODO: audio cue / TTS
+        }
+    }
+
+    void CreateProgressiveArrowsFromProjection(int startSegment, Vector3 projPos, float aheadMeters)
+    {
+        EnsureArrowPool();
+        ClearPathArrowsIfNeeded();
+        if (currentPath == null || currentPath.Count < 2) return;
+
+        startSegment = Mathf.Clamp(startSegment, 0, currentPath.Count - 2);
+
+        float mpu = Mathf.Max(0.0001f, metersPerUnit);
+        float remainingUnits = Mathf.Max(0.5f, aheadMeters) / mpu;
+        float step = Mathf.Max(0.05f, arrowSpacing);
+
+        // First segment from projection
+        Vector3 a = projPos;
+        Vector3 b = currentPath[startSegment + 1];
+        Vector3 seg = b - a; seg.y = 0f;
+        float segLen = seg.magnitude;
+        Vector3 fwd = segLen > 1e-4f ? seg / segLen : Vector3.forward;
+
+        for (float s = 0f; s <= Mathf.Min(segLen, remainingUnits); s += step)
+        {
+            Vector3 sample = GetGroundPosition(a + fwd * s);
+            var go = RentArrow(); if (!go) continue;
+            go.transform.SetPositionAndRotation(sample, Quaternion.LookRotation(fwd, Vector3.up));
+            if (pathArrows == null) pathArrows = new List<GameObject>();
+            pathArrows.Add(go);
+        }
+        remainingUnits -= Mathf.Min(segLen, remainingUnits);
+        if (remainingUnits <= 0f) return;
+
+        // Remaining segments forward
+        for (int j = startSegment + 1; j < currentPath.Count - 1 && remainingUnits > 0f; j++)
+        {
+            a = currentPath[j];
+            b = currentPath[j + 1];
+            seg = b - a; seg.y = 0f;
+            segLen = seg.magnitude;
+            fwd = segLen > 1e-4f ? seg / segLen : fwd;
+
+            for (float s = 0f; s <= Mathf.Min(segLen, remainingUnits); s += step)
+            {
+                Vector3 sample = GetGroundPosition(a + fwd * s);
+                var go = RentArrow(); if (!go) continue;
+                go.transform.SetPositionAndRotation(sample, Quaternion.LookRotation(fwd, Vector3.up));
+                if (pathArrows == null) pathArrows = new List<GameObject>();
+                pathArrows.Add(go);
+            }
+            remainingUnits -= Mathf.Min(segLen, remainingUnits);
+        }
+    }
+
+    void ProgressiveArrowsTick()
+    {
+        if (!isNavigating || !progressiveReveal || currentPath == null || currentPath.Count < 2) return;
+
+        Vector3 proj;
+        int seg = FindClosestSegmentAndProjection(GetCurrentPosition(), out proj);
+        if (seg < 0) return;
+
+        float mpu = Mathf.Max(0.0001f, metersPerUnit);
+        float movedMeters = Vector3.Distance(new Vector3(proj.x, 0, proj.z), new Vector3(_lastProjPos.x, 0, _lastProjPos.z)) * mpu;
+
+        if (seg != _lastProjSeg || movedMeters >= redrawMoveThresholdMeters)
+        {
+            CreateProgressiveArrowsFromProjection(seg, proj, revealAheadMeters);
+            SetArrowsActive(true);
+            _lastProjSeg = seg;
+            _lastProjPos = proj;
+        }
+    }
+    // Returns the index of the segment [i..i+1] closest to 'p' and the clamped projection point on that segment
+    int FindClosestSegmentAndProjection(Vector3 p, out Vector3 proj)
+    {
+        proj = p;
+        if (currentPath == null || currentPath.Count < 2) return -1;
+
+        int bestIdx = -1;
+        float bestSqr = float.MaxValue;
+
+        const float elevatedTol = 1.0f;
+
+        for (int i = 0; i < currentPath.Count - 1; i++)
+        {
+            Vector3 a = currentPath[i];
+            Vector3 b = currentPath[i + 1];
+
+            float ayGround = GetGroundPosition(new Vector3(a.x, 0f, a.z)).y;
+            float byGround = GetGroundPosition(new Vector3(b.x, 0f, b.z)).y;
+            bool aElevated = Mathf.Abs(a.y - ayGround) > elevatedTol;
+            bool bElevated = Mathf.Abs(b.y - byGround) > elevatedTol;
+
+            bool use3D = IsStairsSegment(i) || (aElevated && bElevated);
+
+            if (use3D)
+            {
+                Vector3 ab = b - a;
+                float ab2 = ab.sqrMagnitude;
+                if (ab2 < 1e-6f) continue;
+                float t = Mathf.Clamp01(Vector3.Dot(p - a, ab) / ab2);
+                Vector3 q = a + ab * t;
+                float d2 = (p - q).sqrMagnitude;
+                if (d2 < bestSqr)
+                {
+                    bestSqr = d2;
+                    bestIdx = i;
+                    proj = q + Vector3.up * stairsExtraLift;
+                }
+            }
+            else
+            {
+                Vector3 aF = new Vector3(a.x, 0f, a.z);
+                Vector3 bF = new Vector3(b.x, 0f, b.z);
+                Vector3 pF = new Vector3(p.x, 0f, p.z);
+
+                Vector3 abF = bF - aF;
+                float abF2 = abF.sqrMagnitude;
+                if (abF2 < 1e-6f) continue;
+                float t = Mathf.Clamp01(Vector3.Dot(pF - aF, abF) / abF2);
+                Vector3 qF = aF + abF * t;
+                Vector3 q = new Vector3(qF.x, 0f, qF.z);
+                q = GetGroundPosition(q);
+                float d2 = (pF - qF).sqrMagnitude;
+                if (d2 < bestSqr)
+                {
+                    bestSqr = d2;
+                    bestIdx = i;
+                    proj = q;
+                }
+            }
+        }
+
+        return bestIdx;
+    }
+    int FindNearestPathIndex(Vector3 p)
+    {
+        if (currentPath == null || currentPath.Count == 0) return -1;
+
+        float best = float.MaxValue;
+        int bestIdx = 0;
+
+        Vector3 pFlat = new Vector3(p.x, 0f, p.z);
+        for (int i = 0; i < currentPath.Count; i++)
+        {
+            Vector3 v = currentPath[i];
+            v.y = 0f;
+            float d2 = (v - pFlat).sqrMagnitude;
+            if (d2 < best)
+            {
+                best = d2;
+                bestIdx = i;
+            }
+        }
+        return bestIdx;
+    }
+
+    // Distance along the path from a point on segment 'segIdx' to the vertex at 'targetIndex'
+    float DistanceAlongPathFrom(Vector3 projOnSeg, int segIdx, int targetIndex)
+    {
+        if (currentPath == null || currentPath.Count == 0) return 0f;
+        targetIndex = Mathf.Clamp(targetIndex, 0, currentPath.Count - 1);
+        segIdx = Mathf.Clamp(segIdx, 0, currentPath.Count - 2);
+
+        // If the user is already beyond the target segment, distance is zero
+        if (segIdx >= targetIndex) return 0f;
+
+        float sum = 0f;
+
+        // from projection to end of current segment
+        Vector3 a = projOnSeg;
+        Vector3 b = currentPath[segIdx + 1];
+        sum += Vector3.Distance(new Vector3(a.x, 0, a.z), new Vector3(b.x, 0, b.z));
+
+        // whole segments between current+1 and targetIndex
+        for (int i = segIdx + 1; i < targetIndex; i++)
+        {
+            Vector3 p0 = currentPath[i];
+            Vector3 p1 = currentPath[i + 1];
+            sum += Vector3.Distance(new Vector3(p0.x, 0, p0.z), new Vector3(p1.x, 0, p1.z));
+        }
+
+        return sum;
+    }
+
+    // Build list of turn points from a path (skip tiny bends)
+    public void BuildTurnEventsFromPath(List<Vector3> pathPoints, float minTurnAngle = 25f)
+    {
+        _turns.Clear();
+        _nextTurn = 0;
+        _turnAnnounced = false;
+
+        if (pathPoints == null || pathPoints.Count < 3) return;
+
+        for (int i = 1; i < pathPoints.Count - 1; i++)
+        {
+            Vector3 a = pathPoints[i - 1];
+            Vector3 b = pathPoints[i];
+            Vector3 c = pathPoints[i + 1];
+
+            Vector3 v1 = b - a; v1.y = 0f;
+            Vector3 v2 = c - b; v2.y = 0f;
+            if (v1.sqrMagnitude < 1e-4f || v2.sqrMagnitude < 1e-4f) continue;
+
+            float ang = Vector3.SignedAngle(v1.normalized, v2.normalized, Vector3.up); // + left, - right
+            if (Mathf.Abs(ang) >= minTurnAngle)
+            {
+                _turns.Add(new TurnEvent { index = i, pos = b, dir = ang > 0 ? +1 : -1 });
+            }
         }
     }
 
     void AnimateEnhancedTargetMarker()
     {
-        if (targetMarker == null || !targetMarker.activeInHierarchy) return;
+        if (!targetMarker || !targetMarker.activeSelf) return;
 
-        targetBobOffset += Time.deltaTime * bobSpeed;
-        float bobY = Mathf.Sin(targetBobOffset) * bobHeight;
+        // Only bob on Y and spin. Never change X/Z.
+        Vector3 p = targetMarker.transform.position;
+        float baseY = float.IsNaN(targetMarkerBaseY) ? p.y : targetMarkerBaseY;
+        p.y = baseY + Mathf.Sin(Time.time * bobSpeed) * bobHeight;
+        targetMarker.transform.position = p;
 
-        // Animate position (bobbing)
-        Vector3 basePos = originalTargetPosition;
-        Vector3 animatedPos = basePos + new Vector3(0, bobY, 0);
-        targetMarker.transform.position = animatedPos;
-
-        // Animate rotation
-        targetMarker.transform.Rotate(0, rotationSpeed * Time.deltaTime, 0);
-
-        // Optional: Scale pulse
-        float scaleMultiplier = 1f + Mathf.Sin(targetBobOffset * 1.5f) * 0.1f;
-        targetMarker.transform.localScale = Vector3.one * scaleMultiplier;
+        targetMarker.transform.Rotate(Vector3.up, rotationSpeed * Time.deltaTime, Space.World);
     }
+
+
     // === Compatibility Methods for UI Scripts ===
     public static bool IsAnyNavigationActive()
     {
@@ -3502,10 +5011,22 @@ Debug.Log("[Anchor] baked under WorldRoot.");
 
     void HideSecondFloorByHeight(bool visible)
     {
-        var renderers = FindObjectsOfType<MeshRenderer>(true);
+        // Renderers only (skip nav visuals and scripts)
+        var renderers = FindObjectsOfType<Renderer>(true);
+        // Find your nav visuals root once
+        var navRootGO = GameObject.Find("NavigationVisuals");
+        Transform navRoot = navRootGO ? navRootGO.transform : null;
+    
+const float splitY = 5f; // unify threshold
+
         foreach (var r in renderers)
         {
-            if (r.transform.position.y > 5f) // adjust threshold = floor height
+            if (r == null) continue;
+            // Skip navigation visuals (arrow, marker, etc.)
+            if (navRoot && r.transform.IsChildOf(navRoot)) continue;
+
+            // Only toggle second-floor renderers
+            if (r.transform.position.y > splitY)
             {
                 r.enabled = visible;
             }
@@ -3523,6 +5044,7 @@ Debug.Log("[Anchor] baked under WorldRoot.");
     private IEnumerator FadeFloor(GameObject floor, bool fadeIn, float duration = 1f)
     {
         if (floor == null) yield break;
+
         Renderer[] renderers = floor.GetComponentsInChildren<Renderer>(true);
         float start = fadeIn ? 0f : 1f;
         float end = fadeIn ? 1f : 0f;
@@ -3532,6 +5054,7 @@ Debug.Log("[Anchor] baked under WorldRoot.");
 
         // Switch to Fade blend
         foreach (var r in renderers)
+        {
             foreach (var mat in r.materials)
             {
                 mat.SetFloat("_Mode", 2); // Fade
@@ -3543,12 +5066,14 @@ Debug.Log("[Anchor] baked under WorldRoot.");
                 mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
                 mat.renderQueue = 3000;
             }
+        }
 
         while (t < duration)
         {
             t += Time.deltaTime;
             float a = Mathf.Lerp(start, end, t / duration);
             foreach (var r in renderers)
+            {
                 foreach (var mat in r.materials)
                 {
                     if (mat.HasProperty("_Color"))
@@ -3556,6 +5081,7 @@ Debug.Log("[Anchor] baked under WorldRoot.");
                         var c = mat.color; c.a = a; mat.color = c;
                     }
                 }
+            }
             yield return null;
         }
 
@@ -3563,6 +5089,7 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         {
             // Restore Opaque
             foreach (var r in renderers)
+            {
                 foreach (var mat in r.materials)
                 {
                     mat.SetFloat("_Mode", 0); // Opaque
@@ -3579,21 +5106,25 @@ Debug.Log("[Anchor] baked under WorldRoot.");
                         var c = mat.color; c.a = 1f; mat.color = c;
                     }
                 }
+            }
         }
         else
         {
-            // WORLD mode may deactivate; HUD keeps object active but hidden
-            if (!hudOnly)
+            // Keep logic alive; hide visuals only if this floor hosts waypoints
+            bool containsWaypoints = floor.GetComponentsInChildren<NavigationWaypoint>(true).Length > 0;
+
+            if (!hudOnly && !containsWaypoints)
             {
+                // Safe to deactivate if no waypoints under this root
                 floor.SetActive(false);
             }
             else
             {
+                // Hide visuals only (waypoints, triggers remain active)
                 foreach (var r in renderers) r.enabled = false;
             }
         }
     }
-
     void OnTriggerEnter(Collider other)
     {
         NavigationWaypoint wp = other.GetComponent<NavigationWaypoint>();
@@ -3649,6 +5180,14 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         Debug.Log($"✅ Cached {officeLookup.Count} offices (includes inactive floors).");
     }
 
+
+    [ContextMenu("Nav/Rebuild Connections (LOS)")]
+    public void RebuildConnectionsLOS()
+    {
+        int links = NavigationWaypoint.RebuildConnectionsAll(); // uses each waypoint's connectionDistance + LOS
+        Debug.Log($"[GRAPH] Rebuilt links with LOS. New links added: {links}");
+    }
+
     void AlignAnchorYawToCamera()
     {
         if (!contentAnchor || !arCamera || !centerAnchor) return;
@@ -3682,30 +5221,17 @@ Debug.Log("[Anchor] baked under WorldRoot.");
 
     public List<string> GetAllOfficeNames()
     {
-        var officeNames = new List<string>();
-        var allWaypoints = GetAllRuntimeWaypoints();
+        if (officeIndex == null || officeIndex.Count == 0) BuildOfficeIndex();  
 
-        foreach (var wp in allWaypoints)
-        {
-            // STRICT FILTER: Only Office type waypoints
-            if (wp.waypointType != WaypointType.Office) continue;
+        var names = officeIndex.Values
+            .Select(list => list[0])
+            .Select(wp => string.IsNullOrWhiteSpace(wp.officeName) ? wp.waypointName : wp.officeName)
+            .Distinct()
+            .OrderBy(n => n)
+            .ToList();
 
-            // Get the display name (prefer officeName, fallback to waypointName)
-            string displayName = !string.IsNullOrEmpty(wp.officeName) ? wp.officeName : wp.waypointName;
-
-            // Clean up the name
-            if (displayName.StartsWith("Waypoint_"))
-                displayName = displayName.Replace("Waypoint_", "");
-
-            if (!string.IsNullOrEmpty(displayName) && !officeNames.Contains(displayName))
-            {
-                officeNames.Add(displayName);
-                Debug.Log($"[OFFICE-ONLY] Added: {displayName} (from waypoint: {wp.name})");
-            }
-        }
-
-        Debug.Log($"GetAllOfficeNames returning {officeNames.Count} OFFICES ONLY");
-        return officeNames.OrderBy(name => name).ToList();
+        Debug.Log($"GetAllOfficeNames returning {names.Count}");
+        return names;
     }
 
     NavigationWaypoint GetNearestWaypoint()
@@ -3823,76 +5349,116 @@ Debug.Log("[Anchor] baked under WorldRoot.");
     {
         if (!isNavigating || hasReachedDestination) return;
 
-        Vector3 userPos = GetUserPosition();
+        Vector3 user = GetCurrentPosition();
+        Vector3 dest = (currentPath != null && currentPath.Count > 0)
+            ? currentPath[currentPath.Count - 1]
+            : targetDestination;
 
-        // Calculate distance to final destination
-        float distanceToTarget = Vector3.Distance(
-            new Vector3(userPos.x, 0, userPos.z),
-            new Vector3(targetDestination.x, 0, targetDestination.z)
-        );
+        Vector3 uf = new Vector3(user.x, 0, user.z);
+        Vector3 df = new Vector3(dest.x, 0, dest.z);
 
-        Debug.Log($"[ARRIVAL] Distance to target: {distanceToTarget:F2}m (threshold: {arrivalDistanceThreshold}m)");
-
-        // Check if within arrival zone
-        if (distanceToTarget <= arrivalDistanceThreshold)
+        float distMeters = Vector3.Distance(uf, df) * Mathf.Max(0.0001f, metersPerUnit);
+        if (distMeters <= arrivalDistanceThreshold)
         {
             timeWithinArrivalZone += Time.deltaTime;
-            Debug.Log($"[ARRIVAL] Within zone for {timeWithinArrivalZone:F2}s (need {arrivalConfirmTime}s)");
-
-            // Confirm arrival after staying in zone for required time
             if (timeWithinArrivalZone >= arrivalConfirmTime && !hasShownArrivalNotification)
-            {
                 OnArrivalAtDestination();
-            }
         }
         else
         {
-            // Reset timer if user moves away
-            if (timeWithinArrivalZone > 0)
-            {
-                Debug.Log("[ARRIVAL] Left arrival zone, resetting timer");
-            }
             timeWithinArrivalZone = 0f;
         }
     }
 
-    void OnArrivalAtDestination()
+    public void CancelNavigate(bool preserveArrivalUI = false)
     {
-        Debug.Log($"[ARRIVAL] ✅ USER ARRIVED AT: {currentDestination}");
+        Debug.Log("[NAV] CancelNavigate");
 
-        hasReachedDestination = true;
-        hasShownArrivalNotification = true;
+        // Stop any running gate coroutine
+        try
+        {
+            if (facingGateRoutine != null) { StopCoroutine(facingGateRoutine); facingGateRoutine = null; }
+        }
+        catch { }
 
-        // Hide arrows and target marker
-        ClearPathArrows();
+        bool hadSession = navSessionActive || isNavigating;
+
+        isNavigating = false;
+        navSessionActive = false;
+
+        // Clear visuals (pooled; no Destroy)
+        ClearFlowLine();
+        ClearPathArrowsIfNeeded();
+        SetArrowsActive(false);
+
+        // Deactivate target marker if you use one
         if (targetMarker) targetMarker.SetActive(false);
 
-        // Update status
+        // Reset turn hints
+        if (_turns != null) _turns.Clear();
+        _nextTurn = -1;
+        _turnAnnounced = false;
+        ShowTurnUI(false);
+        if (turnText) turnText.text = "";
+
+        // Optional HUD text fields you had
+        if (directionText) directionText.text = "";
+        if (distanceText) distanceText.text = "";
+
+        // Unsubscribe HUD stepper if you hooked it
+        if (stepper != null) stepper.OnDistance -= OnHudMeters;
+
+        // Path state
+        currentPathIndex = 0;
+        currentPath = null;
+        lastPlayerPosition = GetCurrentPosition();
+
+        // Restore floors only if a nav session really started
+        if (hideFloorsOnlyDuringNav && hadSession)
+            SetFloorsVisible(floorsWereVisibleBeforeNav);
+
+        // Restore buttons/status
         if (statusText)
-            statusText.text = $"You have arrived at {currentDestination}!";
-
-        // Show service selection popup (NEW!)
-        var arrivalManager = FindFirstObjectByType<ServiceArrivalManager>();
-        if (arrivalManager)
         {
-            arrivalManager.ShowArrivalPopup(currentDestination);
+            statusText.text = useVuforiaPositioning
+                ? (isImageTargetTracked ? "Ready to navigate" : "Point camera at office sign")
+                : "Ready to navigate";
         }
+        if (navigateButton) navigateButton.gameObject.SetActive(true);
+        if (stopButton) stopButton.gameObject.SetActive(false);
 
-        else
-        {
-            // Fallback to simple arrival notification
-            var ui = FindFirstObjectByType<ManilaServeUI>();
-            if (ui != null)
-            {
-                ui.ShowArrivalConfirmation(currentDestination);
-            }
-        }
+        Debug.Log("[NAV] Navigation canceled and UI reset.");
+    }
 
-        // Play arrival sound if you have one (optional)
-        // AudioSource.PlayClipAtPoint(arrivalSound, Camera.main.transform.position);
+    void OnArrivalAtDestination()
+    {
+        hasReachedDestination = true;
+        hasShownArrivalNotification = true;
+        Debug.Log($"[ARRIVAL] Arrived at {currentDestination}");
 
-        // Stop navigation after a short delay
-        StartCoroutine(DelayedStopNavigation(5f)); // Increased to 5s to allow time to select service
+#if UNITY_ANDROID || UNITY_IOS
+    Handheld.Vibrate();
+#endif
+
+        // Show popup (preferred path)
+#if UNITY_2022_2_OR_NEWER
+    var mgr = serviceArrivalManager ? serviceArrivalManager
+                                    : FindFirstObjectByType<ServiceArrivalManager>(FindObjectsInactive.Include);
+#else
+        var mgr = serviceArrivalManager ? serviceArrivalManager
+                                        : FindObjectOfType<ServiceArrivalManager>(true);
+#endif
+        if (mgr != null) mgr.ShowArrivalPopup(currentDestination);
+        else if (arrivalPanel) arrivalPanel.SetActive(true);
+        else Debug.LogWarning("[ARRIVAL] No ServiceArrivalManager/arrivalPanel assigned.");
+
+        // Keep floors hidden while popup is shown
+        if (hideFloorsOnlyDuringNav) SetFloorsVisible(false);
+
+        // End navigation session but don’t force floors on here
+        if (autoCancelOnArrival) CancelNavigate(preserveArrivalUI: true);
+
+        timeWithinArrivalZone = 0f;
     }
 
     IEnumerator DelayedStopNavigation(float delay)
@@ -3974,47 +5540,74 @@ Debug.Log("[Anchor] baked under WorldRoot.");
 
         Debug.Log($"SnapPathYsToPlaneY: snapped path to Y={planeY:F3}, targetDestination={targetDestination}");
     }
+
     // Add this method to SmartNavigationSystem
     private string GetCorrectWaypointName(string officeName)
     {
-        // Map user-friendly names to actual waypoint office names
-        var nameMapping = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        var map = new Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase)
     {
-        // User name → Waypoint officeName
-        { "EDP", "EDP" },
-        { "License Division", "License Division" },
-        { "Manila Health Department", "Manila Health Department" },
-        { "Cash Division", "Cash Division" },
-        { "Civil Registry", "Civil Registry" },
-        { "Bureau of Permits", "Bureu of Permits" }, // Note: typo in waypoint
-        { "Bureu of Permits", "Bureu of Permits" }, // Handle the typo
-        { "City Treasurer", "City Treasurer" },
-        { "Social Welfare", "Social Welfare" },
-        { "OSCA", "OSCA" },
-        { "Real Estate Division", "Real Estate Division" },
-        { "E-Business", "E-Business" },
-        { "Mayor's Office", "Mayor's Office" },
-        { "Office of the City Admin", "Office of the City Admin" },
-        
-        // Add Firebase names that might be selected
-        { "Manila Health Department (MHD)", "Manila Health Department" },
-        { "Civil Registry Office", "Civil Registry" },
-        { "Bureau of Permits (BPLO)", "Bureu of Permits" },
-        { "Treasurer & Assessor's Office", "City Treasurer" },
-        { "Manila Department of Social Welfare (MDSW)", "Social Welfare" },
-        { "Office of Senior Citizens Affairs (OSCA)", "OSCA" },
-        { "e-Services / Technical Support (EDP Office)", "EDP" },
-        { "Office of the City Mayor", "Mayor's Office" },
+    // Canonical office display names in your scene:
+    { "Civil Registry", "Civil Registry Office" },
+    { "Civil Registry Office", "Civil Registry Office" },
+
+    { "City Treasurer", "City Treasurer" },
+
+    { "Mayor's Office", "Mayor's Office" },
+    { "Office of the City Mayor", "Mayor's Office" },
+
+    { "Office of the City Administrator", "Office of the City Administrator" },
+    { "Office of the City Admin", "Office of the City Administrator" },
+
+    { "Cash Division", "Cash Division" },
+
+    { "EDP", "e-Services / Technical Support (EDP Office)" },
+    { "e-Services / Technical Support (EDP Office)", "e-Services / Technical Support (EDP Office)" },
+
+    { "E-Business", "E-Business" },
+
+    { "Real Estate", "Real Estate Division" },
+    { "Real Estate Division", "Real Estate Division" },
+
+    { "License Division", "License Division" },
+    { "License Div", "License Division" },
+
+    { "SMART", "S.M.A.R.T" },
+    { "S.M.A.R.T", "S.M.A.R.T" },
+
+    { "Bureau of Permits", "Bureau of Permits (BPLO)" },
+    { "BPLO", "Bureau of Permits (BPLO)" },
+    { "Bureau of Permits (BPLO)", "Bureau of Permits (BPLO)" },
+
+    { "Manila Health Department", "Manila Health Department" },
+    { "MHD", "Manila Health Department" },
+
+    { "Manila Department of Social Welfare (MDSW)", "Manila Department of Social Welfare (MDSW)" },
+    { "MDSW", "Manila Department of Social Welfare (MDSW)" },
+    { "MDSW 108", "Manila Department of Social Welfare (MDSW)" },
+    { "MDSW-108", "Manila Department of Social Welfare (MDSW)" },
+    { "MDSW 109", "Manila Department of Social Welfare (MDSW)" },
+    { "MDSW-109", "Manila Department of Social Welfare (MDSW)" },
+    { "MDSW 111", "Manila Department of Social Welfare (MDSW)" },
+    { "MDSW-111", "Manila Department of Social Welfare (MDSW)" },
+
+    { "Office of Senior Citizens Affairs (OSCA)", "Office of Senior Citizens Affairs (OSCA)" },
+    { "OSCA", "Office of Senior Citizens Affairs (OSCA)" },
     };
 
-        if (nameMapping.TryGetValue(officeName, out string mappedName))
-        {
-            Debug.Log($"Mapped '{officeName}' → '{mappedName}'");
-            return mappedName;
-        }
+        if (map.TryGetValue(officeName, out var mapped))
+            return mapped;
 
-        return officeName; // Return original if no mapping found
+        return officeName; // unknown label passes through
     }
+
+    // ===== TEMP STUBS (so the project compiles) =====
+    void RepairWaypointGraph() { }  // no-op
+    List<NavigationWaypoint> GetAllWaypointsIncludeInactive()
+    {
+        // Fallback to active scene objects only (enough to compile)
+        return FindObjectsByType<NavigationWaypoint>(FindObjectsSortMode.None).ToList();
+    }
+    void EnsurePinnedBidirectional(List<NavigationWaypoint> all) { } // no-op
 
     [ContextMenu("Debug Waypoint Connections")]
     void DebugWaypointConnections()
@@ -4243,6 +5836,8 @@ Debug.Log("[Anchor] baked under WorldRoot.");
 
         return false;
     }
+
+
 
     [ContextMenu("Fix ContentAnchor Rotation")]
     void FixContentAnchorRotation()
@@ -4577,6 +6172,181 @@ Debug.Log("[Anchor] baked under WorldRoot.");
             Debug.Log($"Within arrival zone: {dist <= arrivalDistanceThreshold}");
         }
     }
+
+    [ContextMenu("Nav/Debug/Report Stair Nodes")]
+    public void DebugReportStairNodes()
+    {
+        var sb = new StringBuilder();
+        var all = GetSceneWaypoints();
+        var stairs = all.Where(wp => wp.waypointType == WaypointType.Stairs).ToList();
+
+        if (stairs.Count == 0)
+        {
+            Debug.Log("[STAIRS] No stair nodes found in scene.");
+            return;
+        }
+
+        sb.AppendLine($"[STAIRS] Report ({stairs.Count} nodes, vTol={floorMatchTolerance:0.00}m)");
+        foreach (var s in stairs)
+        {
+            if (!s) continue;
+
+            float sy = s.transform.position.y;
+            var neighbors = s.connectedWaypoints ?? new List<NavigationWaypoint>();
+
+            // Pairs = connected stairs
+            var stairPairs = neighbors.Where(n => n && n.waypointType == WaypointType.Stairs).ToList();
+
+            // Same-floor corridor neighbors
+            var sameFloorCorr = neighbors.Where(n =>
+                    n && n.waypointType != WaypointType.Stairs &&
+                    Mathf.Abs(n.transform.position.y - sy) <= floorMatchTolerance)
+                .Select(n => n.name).ToList();
+
+            // Illegal cross-floor non-stairs links
+            var crossFloorNonStairs = neighbors.Where(n =>
+                    n && n.waypointType != WaypointType.Stairs &&
+                    Mathf.Abs(n.transform.position.y - sy) > floorMatchTolerance)
+                .Select(n => n.name).ToList();
+
+            sb.AppendLine($"- {s.name}  y={sy:0.00}");
+            if (stairPairs.Count > 0)
+            {
+                foreach (var p in stairPairs)
+                {
+                    float dy = Mathf.Abs(p.transform.position.y - sy);
+                    sb.AppendLine($"   Pair: {p.name}  Δy={dy:0.00}");
+                }
+            }
+            else
+            {
+                sb.AppendLine("   Pair: NONE (warning)");
+            }
+
+            sb.AppendLine($"   same-floor corridors: {(sameFloorCorr.Count > 0 ? string.Join(", ", sameFloorCorr) : "NONE (warning)")}");
+            if (crossFloorNonStairs.Count > 0)
+                sb.AppendLine($"   ILLEGAL cross-floor non-stairs links: {string.Join(", ", crossFloorNonStairs)}");
+        }
+
+        Debug.Log(sb.ToString());
+    }
+
+    [ContextMenu("Nav/Debug/Report Cross-Floor Non-Stairs Links")]
+    public void DebugReportCrossFloorNonStairsLinks()
+    {
+        var all = GetSceneWaypoints();
+        int count = 0;
+        var sb = new StringBuilder();
+        sb.AppendLine("[STAIRS] Cross-floor NON-stairs links (should be zero):");
+
+        foreach (var a in all)
+        {
+            if (!a || a.connectedWaypoints == null) continue;
+
+            foreach (var b in a.connectedWaypoints)
+            {
+                if (!b) continue;
+                if (a.waypointType == WaypointType.Stairs || b.waypointType == WaypointType.Stairs) continue;
+
+                float dy = Mathf.Abs(a.transform.position.y - b.transform.position.y);
+                if (dy > floorMatchTolerance)
+                {
+                    count++;
+                    sb.AppendLine($"- {a.name} (y={a.transform.position.y:0.00}) ↔ {b.name} (y={b.transform.position.y:0.00})  Δy={dy:0.00}");
+                }
+            }
+        }
+
+        if (count == 0) Debug.Log("[STAIRS] No illegal cross-floor non-stairs links.");
+        else Debug.Log(sb.ToString());
+    }
+
+    [ContextMenu("Nav/Debug/Report Current Path Stair Segments")]
+    public void DebugReportCurrentPathStairs()
+    {
+        if (currentPath == null || currentPath.Count < 2)
+        {
+            Debug.Log("[PATH] currentPath empty.");
+            return;
+        }
+        var sb = new StringBuilder();
+        int stairsSegs = 0;
+        for (int i = 0; i < currentPath.Count - 1; i++)
+        {
+            var a = currentPath[i];
+            var b = currentPath[i + 1];
+            if (IsStairsSegment(a, b))
+            {
+                stairsSegs++;
+                sb.AppendLine("seg {i} → {i + 1} Δy={(b.y - a.y):0.00} A={a} B={b}");
+            }
+        }
+        if (stairsSegs == 0) Debug.Log("[PATH] No stairs segments in currentPath."); else Debug.Log("[PATH] Stairs segments found: {stairsSegs}\n{sb}");
+    }
+
+    // Get all waypoints from the active scene (skip prefab assets)
+    List<NavigationWaypoint> GetSceneWaypoints()
+    {
+        return Resources.FindObjectsOfTypeAll<NavigationWaypoint>()
+        .Where(wp => wp != null && wp.gameObject.scene.IsValid())
+        .ToList();
+    }
+
+    // Detect a stairs segment (keep this consistent with your stair drawing logic)
+    bool IsStairsSegment(Vector3 a, Vector3 b)
+    {
+        if (Mathf.Abs(b.y - a.y) >= stairsElevationDeltaMin) return true; // vertical delta
+
+        // Optional: nearest stair nodes heuristic
+        var all = GetSceneWaypoints();
+        var aw = FindNearestWaypoint(all, a);
+        var bw = FindNearestWaypoint(all, b);
+        if (aw && aw.waypointType == WaypointType.Stairs) return true;
+        if (bw && bw.waypointType == WaypointType.Stairs) return true;
+        return false;
+    }
+
+    [ContextMenu("Nav/Debug/Report Nodes With Zero Neighbors")]
+    public void DebugReportNodesWithZeroNeighbors()
+    {
+        var all = Resources.FindObjectsOfTypeAll<NavigationWaypoint>()
+        .Where(wp => wp != null && wp.gameObject.scene.IsValid()).ToList();
+
+        var sb = new StringBuilder();
+        int zero = 0;
+        foreach (var wp in all)
+        {
+            if (wp.connectedWaypoints == null || wp.connectedWaypoints.Count == 0)
+            {
+                zero++;
+                sb.AppendLine($"- {wp.name} (y={wp.transform.position.y:0.00}) dist={wp.connectionDistance:0.0} type={wp.waypointType}");
+            }
+        }
+
+        Debug.Log(zero == 0
+            ? "[GRAPH] No nodes with zero neighbors."
+            : $"[GRAPH] Nodes with ZERO neighbors: {zero}\n{sb}");
+    }
+
+    [ContextMenu("Nav/Debug/Report Link Counts By Floor")]
+    public void DebugReportLinkCountsByFloor()
+    {
+        var all = Resources.FindObjectsOfTypeAll<NavigationWaypoint>()
+        .Where(wp => wp != null && wp.gameObject.scene.IsValid()).ToList();
+
+
+        var floors = all.GroupBy(wp => Mathf.Round(wp.transform.position.y * 10f) / 10f)
+                        .OrderBy(g => g.Key)
+                        .Select(g => new { y = g.Key, count = g.Count(), links = g.Sum(w => (w.connectedWaypoints?.Count ?? 0)) })
+                        .ToList();
+        var sb = new StringBuilder();
+        foreach (var f in floors)
+            sb.AppendLine($"y={f.y:0.00} → nodes={f.count}, total links={f.links}");
+
+        Debug.Log($"[GRAPH] Link counts by floor:\n{sb}");
+    }
+
+
 
     // Add this method to your SmartNavigationSystem class
     static string Normalize(string s)

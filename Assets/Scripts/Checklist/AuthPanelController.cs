@@ -64,11 +64,12 @@ public class AuthPanelController : MonoBehaviour
         SwitchMode(Mode.Login);
     }
 
-    // async void OnEnable()
-    // {
-    //     var ok = await AuthService.EnsureInitializedAsync();
-    //     if (ok && AuthService.IsSignedIn) Close(true);  // REMOVE THIS
-    // }
+    async void OnEnable()
+    {
+        var ok = await AuthService.EnsureInitializedAsync();
+        await AuthService.WaitForAuthRestorationAsync(1500);
+        if (ok && AuthService.IsSignedIn) Close(true);
+    }
 
     void SwitchMode(Mode m)
     {
@@ -235,10 +236,7 @@ public class AuthPanelController : MonoBehaviour
         gameObject.SetActive(false);
         OnClosed?.Invoke(success);
 
-        // ? Re-enable Checklist FAB after closing Auth
-        var fab = FindFirstObjectByType<ChecklistFAB>();
-        if (fab != null)
-            fab.EnableChecklistButtonAgain();
+     
 
         Destroy(gameObject);
     }
@@ -250,12 +248,7 @@ public class AuthPanelController : MonoBehaviour
 
     void Update()
     {
-        // Prevent accidental close on Delete key
-        if (Input.GetKeyDown(KeyCode.Delete))
-        {
-            // Do nothing
-            return;
-        }
+        
     }
 
 }
