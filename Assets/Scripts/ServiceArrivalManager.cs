@@ -13,7 +13,9 @@ public class ServiceArrivalManager : MonoBehaviour
     public GameObject serviceOfferPanel; // View 1: Service selection
     public GameObject requirementView; // View 2: Requirements
 
- 
+    [Header("Fonts")]
+    public TMP_FontAsset requirementsFont; // assign LiberationSans SDF or any TMP font that has a Material
+
     [Header("Service Selection (View 1)")]
     public TextMeshProUGUI officeTitleText;  // "Welcome to <Office>"
     public Transform servicesContainer;      // Container for service buttons
@@ -74,7 +76,7 @@ public class ServiceArrivalManager : MonoBehaviour
         if (!firebaseManager)
             firebaseManager = FindFirstObjectByType<FirebaseOfficeManager>(FindObjectsInactive.Include);
 
-    
+
         // Prefer adapter assigned in Inspector
         if (checklistServiceMB is IChecklistService svc)
             checklistService = svc;
@@ -96,6 +98,28 @@ public class ServiceArrivalManager : MonoBehaviour
         if (checklistService == null)
             Debug.LogError("[ARRIVAL] IChecklistService not found. Add CityChecklistFirebaseAdapter and assign it.");
     }
+
+    void ApplySafeFont(TextMeshProUGUI label)
+    {
+        if (!label) return;
+
+        // Prefer explicitly assigned safe font
+        var font = requirementsFont != null ? requirementsFont : TMP_Settings.defaultFontAsset;
+        if (font != null)
+        {
+            label.font = font;
+            // Some broken assets have null material; guard and set if present
+            if (font.material != null)
+                label.fontSharedMaterial = font.material;
+        }
+
+        // Optional: basic text settings
+        label.enableAutoSizing = false;
+        label.overflowMode = TextOverflowModes.Ellipsis;
+        label.alignment = TextAlignmentOptions.Left;
+        label.color = Color.black;
+    }
+
     // Call this from navigation when you know the officeId (best)
     public void ShowArrivalPopupById(string officeId, string officeNameFallback = null)
     {
@@ -197,7 +221,7 @@ public class ServiceArrivalManager : MonoBehaviour
         if (serviceOfferPanel) serviceOfferPanel.SetActive(true);
         if (requirementView) requirementView.SetActive(false);
 
-     SetAddButtonEnabled(false);
+        SetAddButtonEnabled(false);
         if (serviceNameHeader) serviceNameHeader.text = "Select a service";
     }
 
@@ -214,7 +238,7 @@ public class ServiceArrivalManager : MonoBehaviour
                 Destroy(servicesContainer.GetChild(i).gameObject);
         }
 
-    if (services == null || services.Count == 0)
+        if (services == null || services.Count == 0)
         {
             CreateNoServicesMessage();
             SetAddButtonEnabled(false); // disable Add when no services available
@@ -254,6 +278,8 @@ public class ServiceArrivalManager : MonoBehaviour
 
         var text = msgObj.AddComponent<TextMeshProUGUI>();
         text.text = "No services available for this office";
+        ApplySafeFont(text);
+
         text.fontSize = 24;
         text.alignment = TextAlignmentOptions.Center;
         text.color = Color.gray;
@@ -281,7 +307,7 @@ public class ServiceArrivalManager : MonoBehaviour
                 Destroy(requirementsContent.GetChild(i).gameObject);
         }
 
-  
+
 
         var list = requirements ?? new List<FirebaseOfficeManager.Requirement>();
         if (list.Count == 0)
@@ -296,6 +322,7 @@ public class ServiceArrivalManager : MonoBehaviour
 
         SetAddButtonEnabled(true); // requirements present → enable Add
     }
+
     void CreateRequirementItem(string requirement, int number)
     {
         if (!requirementsContent) return;
@@ -328,6 +355,37 @@ public class ServiceArrivalManager : MonoBehaviour
             var rt = reqObj.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(550, 50);
         }
+
+        if (requirementItemPrefab != null)
+        {
+            var row = Instantiate(requirementItemPrefab, requirementsContent.transform);
+            var label = row.GetComponentInChildren<TextMeshProUGUI>();
+            if (label)
+            {
+                label.text = $"{number}. {requirement}";
+                ApplySafeFont(label); // <<< ensure valid font + material
+            }
+            row.name = "Requirement_{number}";
+        }
+        else
+        {
+            var reqObj = new GameObject("Requirement_{number}");
+            reqObj.transform.SetParent(requirementsContent, false);
+
+            var text = reqObj.AddComponent<TextMeshProUGUI>();
+            text.text = $"{number}. {requirement}";
+            ApplySafeFont(text); // <<< ensure valid font + material
+
+            var fitter = reqObj.AddComponent<ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            var layout = reqObj.AddComponent<LayoutElement>();
+            layout.minHeight = 40;
+            layout.preferredWidth = 550;
+
+            var rt = reqObj.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(550, 50);
+        }
     }
 
     void CreateNoRequirementsMessage()
@@ -338,12 +396,15 @@ public class ServiceArrivalManager : MonoBehaviour
 
         var text = msgObj.AddComponent<TextMeshProUGUI>();
         text.text = "No specific requirements for this service";
+        ApplySafeFont(text);
+
         text.fontSize = 20;
         text.alignment = TextAlignmentOptions.Center;
         text.color = Color.gray;
 
         var rect = msgObj.GetComponent<RectTransform>();
         rect.sizeDelta = new Vector2(500, 100);
+
     }
 
     async Task AddCurrentServiceToChecklist()
@@ -458,7 +519,7 @@ public class ServiceArrivalManager : MonoBehaviour
                 serviceNameHeader.color = Color.yellow;
             }
             return;
-        }   
+        }
 
         Transform parent = authPanelParent;
         if (parent == null)
@@ -501,7 +562,7 @@ public class ServiceArrivalManager : MonoBehaviour
         .Where(wp => wp && wp.gameObject.scene.IsValid())
         .ToArray();
 
-       string n = Norm(officeName);
+        string n = Norm(officeName);
         return all.FirstOrDefault(wp =>
             Norm(wp.officeName) == n ||
             Norm(wp.waypointName) == n ||

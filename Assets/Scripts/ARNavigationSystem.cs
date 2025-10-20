@@ -97,6 +97,7 @@ private HashSet<int> stairsSegments = new HashSet<int>();
     // Turn Hints (UI + settings    
     [Header("Turn Hints (Optional)")]
     public TMP_Text turnText;                    // assign in Inspector (or use UnityEngine.UI.Text)
+    public TextMeshProUGUI headingToText; // new (assign in Inspector)
     [Range(1f, 10f)] public float turnAnnounceDistance = 3f;
     [Range(0.3f, 3f)] public float turnPassDistance = 0.7f;
 
@@ -540,18 +541,23 @@ Debug.Log("[Anchor] baked under WorldRoot.");
     // CanonicalName -> list of Office waypoints (active or inactive)
     Dictionary<string, List<NavigationWaypoint>> officeIndex = new Dictionary<string, List<NavigationWaypoint>>();
 
+ 
     public void BuildOfficeIndexFromScene()
     {
         if (officeIndex == null) officeIndex = new Dictionary<string, List<NavigationWaypoint>>();
         officeIndex.Clear();
 
+        // Use Resources.FindObjectsOfTypeAll for robustness, as it finds inactive objects too
         var all = Resources.FindObjectsOfTypeAll<NavigationWaypoint>();
+
+        // Filter out non-scene objects (like prefabs) and non-office types
         foreach (var wp in all)
         {
             if (wp == null) continue;
             if (wp.waypointType != WaypointType.Office) continue;
             if (!wp.gameObject.scene.IsValid()) continue; // skip prefab assets
 
+            // Use the most specific name available for display
             string display = !string.IsNullOrWhiteSpace(wp.officeName)
                 ? wp.officeName
                 : (!string.IsNullOrWhiteSpace(wp.waypointName) ? wp.waypointName : wp.name);
@@ -569,7 +575,6 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         foreach (var kv in officeIndex.Where(k => k.Value.Count > 1))
             Debug.LogWarning($"[INDEX] Duplicate '{kv.Key}' → {string.Join(", ", kv.Value.Select(v => v.name))}");
     }
-
     static string CanonicalOfficeKey(string s)
     {
         if (string.IsNullOrWhiteSpace(s)) return "";
@@ -988,18 +993,18 @@ float floorYAtXZ = GetGroundPosition(new Vector3(worldPos.x, 0f, worldPos.z)).y;
 
     public Vector3 GetCurrentPosition()
     {
-        // Use the office override ONLY before navigation begins (to build the initial route)
-        if (!isNavigating && useOfficeAsStart && !string.IsNullOrEmpty(currentUserOffice))
+        if (useOfficeAsStart &&
+        !string.IsNullOrEmpty(currentUserOffice) &&
+        (!isNavigating || currentPath == null || currentPath.Count == 0))
         {
             var officeWP = FindTargetWaypointAdvanced(currentUserOffice);
             if (officeWP != null)
             {
-                Debug.Log($"[GetCurrentPosition] Using manual office: {currentUserOffice} at {officeWP.transform.position}");
-                return officeWP.transform.position;
+                Debug.Log("[GetCurrentPosition] Using manual office: {currentUserOffice} at {officeWP.transform.position}"); return officeWP.transform.position;
             }
             else
             {
-                Debug.LogWarning($"[GetCurrentPosition] Office waypoint not found: {currentUserOffice}, falling back to camera");
+                Debug.LogWarning("[GetCurrentPosition] Office waypoint not found: {currentUserOffice}, falling back to camera");
             }
         }
 
@@ -1201,7 +1206,7 @@ float floorYAtXZ = GetGroundPosition(new Vector3(worldPos.x, 0f, worldPos.z)).y;
         // ManilaServeUI's popup will handle navigation now
 
         if (stopButton != null)
-            stopButton.onClick.AddListener(StopNavigation);
+            stopButton.onClick.AddListener(() => StopNavigation(false)); // pass explicit default
 
         if (statusText != null)
         {
@@ -1280,13 +1285,23 @@ float floorYAtXZ = GetGroundPosition(new Vector3(worldPos.x, 0f, worldPos.z)).y;
 
 
 
-    // Compute start position for path-building (entrance → fallback camera)
     Vector3 GetRoutingStartPosition()
     {
+        // 1) Manual start (selected current office) takes precedence
+        if (useOfficeAsStart && !string.IsNullOrEmpty(currentUserOffice))
+        {
+            var wpT = FindTargetWaypointAdvanced(currentUserOffice);
+            if (wpT != null)
+                return wpT.position;
+            // if not found, fall through to entrance/camera
+            Debug.LogWarning($"[GetRoutingStartPosition] Office waypoint not found for '{currentUserOffice}', using entrance/camera fallback.");
+        }
+
+        // 2) Entrance fallback (if you want “always start at entrance” for certain modes)
         if (startFromEntrance && entranceNode != null)
             return entranceNode.position;
 
-        // fallback: live camera start
+        // 3) Live camera (auto-detect) fallback
         return GetCurrentPosition();
     }
 
@@ -1849,6 +1864,8 @@ for (int i = 0; i < currentPathNodes.Count - 1; i++)
 
         return null;
     }
+   
+    
     private float lastPathCalcTime = -999f;
     public float minPathRecalcInterval = 0.6f; // seconds
 
@@ -3026,7 +3043,7 @@ if (arrowGO) arrowGO.SetActive(show);
                 if (dir.sqrMagnitude > 1e-4f)
                     arrowGO.transform.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
             }
-            UpdateTurnHint(seg, proj);
+            UpdateTurnHints();
         }
     }
 
@@ -3048,49 +3065,7 @@ if (arrowGO) arrowGO.SetActive(show);
             sum += Vector3.Distance(currentPath[i], currentPath[i + 1]);
         return sum;
     }
-
-    private void UpdateTurnHint(int segIndex, Vector3 proj)
-    {
-        string turn = "Go straight";
-        float turnDist = 0f;
-
-if (segIndex < currentPath.Count - 2)
-        {
-            Vector3 p0 = currentPath[segIndex];
-            Vector3 p1 = currentPath[segIndex + 1];
-            Vector3 p2 = currentPath[segIndex + 2];
-
-            Vector3 v1 = p1 - p0; v1.y = 0f;
-            Vector3 v2 = p2 - p1; v2.y = 0f;
-
-            float angle = Vector3.SignedAngle(v1, v2, Vector3.up);
-            if (Mathf.Abs(angle) > 20f)
-                turn = angle > 0 ? "Turn left" : "Turn right";
-            else
-                turn = "Go straight";
-
-            turnDist = Vector3.Distance(proj, p1);
-        }
-        else
-        {
-            turn = "Destination ahead";
-            turnDist = DistanceToGoalFrom(segIndex, proj);
-        }
-
-        // Update HUD (non-blocking: only if UI has such method)
-        var ui = FindFirstObjectByType<ManilaServeUI>();
-        string msg = $"{turn} - {Mathf.RoundToInt(turnDist)} m";
-        if (ui)
-        {
-            ui.SendMessage("SetTurnHint", msg, SendMessageOptions.DontRequireReceiver);
-            ui.SendMessage("OnTurnHint", msg, SendMessageOptions.DontRequireReceiver);
-        }
-        else
-        {
-            Debug.Log($"[TURN] {msg}");
-        }
-    }
-
+    
     void EnsureFloorProxy()
     {
         if (!worldRoot) return;
@@ -4163,16 +4138,35 @@ var mgr = serviceArrivalManager ? serviceArrivalManager
     }
 
 
-    public void StopNavigation()
+    public void StopNavigation(bool clearOfficeOverride = false)
     {
+        Debug.Log("[NAV] StopNavigation()");
+
+        // State
         isNavigating = false;
-        ShowNavigationVisuals(false);
+        hasReachedDestination = false;
+        currentDestination = null;
+        currentPathIndex = 0;
+
+        // Clear data
         currentPath?.Clear();
         currentPathNodes?.Clear();
-        stairsSegments.Clear();
 
-        var ui = FindFirstObjectByType<ManilaServeUI>();
-        ui?.SendMessage("SetTurnHint", "", SendMessageOptions.DontRequireReceiver);
+        // Clear visuals
+        ClearPathArrows();     // destroys/detaches all path arrow instances
+        ClearFlowLine();       // hides/destroys any line renderer/flow line
+        HideTargetMarker();    // new helper below
+
+        // Optional HUD/world chain
+        // If you have EnsureActiveChain/ClearActiveChain, call the clear here:
+        // ClearActiveChain();
+
+        // Optional: also clear manual-start override when explicitly requested
+        if (clearOfficeOverride)
+        {
+            useOfficeAsStart = false;
+            currentUserOffice = null;
+        }
     }
 
     public void StartNavigation()
@@ -4373,6 +4367,8 @@ if (!isNavigating) return;
         Debug.Log("=== Navigation started successfully ===");
     }
 
+
+
     // Return a usable user position (prefers lastPlayerPosition if available, otherwise camera)
     public Vector3 GetUserPosition()
     {
@@ -4544,16 +4540,30 @@ if (!isNavigating) return;
     {
         EnsureTurnUI();
 
-        // Only hide when NOT navigating
-        if (!isNavigating)
+// Only hide when NOT navigating
+if (!isNavigating)
         {
             ShowTurnUI(false);
             if (turnText) turnText.text = "";
+            if (headingToText) headingToText.text = ""; // clear heading
             return;
         }
 
         // Always show while navigating
         ShowTurnUI(true);
+
+        // Resolve destination name for "Heading to ..."
+        string destName = currentDestination;
+        if (string.IsNullOrEmpty(destName) && currentDestinationWaypoint != null)
+        {
+            destName = !string.IsNullOrEmpty(currentDestinationWaypoint.officeName)
+                ? currentDestinationWaypoint.officeName
+                : (!string.IsNullOrEmpty(currentDestinationWaypoint.waypointName)
+                    ? currentDestinationWaypoint.waypointName
+                    : currentDestinationWaypoint.name);
+        }
+        if (headingToText)
+            headingToText.text = string.IsNullOrEmpty(destName) ? "" : $"<< Heading to {destName} >>";
 
         Vector3 camWorld = GetCurrentPosition();
         Vector3 camFlat = new Vector3(camWorld.x, 0f, camWorld.z);
@@ -4583,9 +4593,7 @@ if (!isNavigating) return;
             }
         }
 
-        // Pick the guidance target:
-        // - If we still have a turn ahead → aim at that turn point
-        // - Else (straight route or after last turn) → aim at the destination
+        // Pick the guidance target
         bool hasTurns = _turns != null && _turns.Count > 0 && _nextTurn >= 0 && _nextTurn < _turns.Count;
         Vector3 nextPos = hasTurns ? _turns[_nextTurn].pos : destPos;
 
@@ -4605,7 +4613,7 @@ if (!isNavigating) return;
         _angleSmoothedDeg = Mathf.LerpAngle(_angleSmoothedDeg, signedAngle, k);
         float absA = Mathf.Abs(_angleSmoothedDeg);
 
-        // Instruction
+        // Instruction (unchanged)
         string instruction;
         if (absA <= straightTolerance) instruction = hasTurns ? "Go straight" : "Proceed to destination";
         else if (absA <= slightTolerance) instruction = _angleSmoothedDeg > 0 ? "Slight left" : "Slight right";
@@ -4618,7 +4626,6 @@ if (!isNavigating) return;
         {
             if (hasTurns)
             {
-                // Prefer TurnEvent.index if you set it in BuildTurnEventsFromPath
                 targetIndex = _turns[_nextTurn].index;
                 if (targetIndex <= 0) targetIndex = FindNearestPathIndex(nextPos);
                 targetIndex = Mathf.Clamp(targetIndex, 0, currentPath.Count - 1);
@@ -4645,7 +4652,7 @@ if (!isNavigating) return;
         }
 
         string distStr = dMeters < 1f ? $"{Mathf.RoundToInt(dMeters * 100f)} cm"
-                       : (dMeters < 10f ? $"{dMeters:0.0} m" : $"{Mathf.RoundToInt(dMeters)} m");
+                        : (dMeters < 10f ? $"{dMeters:0.0} m" : $"{Mathf.RoundToInt(dMeters)} m");
 
         // Upcoming preview only if there’s another turn ahead
         string upcoming = "";
@@ -4678,7 +4685,6 @@ if (!isNavigating) return;
             // TODO: audio cue / TTS
         }
     }
-
     void CreateProgressiveArrowsFromProjection(int startSegment, Vector3 projPos, float aheadMeters)
     {
         EnsureArrowPool();
@@ -5221,7 +5227,7 @@ const float splitY = 5f; // unify threshold
 
     public List<string> GetAllOfficeNames()
     {
-        if (officeIndex == null || officeIndex.Count == 0) BuildOfficeIndex();  
+        if (officeIndex == null || officeIndex.Count == 0) BuildOfficeIndex();
 
         var names = officeIndex.Values
             .Select(list => list[0])
@@ -5439,24 +5445,46 @@ const float splitY = 5f; // unify threshold
 #if UNITY_ANDROID || UNITY_IOS
     Handheld.Vibrate();
 #endif
+        // --- START FIX: Bulletproof Manager Lookup ---
+        ServiceArrivalManager mgr = serviceArrivalManager;
+
+        // If not assigned in Inspector, search the entire scene (active or inactive)
+        if (mgr == null)
+        {
+            // Use Resources.FindObjectsOfTypeAll as the most robust way to find inactive objects
+            mgr = Resources.FindObjectsOfTypeAll<ServiceArrivalManager>()
+                            .FirstOrDefault(m => m.gameObject.scene.IsValid());
+        }
+        // --- END FIX ---
 
         // Show popup (preferred path)
-#if UNITY_2022_2_OR_NEWER
-    var mgr = serviceArrivalManager ? serviceArrivalManager
-                                    : FindFirstObjectByType<ServiceArrivalManager>(FindObjectsInactive.Include);
-#else
-        var mgr = serviceArrivalManager ? serviceArrivalManager
-                                        : FindObjectOfType<ServiceArrivalManager>(true);
-#endif
-        if (mgr != null) mgr.ShowArrivalPopup(currentDestination);
-        else if (arrivalPanel) arrivalPanel.SetActive(true);
-        else Debug.LogWarning("[ARRIVAL] No ServiceArrivalManager/arrivalPanel assigned.");
+        if (mgr != null)
+        {
+            // If we are here, the manager instance is found. Proceed to show the popup.
+            mgr.ShowArrivalPopup(currentDestination);
 
-        // Keep floors hidden while popup is shown
+            // If we auto-cancel, delay the cancellation to give the popup time to display.
+            if (autoCancelOnArrival)
+            {
+                isNavigating = false;
+                navSessionActive = false;
+                StartCoroutine(DelayedStopNavigation(0.5f));
+            }
+        }
+        else if (arrivalPanel)
+        {
+            // Fallback to simple panel activation
+            arrivalPanel.SetActive(true);
+            if (autoCancelOnArrival) StartCoroutine(DelayedStopNavigation(arrivalConfirmTime));
+        }
+        else
+        {
+            Debug.LogError("[ARRIVAL] CRITICAL: ServiceArrivalManager NOT FOUND or popup system misconfigured. Cannot display service arrival UI.");
+            if (autoCancelOnArrival) StartCoroutine(DelayedStopNavigation(0.5f));
+        }
+
+        // Keep floors hidden while popup is handled
         if (hideFloorsOnlyDuringNav) SetFloorsVisible(false);
-
-        // End navigation session but don’t force floors on here
-        if (autoCancelOnArrival) CancelNavigate(preserveArrivalUI: true);
 
         timeWithinArrivalZone = 0f;
     }

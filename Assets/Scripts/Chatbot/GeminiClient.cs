@@ -8,6 +8,9 @@ using UnityEngine;
 
 public class GeminiClient : IDisposable
 {
+    private const string ApiVersion = "v1";
+    private const string Model = "gemini-1.5-flash-latest"; // or "gemini-1.5-flash-8b"
+
     private static readonly HttpClient _httpClient = new HttpClient
     {
         Timeout = TimeSpan.FromSeconds(30)
@@ -26,17 +29,21 @@ public class GeminiClient : IDisposable
         }
     }
 
+    private static readonly (string apiVersion, string model)[] ModelOrder = new[]
+{
+    ("v1beta", "gemini-2.5-flash"),
+    ("v1",     "gemini-1.5-flash-8b"),
+    ("v1",     "gemini-1.5-flash"),
+    ("v1beta", "gemini-1.5-flash"),
+};
+
     public async Task<string> GetChatResponseAsync(string prompt)
     {
-        if (string.IsNullOrEmpty(ApiKey) || ApiKey == "YOUR_GEMINI_API_KEY_HERE")
-        {
-            return "API Key Required. Add your Gemini API key in the constructor.";
-        }
+        if (!IsLikelyValidApiKey(ApiKey))
+            return "API key missing/invalid. Use a Google AI Studio key (https://aistudio.google.com/app/apikey).";
 
         if (string.IsNullOrWhiteSpace(prompt))
-        {
             return "Please type your question so I can help you.";
-        }
 
         // Greeting
         string lowerPrompt = prompt.Trim().ToLower();
@@ -65,77 +72,99 @@ public class GeminiClient : IDisposable
         }
 
         _chatHistory.Add("User: " + prompt);
-        if (_chatHistory.Count > 10)
-        {
-            _chatHistory.RemoveAt(0);
-        }
+        if (_chatHistory.Count > 10) _chatHistory.RemoveAt(0);
 
         string context = BuildContext();
         context += "\n\nRecent conversation:\n" + string.Join("\n", _chatHistory.TakeLast(5));
         context += "\n\nUser Question: " + prompt + "\n\nManilaServe Response:";
 
-        string url = string.Format("https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent?key={0}", ApiKey);
-
-        // Manual JSON building (Unity compatible)
         string escapedContext = EscapeJsonString(context);
+
+        // Keep the request simple and compatible
         string jsonContent = @"{
-            ""contents"": [{
-                ""parts"": [{
-                    ""text"": """ + escapedContext + @"""
-                }]
-            }],
-            ""generationConfig"": {
-                ""temperature"": 0.7,
-                ""topK"": 40,
-                ""topP"": 0.95,
-                ""maxOutputTokens"": 1024
-            },
-            ""safetySettings"": [
-                {""category"": ""HARM_CATEGORY_HARASSMENT"", ""threshold"": ""BLOCK_MEDIUM_AND_ABOVE""},
-                {""category"": ""HARM_CATEGORY_HATE_SPEECH"", ""threshold"": ""BLOCK_MEDIUM_AND_ABOVE""},
-                {""category"": ""HARM_CATEGORY_SEXUALLY_EXPLICIT"", ""threshold"": ""BLOCK_MEDIUM_AND_ABOVE""},
-                {""category"": ""HARM_CATEGORY_DANGEROUS_CONTENT"", ""threshold"": ""BLOCK_MEDIUM_AND_ABOVE""}
-            ]
-        }";
+        ""contents"": [{
+            ""parts"": [{ ""text"": """ + escapedContext + @""" }]
+        }],
+        ""generationConfig"": {
+            ""temperature"": 0.7,
+            ""topK"": 40,
+            ""topP"": 0.95,
+            ""maxOutputTokens"": 1024
+        }
+    }";
 
-        try
+        string lastError = null;
+
+        foreach (var combo in ModelOrder)
         {
-            using (var httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json"))
+            var url = $"https://generativelanguage.googleapis.com/{combo.apiVersion}/models/{combo.model}:generateContent";
+            try
             {
-                using (var response = await _httpClient.PostAsync(url, httpContent))
+                using (var request = new HttpRequestMessage(HttpMethod.Post, url))
                 {
-                    string responseContent = await response.Content.ReadAsStringAsync();
+                    request.Headers.Remove("x-goog-api-key");
+                    request.Headers.Add("x-goog-api-key", ApiKey);
+                    request.Content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
-                    if (!response.IsSuccessStatusCode)
+                    using (var response = await _httpClient.SendAsync(request))
                     {
-                        return string.Format("Connection Error: {0}\n{1}", response.StatusCode, responseContent);
+                        string responseContent = await response.Content.ReadAsStringAsync();
+
+                        if (response.IsSuccessStatusCode)
+                        {
+                            string responseText = ParseGeminiResponse(responseContent);
+                            if (!string.IsNullOrEmpty(responseText))
+                            {
+                                Debug.Log($"Gemini: using {combo.apiVersion}/{combo.model}");
+                                _chatHistory.Add("ManilaServe: " + responseText);
+                                return responseText;
+                            }
+                            return "I couldn't generate a proper response. Please try again.";
+                        }
+
+                        // Known errors that should try the next combo
+                        bool is404 = (int)response.StatusCode == 404 ||
+                                     responseContent.Contains("\"NOT_FOUND\"") ||
+                                     responseContent.Contains("is not found");
+
+                        if (is404)
+                        {
+                            lastError = $"Not found: {combo.apiVersion}/{combo.model}";
+                            continue; // try next combo
+                        }
+
+                        if (responseContent.Contains("API_KEY_INVALID"))
+                            return "Your API key is invalid or restricted. Use a Google AI Studio key (starts with 'AIza') and ensure there are no extra spaces.";
+
+                        // Stop on other error types
+                        lastError = $"Connection Error: {response.StatusCode}\n{responseContent}";
+                        break;
                     }
-
-                    // Parse JSON response using Unity's JsonUtility
-                    string responseText = ParseGeminiResponse(responseContent);
-
-                    if (!string.IsNullOrEmpty(responseText))
-                    {
-                        _chatHistory.Add("ManilaServe: " + responseText);
-                        return responseText;
-                    }
-
-                    return "I couldn't generate a proper response. Please try again.";
                 }
             }
+            catch (TaskCanceledException)
+            {
+                return "Request Timeout. Try again in a moment.";
+            }
+            catch (HttpRequestException ex)
+            {
+                return $"Network Error: {ex.Message}";
+            }
+            catch (Exception ex)
+            {
+                return $"Unexpected Error: {ex.Message}";
+            }
         }
-        catch (TaskCanceledException)
-        {
-            return "Request Timeout. Try again in a moment.";
-        }
-        catch (HttpRequestException ex)
-        {
-            return string.Format("Network Error: {0}", ex.Message);
-        }
-        catch (Exception ex)
-        {
-            return string.Format("Unexpected Error: {0}", ex.Message);
-        }
+
+        return lastError ?? "No compatible Gemini model found for your key. Try v1beta + gemini-2.5-flash via curl to verify the key works.";
+    }
+
+    private bool IsLikelyValidApiKey(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key)) return false;
+        if (key.StartsWith("YOUR_", StringComparison.OrdinalIgnoreCase)) return false;
+        // AI Studio keys typically start with AIza and are ~39–45 chars
+        return key.StartsWith("AIza") && key.Length >= 30;
     }
 
     private string EscapeJsonString(string str)
@@ -151,57 +180,25 @@ public class GeminiClient : IDisposable
             .Replace("\t", "\\t");
     }
 
+    // Lightweight POCOs to parse Gemini REST response
+    [Serializable] private class GeminiResponse { public Candidate[] candidates; }
+    [Serializable] private class Candidate { public Content content; }
+    [Serializable] private class Content { public Part[] parts; }
+    [Serializable] private class Part { public string text; }
+
     private string ParseGeminiResponse(string jsonResponse)
     {
         try
         {
-            // Simple JSON parsing for Gemini response
-            // Looking for "text": "content"
-            int textIndex = jsonResponse.IndexOf("\"text\":");
-            if (textIndex == -1)
-                return "Unexpected response format.";
-
-            int startQuote = jsonResponse.IndexOf("\"", textIndex + 7);
-            if (startQuote == -1)
-                return "Unexpected response format.";
-
-            int endQuote = startQuote + 1;
-            int escapeCount = 0;
-
-            while (endQuote < jsonResponse.Length)
+            var data = JsonUtility.FromJson<GeminiResponse>(jsonResponse);
+            if (data?.candidates != null && data.candidates.Length > 0 &&
+                data.candidates[0]?.content?.parts != null && data.candidates[0].content.parts.Length > 0)
             {
-                if (jsonResponse[endQuote] == '\\')
-                {
-                    escapeCount++;
-                    endQuote++;
-                    continue;
-                }
-
-                if (jsonResponse[endQuote] == '"' && escapeCount % 2 == 0)
-                {
-                    break;
-                }
-
-                escapeCount = 0;
-                endQuote++;
+                return data.candidates[0].content.parts[0].text;
             }
-
-            if (endQuote >= jsonResponse.Length)
-                return "Unexpected response format.";
-
-            string text = jsonResponse.Substring(startQuote + 1, endQuote - startQuote - 1);
-
-            // Unescape JSON string
-            text = text
-                .Replace("\\n", "\n")
-                .Replace("\\r", "\r")
-                .Replace("\\t", "\t")
-                .Replace("\\\"", "\"")
-                .Replace("\\\\", "\\");
-
-            return text;
+            return "Unexpected response format.";
         }
-        catch (Exception)
+        catch
         {
             return "Error parsing response.";
         }
@@ -616,7 +613,6 @@ public class GeminiClient : IDisposable
 
         return sb.ToString();
     }
-
 
     public void Dispose()
     {

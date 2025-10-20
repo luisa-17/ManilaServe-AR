@@ -7,6 +7,7 @@ using System.Linq;
 using System;
 using System.Text.RegularExpressions;
 using UnityEngine.Events;
+using Unity.XR.CoreUtils;
 
 
 public class ManilaServeUI : MonoBehaviour
@@ -94,6 +95,10 @@ public class ManilaServeUI : MonoBehaviour
     public TMP_InputField directSearchInput;
     public Button executeSearchButton;
 
+    [Header("Current Office (Manual mode)")]
+    [Tooltip("When ON and Use Specific Office is active, snap the user to the selected office as soon as it's picked.")]
+    [SerializeField] private bool recenterCameraOnCurrentOfficeSelect = true;
+
     [Header("Mode Button Styling")]
     public Color activeModeColor = new Color(0.2f, 0.7f, 1f, 1f);
     public Color inactiveModeColor = new Color(0.3f, 0.3f, 0.3f, 1f);
@@ -153,6 +158,13 @@ public class ManilaServeUI : MonoBehaviour
         // Add more offices here
     };
 
+
+    [Header("Arrival Watch")]
+    [SerializeField] float arrivalRadiusMeters = 3.0f; // tweak in Inspector
+    bool arrivalWatchActive = false;
+    bool arrivalPopupShown = false;
+    string arrivalTargetOffice = null;
+    Vector3 arrivalTargetPos;
 
     // Destination Office dropdown (Select an Office)
     private readonly HashSet<int> nonSelectableIndices = new HashSet<int>();
@@ -335,35 +347,49 @@ public class ManilaServeUI : MonoBehaviour
         PopulateOfficeDropdown();
     }
 
-    // ⭐ ADD THESE NEW METHODS:
+    // Arm the arrival watch for a destination
+    void ArmArrivalWatch(string officeName)
+    {
+    }
 
     void OnUseCurrentLocationToggled(bool isOn)
     {
-        if (!isOn) return; // Only act when turning ON
+        if (!isOn) return;
 
+        // Switch to auto-detect
         useAutoDetection = true;
-        selectedCurrentOffice = ""; // Clear manual selection
 
+        // Untick the manual toggle (UI only)
         if (useSpecificOfficeToggle) useSpecificOfficeToggle.isOn = false;
+
+        // IMPORTANT: clear the manual-start override so auto uses the camera again
+        if (navigationSystem)
+        {
+            navigationSystem.useOfficeAsStart = false;
+            navigationSystem.currentUserOffice = null;
+        }
 
         UpdateLocationModeUI();
         UpdateNavigationUI();
 
-        Debug.Log("Switched to: Use Current Location (auto-detection)");
+        Debug.Log("[Mode] Switched to: Use Current Location (auto-detect)");
+
     }
 
     void OnUseSpecificOfficeToggled(bool isOn)
     {
         if (!isOn) return;
 
-// Close any open dropdown list before switching UI
-ForceCloseCurrentOfficeDropdown();
+        ForceCloseCurrentOfficeDropdown();
 
         useAutoDetection = false;
         if (useCurrentLocationToggle) useCurrentLocationToggle.isOn = false;
 
         UpdateLocationModeUI();
         UpdateNavigationUI();
+
+        if (!string.IsNullOrEmpty(selectedCurrentOffice) && recenterCameraOnCurrentOfficeSelect)
+            TrySnapUserToSelectedOffice();
 
         Debug.Log("Switched to: Use Specific Office (manual selection)");
     }
@@ -548,7 +574,7 @@ currentOfficeDropdown.Hide();
         }
 
         // Filter
-        string filter = Normalize(officeSearchInput ? officeSearchInput.text : null);
+        string filter = Normalize(officeSearchInput ? officeSearchInput.text : null); // Uses private Normalize()
         bool currentFloorOnly = currentFloorOnlyToggle && currentFloorOnlyToggle.isOn;
         string currentFloor = GetCurrentFloorLabel();
 
@@ -610,7 +636,8 @@ currentOfficeDropdown.Hide();
         officeDropdown.RefreshShownValue();
 
         // Enable only if there’s at least one real office
-        officeDropdown.interactable = options.Count > 1 && !StripRichText(options[1].text).StartsWith("No offices");
+        officeDropdown.interactable = options.Count > 1 &&
+                                      !StripRichText(options.Last().text).StartsWith("No offices"); // Use Last() for safety
 
         // Wire handler (guard headers)
         officeDropdown.onValueChanged.RemoveListener(OnOfficeDropdownChanged);
@@ -893,6 +920,7 @@ currentOfficeDropdown.Hide();
         navigationSystem.StartNavigationToOffice(selectedText);
     }
 
+
     void RefreshOfficeDropdown()
     {
         if (!navigationSystem) navigationSystem = FindFirstObjectByType<SmartNavigationSystem>();
@@ -932,9 +960,20 @@ currentOfficeDropdown.Hide();
 
     void OnStopClicked()
     {
-        if (navigationSystem) navigationSystem.StopNavigation();
+        // Stop nav visuals/state
+        navigationSystem?.StopNavigation(); // or StopNavigation(clearOfficeOverride: false)
+
+        // Kill arrival popup watcher
+        arrivalWatchActive = false;
+        arrivalPopupShown = false;
+        arrivalTargetOffice = null;
+
+        var am = FindFirstObjectByType<ServiceArrivalManager>(FindObjectsInactive.Include);
+        if (am != null) am.SendMessage("ClosePopup", SendMessageOptions.DontRequireReceiver);
+
         isNavigationActive = false;
         UpdateNavigationUI();
+        ShowSearchFeedback("Navigation stopped", Color.yellow);
     }
 
 
@@ -1120,8 +1159,13 @@ currentOfficeDropdown.Hide();
                 }
             }
         }
+       // PollArrivalWatch();
     }
 
+    void PollArrivalWatch()
+    {
+       
+    }
     void OnDestroy()
     {
         if (navigateButton) navigateButton.onClick.RemoveAllListeners();
@@ -1180,24 +1224,26 @@ currentOfficeDropdown.Hide();
             (Normalize(w.officeName) == norm || Normalize(w.name) == norm));
     }
 
-    string GetOfficeFloorLabel(string officeName)
+ 
+    public string GetOfficeFloorLabel(string officeName)
     {
         var wp = FindOfficeWaypoint(officeName);
         if (!wp) return "Unknown";
         return wp.transform.position.y > FloorThresholdY ? "Second" : "Ground";
     }
 
-    string GetCurrentFloorLabel()
+    public string GetCurrentFloorLabel()
     {
         var cam = Camera.main;
         float y = cam ? cam.transform.position.y : 0f;
         return y > FloorThresholdY ? "Second" : "Ground";
     }
 
-    // Add this to ManilaServeUI class if it doesn't exist
-    static string Normalize(string s) =>
-        string.IsNullOrWhiteSpace(s) ? "" :
+    private string Normalize(string s)
+    {
+        return string.IsNullOrWhiteSpace(s) ? "" :
         s.ToLowerInvariant().Replace(" ", "").Replace("-", "").Replace("_", "");
+    }
 
     void CustomizeDropdownAppearance()
     {
@@ -1829,49 +1875,6 @@ currentOfficeDropdown.Hide();
         if (officeInfoPopup) officeInfoPopup.SetActive(false);
     }
 
-    void StartNavigationFromPopup(string destinationOffice)
-    {
-        selectedOffice = destinationOffice;
-        CloseOfficeInfoPopup();
-
-        if (!navigationSystem)
-        {
-            ShowSearchFeedback("Navigation system not found", Color.red);
-            return;
-        }
-
-        // ⭐ Choose navigation mode based on toggle
-        if (useAutoDetection)
-        {
-            // MODE 1: Auto-Detection (Camera Position)
-            Debug.Log($"[AUTO] Starting navigation from current camera location to: {destinationOffice}");
-            navigationSystem.StartNavigationFromCurrentLocation(destinationOffice);
-            ShowSearchFeedback($"Navigating from current location to {destinationOffice}", Color.green);
-        }
-        else
-        {
-            // MODE 2: Manual Selection (Office Dropdown)
-            if (string.IsNullOrEmpty(selectedCurrentOffice))
-            {
-                ShowSearchFeedback("Please select your current office first", Color.yellow);
-                return;
-            }
-
-            Debug.Log($"[MANUAL] Starting navigation from {selectedCurrentOffice} to: {destinationOffice}");
-
-            // Use office-to-office navigation
-            navigationSystem.currentUserOffice = selectedCurrentOffice;
-            navigationSystem.useOfficeAsStart = true;
-            navigationSystem.StartNavigationFromOfficeName(selectedCurrentOffice, destinationOffice);
-
-            ShowSearchFeedback($"Navigating from {selectedCurrentOffice} to {destinationOffice}", Color.green);
-        }
-
-        isNavigationActive = true;
-        UpdateNavigationUI();
-    }
-
-    // ⭐ REPLACE WITH THIS:
     void StartNavigationWithOffices()
     {
         if (string.IsNullOrEmpty(selectedOffice))
@@ -1886,32 +1889,142 @@ currentOfficeDropdown.Hide();
             return;
         }
 
-        // Use the hybrid system (auto-detection vs manual selection)
+        // Always start from a clean session
+        navigationSystem.StopNavigation(clearOfficeOverride: false);
+
         if (useAutoDetection)
         {
-            // Auto-detection mode
+            // AUTO: start from camera (clear any stale office override)
+            navigationSystem.useOfficeAsStart = false;
+            navigationSystem.currentUserOffice = null;
+
             Debug.Log($"[AUTO] Starting navigation from current location to: {selectedOffice}");
             navigationSystem.StartNavigationFromCurrentLocation(selectedOffice);
             ShowSearchFeedback($"Navigating from current location to {selectedOffice}", Color.green);
+
+            ArmArrivalWatch(selectedOffice);
         }
         else
         {
-            // Manual selection mode
             if (string.IsNullOrEmpty(selectedCurrentOffice))
             {
                 ShowSearchFeedback("Please select your current office first", Color.yellow);
                 return;
             }
-
-            Debug.Log($"[MANUAL] Starting navigation from {selectedCurrentOffice} to: {selectedOffice}");
-            navigationSystem.currentUserOffice = selectedCurrentOffice;
-            navigationSystem.useOfficeAsStart = true;
-            navigationSystem.StartNavigationFromOfficeName(selectedCurrentOffice, selectedOffice);
-            ShowSearchFeedback($"Navigating from {selectedCurrentOffice} to {selectedOffice}", Color.green);
+ 
+        Debug.Log($"[MANUAL] Starting navigation from {selectedCurrentOffice} to: {selectedOffice}");
+            StartCoroutine(StartManualRoute(selectedCurrentOffice, selectedOffice));
+            return; // exit here; the coroutine will finish the setup
         }
 
         isNavigationActive = true;
         UpdateNavigationUI();
+    }
+
+    void StartNavigationFromPopup(string destinationOffice)
+    {
+        selectedOffice = destinationOffice;
+        CloseOfficeInfoPopup();
+
+        if (!navigationSystem)
+        {
+            ShowSearchFeedback("Navigation system not found", Color.red);
+            return;
+        }
+
+        // Always start from a clean session
+        navigationSystem.StopNavigation(clearOfficeOverride: false);
+
+        if (useAutoDetection)
+        {
+            // AUTO: start from camera (clear any stale office override)
+            navigationSystem.useOfficeAsStart = false;
+            navigationSystem.currentUserOffice = null;
+
+            Debug.Log($"[AUTO] Starting navigation from current location to: {destinationOffice}");
+            navigationSystem.StartNavigationFromCurrentLocation(destinationOffice);
+            ShowSearchFeedback($"Navigating from current location to {destinationOffice}", Color.green);
+
+            ArmArrivalWatch(destinationOffice);
+        }
+        else
+        {
+            if (string.IsNullOrEmpty(selectedCurrentOffice))
+            {
+                ShowSearchFeedback("Please select your current office first", Color.yellow);
+                return;
+            }
+            Debug.Log($"[MANUAL] Starting navigation from {selectedCurrentOffice} to: {destinationOffice}");
+            StartCoroutine(StartManualRoute(selectedCurrentOffice, destinationOffice));
+            return;
+        }
+
+        isNavigationActive = true;
+        UpdateNavigationUI();
+    }
+
+    IEnumerator StartManualRoute(string startOffice, string destOffice)
+    {
+        // Clean session (don’t clear override)
+        navigationSystem.StopNavigation(clearOfficeOverride: false);
+
+        // Keep the office override ON so GetCurrentPosition starts at the selected office
+        var mappedStart = MapToWaypointName(startOffice);
+        navigationSystem.currentUserOffice = mappedStart;
+        navigationSystem.useOfficeAsStart = true;
+
+        // Pre-snap so any camera fallback also starts at the office (first-run robustness)
+        TrySnapUserToOffice(mappedStart);
+
+        // Let transforms/pose update before building the path
+        yield return null;                     // or yield return new WaitForEndOfFrame();
+
+        // Use the same builder as AUTO; it will read the override at route start
+        navigationSystem.StartNavigationFromCurrentLocation(destOffice);
+        ShowSearchFeedback($"Navigating from {startOffice} to {destOffice}", Color.green);
+
+        ArmArrivalWatch(destOffice);
+
+        isNavigationActive = true;
+        UpdateNavigationUI();
+    }
+
+    string MapToWaypointName(string officeName)
+    {
+        if (officeNameMappings != null &&
+        officeNameMappings.TryGetValue(officeName, out var mapped) &&
+        !string.IsNullOrWhiteSpace(mapped))
+            return mapped;
+        return officeName;
+    }
+
+    void TrySnapUserToOffice(string officeName)
+    {
+        var wp = FindWaypointByOfficeName(officeName);
+        if (!wp) { Debug.LogWarning($"[ManualSnap] No waypoint for '{officeName}'"); return; }
+
+        // Prefer moving a user marker if SmartNavigationSystem exposes one
+        var userMarkerField = navigationSystem.GetType().GetField("userMarker");
+        if (userMarkerField != null)
+        {
+            var marker = userMarkerField.GetValue(navigationSystem) as Transform;
+            if (marker)
+            {
+                marker.position = wp.transform.position;
+                marker.rotation = Quaternion.LookRotation(wp.transform.forward, Vector3.up);
+                Debug.Log($"[ManualSnap] userMarker → {officeName}");
+                return;
+            }
+        }
+
+        // Fallback: nudge XR Origin so camera appears at the office
+        var xrOrigin = FindObjectOfType<XROrigin>();
+        if (xrOrigin && xrOrigin.Camera)
+        {
+            var delta = wp.transform.position - xrOrigin.Camera.transform.position;
+            xrOrigin.transform.position += delta;
+            Debug.Log($"[ManualSnap] XR Origin nudged → {officeName}");
+        }
     }
 
     private void HandleOfficePicked(string officeName, bool resetDropdown = false)
@@ -2039,29 +2152,88 @@ void InitializeOfficeNameMappings()
 
     void OnCurrentOfficeSelected(int index)
     {
-        if (suppressCurrentSelection) return;
+        if (suppressCurrentSelection || !currentOfficeDropdown) return;
 
         var raw = currentOfficeDropdown.options[index].text;
+        var label = StripRichText(raw).Trim();
 
-        // Block prompt, headers, and “no data” rows
+        // Block prompt / dividers / "No offices"
         if (index == 0 || currentHeaderIndices.Contains(index) || IsDividerOrPlaceholder(raw))
         {
             suppressCurrentSelection = true;
             currentOfficeDropdown.SetValueWithoutNotify(lastValidCurrentIndex);
             currentOfficeDropdown.RefreshShownValue();
             suppressCurrentSelection = false;
-
-            // Keep list open so the user can pick a real office (optional)
-            StartCoroutine(ReopenDropdown(currentOfficeDropdown));
+            StartCoroutine(ReopenDropdown(currentOfficeDropdown)); // keep list open
             return;
         }
 
-        // Accept normal selection
+        // Accept selection
         lastValidCurrentIndex = index;
+        selectedCurrentOffice = label;
+        Debug.Log($"[CurrentOffice] Selected: {selectedCurrentOffice}");
 
-        string officeName = StripRichText(raw).Trim();
-        // TODO: Use the selected current office (set a field, update UI, etc.)
-        // e.g., selectedCurrentOffice = officeName;
+        if (navigationSystem)
+        {
+            navigationSystem.currentUserOffice = selectedCurrentOffice;
+            navigationSystem.useOfficeAsStart = true;
+        }
+
+        // Only snap in manual mode (do NOT interfere with auto-detect)
+        if (!useAutoDetection && recenterCameraOnCurrentOfficeSelect)
+            TrySnapUserToSelectedOffice();
+    }
+
+    void TrySnapUserToSelectedOffice()
+    {
+        if (useAutoDetection) return; // keep auto-detect intact
+        if (string.IsNullOrEmpty(selectedCurrentOffice)) return;
+        if (!navigationSystem) return;
+
+        // Resolve waypoint (cache → scene scan)
+        var wp = FindWaypointByOfficeName(selectedCurrentOffice);
+        if (!wp)
+        {
+            Debug.LogWarning($"[CurrentOffice] No waypoint found for '{selectedCurrentOffice}'");
+            return;
+        }
+
+        // 1) If SmartNavigationSystem exposes a user marker, move that.
+        var userMarkerField = navigationSystem.GetType().GetField("userMarker");
+        if (userMarkerField != null)
+        {
+            var marker = userMarkerField.GetValue(navigationSystem) as Transform;
+            if (marker)
+            {
+                marker.position = wp.transform.position;
+                marker.rotation = Quaternion.LookRotation(wp.transform.forward, Vector3.up);
+                Debug.Log($"[CurrentOffice] userMarker moved to {selectedCurrentOffice}");
+                return;
+            }
+        }
+
+        // 2) Last resort: nudge XR Origin so camera appears at the office
+        var xrOrigin = FindObjectOfType<XROrigin>();
+        if (xrOrigin && xrOrigin.Camera)
+        {
+            var delta = wp.transform.position - xrOrigin.Camera.transform.position;
+            xrOrigin.transform.position += delta;
+            Debug.Log($"[CurrentOffice] XR origin nudged to {selectedCurrentOffice}");
+        }
+    }
+
+    NavigationWaypoint FindWaypointByOfficeName(string officeName)
+    {
+        if (string.IsNullOrWhiteSpace(officeName)) return null;
+        var all = Resources.FindObjectsOfTypeAll<NavigationWaypoint>()
+        .Where(wp => wp && wp.gameObject.scene.IsValid())
+        .ToArray();
+
+        string n = (officeName ?? "").Trim().ToLowerInvariant();
+        return all.FirstOrDefault(wp =>
+            (wp.officeName ?? "").Trim().ToLowerInvariant() == n ||
+            (wp.waypointName ?? "").Trim().ToLowerInvariant() == n ||
+            (wp.name ?? "").Trim().ToLowerInvariant() == n);
     }
 
     void SetupDropdowns()
