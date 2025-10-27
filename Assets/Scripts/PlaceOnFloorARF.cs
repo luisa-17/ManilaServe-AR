@@ -51,7 +51,6 @@ public bool snapToCameraForward = true;      // face the same direction as the c
     public UnityEngine.UI.Button placeButton;        // optional
     public TMPro.TMP_Text placeButtonLabel;          // optional label on the button
 
-    // NEW: Instructions panel + simple UI pulse during scanning
     [Header("Instruction UI / Scanning Pulse")]
     public GameObject instructionsPanel;           // root panel you want hidden on place
     public CanvasGroup instructionsCanvasGroup;    // add a CanvasGroup to the instructions panel and drag it here
@@ -60,6 +59,17 @@ public bool snapToCameraForward = true;      // face the same direction as the c
     [Range(0.5f, 6f)] public float pulseSpeed = 2.0f;
     [Range(0f, 1f)] public float pulseMinAlpha = 0.55f;
     [Range(0f, 1f)] public float pulseMaxAlpha = 1.0f;
+
+    // Parent that holds the beacon at the exact reticle spot
+    private Transform _beaconParent;
+
+#if UNITY_EDITOR
+// Editor-only stand-in for an anchor; keeps the beacon in-place when worldRoot moves
+private Transform _editorBeaconAnchor;
+#endif
+
+    // Optional: track the appear coroutine so we don't stop unrelated routines
+    private Coroutine _appearRoutine;
 
     bool placed;
     Pose lastPose;
@@ -74,8 +84,37 @@ public bool snapToCameraForward = true;      // face the same direction as the c
     [Header("Entrance")]
     public Transform entranceNode; // drag your Waypoint_Entrance_* here
 
-    // track stable state so UI pulse can respond
     bool _isStable = false;
+
+    // RENAMED FIELDS FOR PLACEMENT VISUAL (Portal/Beacon)
+    [Header("Placement Anchor Visual (Beacon)")]
+    [Tooltip("The Portal/Beacon prefab to mark the entrance.")]
+    public GameObject placementVisualPrefab;
+
+    [Tooltip("The Y-offset required to align the visual's base to the floor (e.g., 1.102).")]
+    public float visualBaseYOffset = 0.0f;
+
+    [Range(0.1f, 1.0f)]
+    [Tooltip("Time in seconds for the Beacon to scale up from zero.")]
+    public float appearDuration = 0.3f;
+
+    // Internal reference to the spawned visual instance
+    private GameObject _spawnedVisual;
+
+    // Floor state broadcast for UI gating
+    public enum FloorState { Scanning, Ready, Placed }
+
+    public static FloorState CurrentFloorState { get; private set; } = FloorState.Scanning;
+    public static bool FloorReadyGlobal { get; private set; } = false;
+    public static bool FloorPlacedGlobal { get; private set; }  // true after placement
+    bool _lastReadyBroadcast = false;
+
+    public static event System.Action<FloorState> OnFloorStateChanged;
+    public static event System.Action<bool> OnFloorReadyChanged;
+    public static event System.Action<bool> OnFloorPlacedChanged;
+
+    FloorState _lastState = FloorState.Scanning;
+
 
     void Awake()
     {
@@ -86,8 +125,33 @@ public bool snapToCameraForward = true;      // face the same direction as the c
         if (!arCamera) arCamera = origin ? origin.Camera : Camera.main;
     }
 
+    void UpdateFloorStateSignals()
+    {
+        var next = placed ? FloorState.Placed : (_isStable ? FloorState.Ready : FloorState.Scanning);
+        if (next == _lastState) return;
+
+        _lastState = next;
+        CurrentFloorState = next;
+
+        bool ready = next != FloorState.Scanning;
+        bool placedNow = next == FloorState.Placed;
+
+        FloorReadyGlobal = ready;
+        FloorPlacedGlobal = placedNow;
+
+        try { OnFloorStateChanged?.Invoke(next); } catch { }
+        try { OnFloorReadyChanged?.Invoke(ready); } catch { }
+        try { OnFloorPlacedChanged?.Invoke(placedNow); } catch { }
+
+        Debug.Log($"[PlaceOnFloorARF] Floor state -> {next} (ready={ready}, placed={placedNow})");
+    }
+
     void OnEnable()
     {
+        _lastReadyBroadcast = false;
+        FloorReadyGlobal = false;
+        try { OnFloorReadyChanged?.Invoke(false); } catch { }
+
         if (!arCamera) arCamera = Camera.main;
         if (planeMgr) planeMgr.requestedDetectionMode = PlaneDetectionMode.Horizontal;
 
@@ -117,6 +181,9 @@ public bool snapToCameraForward = true;      // face the same direction as the c
         // Start heading service
         var hs = HeadingService.Instance ?? FindFirstObjectByType<HeadingService>();
         hs?.StartHeading();
+
+        // FIX: Ensure no leftover visual is present at startup, preventing (0,0,0) artifact.
+        DespawnPlacementVisual();
     }
 
     void OnDisable()
@@ -148,13 +215,19 @@ public bool snapToCameraForward = true;      // face the same direction as the c
                 Vector3 pos = camT.position + camT.forward * editorDistance;
                 pos.y = editorPlaneY;
 
-                Vector3 forward = snapToCameraForward
-                                  ? Vector3.ProjectOnPlane(camT.forward, Vector3.up).normalized
-                                  : Vector3.forward;
-                if (forward.sqrMagnitude < 1e-6f) forward = Vector3.forward;
+                // Build a pseudo plane pose at Y = editorPlaneY (up = Vector3.up)
+                var simPlanePose = new Pose(pos, Quaternion.identity);
+                var rot = GetReticleRotationFor(simPlanePose);
 
-                Quaternion rot = Quaternion.LookRotation(forward, Vector3.up);
-                DoPlace(new Pose(pos, rot));
+                var placePose = new Pose(simPlanePose.position, rot);
+                lastPose = placePose;
+                hasPose = true;
+                _validStreak = stableFramesRequired;
+                _isStable = true; // simulate "ready" in editor
+
+                UpdateFloorStateSignals();
+
+                DoPlace(placePose);
                 return;
             }
         }
@@ -167,9 +240,18 @@ public bool snapToCameraForward = true;      // face the same direction as the c
             if (raycastMgr.Raycast(touchPos, hits, TrackableType.PlaneWithinPolygon))
             {
                 var hit = hits[0];
-                lastPose = hit.pose;
+                var p = hit.pose;
+
+                // Use reticle-facing rotation on plane
+                var rot = GetReticleRotationFor(p);
+                lastPose = new Pose(p.position, rot);
+
                 hasPose = true;
-                _validStreak = stableFramesRequired; // treat as stable
+                _validStreak = stableFramesRequired;
+                _isStable = true; // user tapped a valid plane -> considered ready
+
+                UpdateFloorStateSignals();
+
                 DoPlace(lastPose);
                 return;
             }
@@ -178,13 +260,17 @@ public bool snapToCameraForward = true;      // face the same direction as the c
         // --- Auto place when stable ---
         if (!placed && autoPlaceWhenStable && hasPose && _validStreak >= stableFramesRequired)
         {
+            _isStable = true;
+            UpdateFloorStateSignals();
             DoPlace(lastPose);
             return;
         }
 
-        if (placed || !raycastMgr) return;
+        // --- Early exits ---
+        if (placed) { UpdateFloorStateSignals(); return; }
+        if (!raycastMgr) { UpdateFloorStateSignals(); return; }
 
-        // Center-screen raycast
+        // --- Center-screen raycast (scanning) ---
         var screen = new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
         bool hasHit = raycastMgr.Raycast(screen, hits, TrackableType.PlaneWithinPolygon);
 
@@ -193,18 +279,9 @@ public bool snapToCameraForward = true;      // face the same direction as the c
             var hit = hits[0];
             Pose p = hit.pose;
 
-            lastPose = p;
+            Quaternion rot = GetReticleRotationFor(p);
+            lastPose = new Pose(p.position, rot);
             hasPose = true;
-
-            // Reticle aligned to plane and camera-facing on plane
-            Vector3 camForward = (arCamera != null) ? arCamera.transform.forward
-                                 : (Camera.main != null ? Camera.main.transform.forward : Vector3.forward);
-            Vector3 camUp = (arCamera != null) ? arCamera.transform.up
-                           : (Camera.main != null ? Camera.main.transform.up : Vector3.up);
-
-            Vector3 forwardOnPlane = Vector3.ProjectOnPlane(camForward, p.up);
-            if (forwardOnPlane.sqrMagnitude < 1e-6f) forwardOnPlane = Vector3.ProjectOnPlane(camUp, p.up);
-            Quaternion rot = Quaternion.LookRotation(forwardOnPlane.normalized, p.up);
 
             if (reticle) reticle.transform.SetPositionAndRotation(p.position, rot);
             if (reticle && !reticle.activeSelf) reticle.SetActive(true);
@@ -225,16 +302,25 @@ public bool snapToCameraForward = true;      // face the same direction as the c
                 autoPlaceTimer += Time.deltaTime;
             if (placeButton && autoPlaceWhenStable && autoPlaceTimer >= autoPlaceTimeout)
                 placeButton.gameObject.SetActive(true);
+
+            // Notify UI of state change
+            UpdateFloorStateSignals();
         }
-        else
+        else // No hit
         {
             hasPose = false;
             _validStreak = 0;
             _isStable = false;
+
+            // Reticle logic: Hide reticle immediately when floor is lost.
             if (reticle) reticle.SetActive(false);
+
             if (scanViz) scanViz.SetMode(FloorScanVisualizer.Mode.Scanning);
             if (instruction) instruction.text = "Move your phone to find the floor";
             if (placeButton) placeButton.interactable = false;
+
+            // Notify UI of state change
+            UpdateFloorStateSignals();
         }
 
         // UI pulse while scanning
@@ -260,11 +346,24 @@ public bool snapToCameraForward = true;      // face the same direction as the c
         DoPlace(lastPose);                   // place at the last valid pose
     }
 
+    void BroadcastFloorReadyIfChanged()
+    {
+        // Ready if reticle is stable or we’ve already placed
+        bool readyNow = placed || _isStable;
+        if (readyNow == _lastReadyBroadcast) return;
+
+        _lastReadyBroadcast = readyNow;
+        FloorReadyGlobal = readyNow;
+
+        try { OnFloorReadyChanged?.Invoke(readyNow); } catch { }
+        Debug.Log($"[PlaceOnFloorARF] FloorReadyGlobal => {readyNow} (placed={placed}, stable={_isStable})");
+    }
+
     void DoPlace(Pose pose)
     {
         if (placed) return;
+        float yForSnap = pose.position.y;
 
-        // Tell nav which entrance node to use for "start from entrance"
         if (nav != null && entranceNode != null)
         {
             var mi = nav.GetType().GetMethod("SetEntranceNode",
@@ -274,11 +373,13 @@ public bool snapToCameraForward = true;      // face the same direction as the c
 
         // 1) Create/attach an anchor at the hit pose
         ARAnchor anchor = null;
+
         if (anchorMgr != null && planeMgr != null && hits != null && hits.Count > 0)
         {
             var plane = planeMgr.GetPlane(hits[0].trackableId);
             if (plane != null) anchor = anchorMgr.AttachAnchor(plane, pose);
         }
+
         if (anchor == null)
         {
             var go = new GameObject("ARF_Anchor");
@@ -289,19 +390,41 @@ public bool snapToCameraForward = true;      // face the same direction as the c
         // Tell nav where the real floor Y is and give it the AR raycaster
         if (nav != null)
         {
-            TrySetNav("fallbackGroundY", pose.position.y);                     // default Y if raycast misses
+            TrySetNav("fallbackGroundY", yForSnap);
+            TrySetNav("arGroundPlaneY", yForSnap);
             TrySetNav("preferARGroundRaycast", true);
+
+            // CRITICAL FIX: Ensure the SmartNavigationSystem recognizes the world is placed.
+            TrySetNav("worldBaked", true); // <-- ADDED THIS LINE (Line 412)
+
             var rm = raycastMgr ? raycastMgr : FindFirstObjectByType<UnityEngine.XR.ARFoundation.ARRaycastManager>();
             TrySetNav("raycastMgr", rm);
         }
 
         // 2) Parent content to the anchor
-        if (worldRoot != null) worldRoot.SetParent(anchor.transform, false);
+#if UNITY_EDITOR
+    // Move worldRoot directly in editor (no AR parenting)
+    if (worldRoot != null)
+        worldRoot.SetPositionAndRotation(pose.position, pose.rotation);
+
+    // Keep a dedicated editor "beacon anchor" to hold the beacon at the reticle pose
+    _beaconParent = EnsureEditorBeaconAnchorAt(pose);
+
+    // If we created any ARAnchor, remove it in editor to avoid transform resets
+    if (anchor) Destroy(anchor.gameObject);
+#else
+        // On device: parent content to the AR anchor
+        if (worldRoot != null && anchor != null)
+            worldRoot.SetParent(anchor.transform, false);
+
+        // Beacon should parent to the AR anchor so it stays at the placed pose
+        _beaconParent = anchor != null ? anchor.transform : null;
+#endif
+
         if (contentAnchor != null) contentAnchor.SetParent(worldRoot, false);
 
         // 3) Decide which floor Y to use for vertical snap
-        // On device: use AR plane Y (pose.y). In Editor P-sim: use current model base Y.
-        float yForSnap = pose.position.y;
+
 #if UNITY_EDITOR
     if (simulateInEditor)
     {
@@ -320,63 +443,170 @@ public bool snapToCameraForward = true;      // face the same direction as the c
         // 4) Push floor info into nav so arrows snap to the same floor (Editor + Device)
         if (nav != null)
         {
-            TrySetNav("fallbackGroundY", yForSnap);          // preferred pattern
-            TrySetNav("arGroundPlaneY", yForSnap);           // legacy field (if you have it)
-            TrySetNav("preferARGroundRaycast", true);        // make nav use AR planes when available
+            TrySetNav("fallbackGroundY", yForSnap);
+            TrySetNav("arGroundPlaneY", yForSnap);
+            TrySetNav("preferARGroundRaycast", true);
 
             var rm = raycastMgr ? raycastMgr : FindFirstObjectByType<UnityEngine.XR.ARFoundation.ARRaycastManager>();
             TrySetNav("raycastMgr", rm);
         }
 
         // 5) After nav positions its content, align + vertical snap, then hide scanning UI
-        System.Action afterNav = () =>
-        {
-            AlignEntranceAfterPlacement(pose);
+        // We run the Coroutine to delay the Beacon spawn until the worldRoot has physically moved.
+        StartCoroutine(ExecutePostPlacementActions(pose, yForSnap));
+    }
 
-            // Pass the adjusted Y for snapping (Editor uses model base; device uses AR plane)
-            var snapPos = new Vector3(pose.position.x, yForSnap, pose.position.z);
-            StartCoroutine(AlignWorldRootToPlaneCoroutine(snapPos));
+    // NEW COROUTINE: Centralizes post-placement actions, delaying Beacon spawn.
+    IEnumerator ExecutePostPlacementActions(Pose pose, float yForSnap)
+    {
+        // 1. Wait one frame. This is the crucial step to ensure worldRoot gets its new position/matrix
+        // before we try to parent the Beacon to it and calculate its local position.
+        yield return new WaitForEndOfFrame();
 
-            // Build any nav caches after rebase
-            if (nav != null)
-            {
-                var mi = nav.GetType().GetMethod("BuildOfficeIndexFromScene",
-                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
-                if (mi != null) { try { mi.Invoke(nav, null); } catch { } }
-            }
+        // 2. Run the heavy alignment coroutine (moves content up/down to match plane)
+        StartCoroutine(AlignWorldRootToPlaneCoroutine(new Vector3(pose.position.x, yForSnap, pose.position.z)));
 
-            // Stop detection & hide scanning UI
-            if (planeMgr != null) planeMgr.requestedDetectionMode = PlaneDetectionMode.None;
-            if (reticle != null) reticle.SetActive(false);
-            if (scanViz != null) scanViz.SetMode(FloorScanVisualizer.Mode.Hidden);
-            if (placeButton != null) placeButton.interactable = false;
-            if (autoHideInstructionsOnPlace && instructionsPanel != null) instructionsPanel.SetActive(false);
-            if (instructionsCanvasGroup != null) instructionsCanvasGroup.alpha = 0f;
-            if (instruction != null) instruction.text = "Floor set. Select an office.";
+        // 3. Wait one more frame for the position adjustment to apply
+        yield return null;
 
-            placed = true;
-
-            // Repurpose Place button as Re‑align (optional)
-            if (placeButton)
-            {
-                placeButton.gameObject.SetActive(true);
-                placeButton.onClick.RemoveAllListeners();
-                placeButton.onClick.AddListener(ReAlignAtCamera);
-                var lbl = placeButton.GetComponentInChildren<TMPro.TMP_Text>(true);
-                if (lbl) lbl.text = "Re‑align";
-                placeButton.interactable = true;
-            }
-        };
-
-        // 6) Let nav place content, then run afterNav
+        // 4. Build any nav caches after rebase
         if (nav != null)
         {
-            // SmartNavigationSystem.PlaceWorld(Vector3 pos, Quaternion rot, Action onComplete)
-            nav.PlaceWorld(pose.position, pose.rotation, afterNav);
+            var mi = nav.GetType().GetMethod("BuildOfficeIndexFromScene",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+            if (mi != null) { try { mi.Invoke(nav, null); } catch { } }
+        }
+
+        // --- CRITICAL FIXES FOR VISUALS ---
+        // 5. Hide the Reticle immediately after placing the world anchor.
+        if (reticle != null) reticle.SetActive(false);
+        if (scanViz != null) scanViz.SetMode(FloorScanVisualizer.Mode.Hidden);
+
+        // 6. Spawn the permanent Portal/Beacon at the successful anchor point.
+        // This call is now safe because the worldRoot has fully moved.
+        SpawnPlacementVisual(pose);
+        // ----------------------------------
+
+        // 7. Stop detection & hide scanning UI
+        if (planeMgr != null) planeMgr.requestedDetectionMode = PlaneDetectionMode.None;
+        if (placeButton != null) placeButton.interactable = false;
+
+        // 8. Hook Activation (ManilaServeUI placeholder)
+        if (nav != null)
+        {
+            var ui = nav.GetComponentInParent<ManilaServeUI>();
+            if (ui == null) ui = FindFirstObjectByType<ManilaServeUI>();
+            // You would typically call a method on ManilaServeUI here to indicate readiness
+        }
+
+        AlignEntranceAfterPlacement(pose);
+
+        if (autoHideInstructionsOnPlace && instructionsPanel != null) instructionsPanel.SetActive(false);
+        if (instructionsCanvasGroup != null) instructionsCanvasGroup.alpha = 0f;
+        if (instruction != null) instruction.text = "Floor set. Select an office.";
+
+        placed = true;
+        BroadcastFloorReadyIfChanged();
+        UpdateFloorStateSignals();
+
+        // 9. Repurpose Place button as Re‑align (optional)
+        if (placeButton)
+        {
+            placeButton.gameObject.SetActive(true);
+            placeButton.onClick.RemoveAllListeners();
+            placeButton.onClick.AddListener(ReAlignAtCamera);
+            var lbl = placeButton.GetComponentInChildren<TMPro.TMP_Text>(true);
+            if (lbl) lbl.text = "Re‑align";
+            placeButton.interactable = true;
+        }
+    }
+
+
+    void SpawnPlacementVisual(Pose pose)
+    {
+        if (_spawnedVisual) DespawnPlacementVisual();
+        if (!placementVisualPrefab) return;
+
+        Vector3 spawnPosition = pose.position + Vector3.up * visualBaseYOffset;
+        Quaternion spawnRotation = pose.rotation;
+
+        _spawnedVisual = Instantiate(placementVisualPrefab, spawnPosition, spawnRotation);
+        _spawnedVisual.name = "MS_WelcomePortal";
+
+        // Parent to the beacon’s anchor (what we already fixed)
+        if (_beaconParent != null)
+            _spawnedVisual.transform.SetParent(_beaconParent, true);
+        else if (worldRoot != null)
+            _spawnedVisual.transform.SetParent(worldRoot, true);
+
+        // New: drive the portal controller if present
+        var portal = _spawnedVisual.GetComponent<WelcomePortalController>();
+        if (portal != null)
+        {
+            portal.visualBaseYOffset = visualBaseYOffset; // sync offset
+            portal.Initialize(pose, arCamera);
         }
         else
         {
-            afterNav();
+            // Fallback: old scale-up
+            if (_appearRoutine != null) StopCoroutine(_appearRoutine);
+            _appearRoutine = StartCoroutine(ScaleUpAndFadeCoroutine(_spawnedVisual.transform));
+        }
+    }
+
+#if UNITY_EDITOR
+private Transform EnsureEditorBeaconAnchorAt(Pose pose)
+{
+    if (_editorBeaconAnchor == null)
+    {
+        var go = new GameObject("BeaconAnchor (Editor)");
+        _editorBeaconAnchor = go.transform;
+    }
+    _editorBeaconAnchor.SetPositionAndRotation(pose.position, pose.rotation);
+    return _editorBeaconAnchor;
+}
+#endif
+
+    IEnumerator ScaleUpAndFadeCoroutine(Transform target)
+    {
+        if (!target) yield break;
+
+        target.gameObject.SetActive(true);
+
+        // Preserve the prefab’s intended scale
+        Vector3 finalScale = target.localScale;
+        Vector3 startScale = Vector3.zero;
+        target.localScale = startScale;
+
+        float t = 0f;
+        while (t < appearDuration)
+        {
+            t += Time.deltaTime;
+            float factor = Mathf.Clamp01(t / appearDuration);
+
+            // Smooth ease for a nice "pop"
+            float smooth = 1f - Mathf.Pow(1f - factor, 4f);
+            target.localScale = Vector3.LerpUnclamped(startScale, finalScale, smooth);
+
+            yield return null;
+        }
+
+        target.localScale = finalScale;
+    }
+
+    public void DespawnPlacementVisual()
+    {
+        if (_appearRoutine != null)
+        {
+            StopCoroutine(_appearRoutine);
+            _appearRoutine = null;
+        }
+
+        if (_spawnedVisual)
+        {
+            Destroy(_spawnedVisual);
+            _spawnedVisual = null;
+            Debug.Log("[Beacon] Visual despawned.");
         }
     }
 
@@ -429,14 +659,55 @@ public bool snapToCameraForward = true;      // face the same direction as the c
     pos = default;
     var ts = UnityEngine.InputSystem.Touchscreen.current;
     if (ts == null) return false;
-    if (!ts.primaryTouch.press.wasPressedThisFrame) return false;
-    pos = ts.primaryTouch.position.ReadValue();
+
+    var touch = ts.primaryTouch;
+    if (!touch.press.wasPressedThisFrame) return false;
+
+    pos = touch.position.ReadValue();
+
+    // Block if touch is over any UI
+    var es = UnityEngine.EventSystems.EventSystem.current;
+    if (es != null)
+    {
+        var data = new UnityEngine.EventSystems.PointerEventData(es) { position = pos };
+        var results = new System.Collections.Generic.List<UnityEngine.EventSystems.RaycastResult>();
+        es.RaycastAll(data, results);
+        if (results.Count > 0)
+        {
+            pos = default;
+            return false;
+        }
+    }
+
     return true;
 #else
         if (Input.touchCount == 0) { pos = default; return false; }
         var t = Input.GetTouch(0);
         if (t.phase != TouchPhase.Began) { pos = default; return false; }
         pos = t.position;
+
+        // Block if touch is over any UI
+        var es = UnityEngine.EventSystems.EventSystem.current;
+        if (es != null)
+        {
+            // Fast path for legacy input modules
+            if (es.IsPointerOverGameObject(t.fingerId))
+            {
+                pos = default;
+                return false;
+            }
+
+            // Fallback raycast
+            var data = new UnityEngine.EventSystems.PointerEventData(es) { position = pos };
+            var results = new System.Collections.Generic.List<UnityEngine.EventSystems.RaycastResult>();
+            es.RaycastAll(data, results);
+            if (results.Count > 0)
+            {
+                pos = default;
+                return false;
+            }
+        }
+
         return true;
 #endif
     }
@@ -567,6 +838,8 @@ public bool snapToCameraForward = true;      // face the same direction as the c
     {
         if (!placed) return;
 
+        DespawnPlacementVisual();
+
         // Try to destroy a parent anchor if present
         if (worldRoot && worldRoot.parent)
         {
@@ -576,6 +849,16 @@ public bool snapToCameraForward = true;      // face the same direction as the c
             worldRoot.SetParent(null, true);
             if (anchor) Destroy(anchor.gameObject);
         }
+
+
+#if UNITY_EDITOR
+if (_editorBeaconAnchor)
+{
+    Destroy(_editorBeaconAnchor.gameObject);
+    _editorBeaconAnchor = null;
+}
+#endif
+        _beaconParent = null;
 
         // re-enable plane detection & visuals
         if (planeMgr) planeMgr.requestedDetectionMode = PlaneDetectionMode.Horizontal;
@@ -588,9 +871,14 @@ public bool snapToCameraForward = true;      // face the same direction as the c
         if (placeButton) placeButton.interactable = false;
 
         placed = false;
+        _isStable = false;
+        UpdateFloorStateSignals();
         _validStreak = 0;
         hasPose = false;
-        _isStable = false;
+        _lastReadyBroadcast = false;
+        FloorReadyGlobal = false;
+        try { OnFloorReadyChanged?.Invoke(false); } catch { }
+
     }
 
     void AlignEntranceAfterPlacement(Pose planePose)
@@ -647,6 +935,31 @@ public bool snapToCameraForward = true;      // face the same direction as the c
         Vector3 newRootPos = targetPos - (newRootRot * localPos);
 
         contentRoot.SetPositionAndRotation(newRootPos, newRootRot);
+    }
+
+    private Quaternion GetReticleRotationFor(Pose planePose)
+    {
+        var cam = arCamera != null ? arCamera.transform : (Camera.main ? Camera.main.transform : null);
+        Vector3 camForward = cam ? cam.forward : Vector3.forward;
+        Vector3 camUp = cam ? cam.up : Vector3.up;
+
+        // Project camera forward onto the plane
+        Vector3 forwardOnPlane = Vector3.ProjectOnPlane(camForward, planePose.up);
+        if (forwardOnPlane.sqrMagnitude < 1e-6f)
+            forwardOnPlane = Vector3.ProjectOnPlane(camUp, planePose.up);
+
+        return Quaternion.LookRotation(forwardOnPlane.normalized, planePose.up);
+    }
+
+    private readonly System.Collections.Generic.List<UnityEngine.EventSystems.RaycastResult> _uiHits = new();
+    private bool IsScreenPosOverUI(Vector2 screenPos)
+    {
+        var es = UnityEngine.EventSystems.EventSystem.current;
+        if (es == null) return false;
+        var data = new UnityEngine.EventSystems.PointerEventData(es) { position = screenPos };
+        _uiHits.Clear();
+        es.RaycastAll(data, _uiHits);
+        return _uiHits.Count > 0;
     }
 
 }

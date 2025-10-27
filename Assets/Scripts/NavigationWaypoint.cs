@@ -31,6 +31,8 @@ public class NavigationWaypoint : MonoBehaviour
     public Color waypointColor = Color.cyan;
     public bool showInEditor = true;
 
+    [Range(0f, 0.1f)]
+    public float gizmoYOffset = 0.0f;
 
     void Reset()
     {
@@ -346,10 +348,14 @@ int oneSided = 0, selfRefs = 0, nullRefs = 0, dups = 0, noConn = 0;
     {
         if (!showInEditor) return;
 
+        float lift = gizmoYOffset;
+
         Gizmos.color = waypointType == WaypointType.Office ? Color.green :
                        waypointType == WaypointType.Stairs ? Color.magenta :
                        waypointColor;
-        Gizmos.DrawSphere(transform.position + Vector3.up * 0.05f, 0.15f);
+
+        // Use the adjustable lift instead of fixed 0.05f
+        Gizmos.DrawSphere(transform.position + Vector3.up * lift, 0.15f);
 
         if (connectedWaypoints != null)
         {
@@ -358,8 +364,8 @@ int oneSided = 0, selfRefs = 0, nullRefs = 0, dups = 0, noConn = 0;
                 if (!n) continue;
                 bool clear = HasLineOfSight(transform.position, n.transform.position);
                 Gizmos.color = clear ? Color.yellow : Color.red;
-                Gizmos.DrawLine(transform.position + Vector3.up * 0.05f,
-                                n.transform.position + Vector3.up * 0.05f);
+                Gizmos.DrawLine(transform.position + Vector3.up * lift,
+                                n.transform.position + Vector3.up * lift);
             }
         }
 
@@ -367,8 +373,8 @@ int oneSided = 0, selfRefs = 0, nullRefs = 0, dups = 0, noConn = 0;
         Gizmos.DrawWireSphere(transform.position, connectionDistance);
 
 #if UNITY_EDITOR
-        if (!string.IsNullOrEmpty(waypointName))
-        Handles.Label(transform.position + Vector3.up * 0.25f, waypointName);
+    if (!string.IsNullOrEmpty(waypointName))
+        UnityEditor.Handles.Label(transform.position + Vector3.up * (lift + 0.25f), waypointName);
 #endif
     }
 }

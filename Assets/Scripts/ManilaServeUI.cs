@@ -19,9 +19,12 @@ public class ManilaServeUI : MonoBehaviour
     public TextMeshProUGUI statusText;
     public TextMeshProUGUI directionText;
     public TextMeshProUGUI distanceText;
+    public Button chatbotButton;
+    public Button checklistButton;
+    public GameObject humanoidVisualCue;
 
     [Header("Navigation System")]
-    public SmartNavigationSystem nav; 
+    public SmartNavigationSystem nav;
 
     [Header("Firebase Integration")]
     public FirebaseOfficeManager firebaseManager;
@@ -30,7 +33,7 @@ public class ManilaServeUI : MonoBehaviour
     [Header("Filters (Optional)")]
     public TMP_InputField officeSearchInput;
     public Toggle currentFloorOnlyToggle;
-    
+
     [Header("Location Display")]
     public TextMeshProUGUI currentLocationLabel;
 
@@ -202,6 +205,12 @@ public class ManilaServeUI : MonoBehaviour
 
         if (!officeSearchInput) officeSearchInput = GameObject.Find("OfficeSearchInput")?.GetComponent<TMP_InputField>();
         if (!currentFloorOnlyToggle) currentFloorOnlyToggle = GameObject.Find("FilterCurrentFloorToggle")?.GetComponent<Toggle>();
+        if (!chatbotButton)
+            chatbotButton = GameObject.Find("ChatbotButton")?.GetComponent<Button>() ?? GameObject.Find("ChatButton")?.GetComponent<Button>();
+        if (!checklistButton)
+            checklistButton = GameObject.Find("ChecklistButton")?.GetComponent<Button>() ?? GameObject.Find("CheckButton")?.GetComponent<Button>();
+
+        if (!statusText) statusText = GameObject.Find("StatusText")?.GetComponent<TextMeshProUGUI>();
 
         // ⭐ NEW: Auto-find hybrid location system elements
         if (!useCurrentLocationToggle) useCurrentLocationToggle = GameObject.Find("UseCurrentLocationToggle")?.GetComponent<Toggle>();
@@ -299,10 +308,20 @@ public class ManilaServeUI : MonoBehaviour
         StartCoroutine(WaitForFirebaseData());
         FirebaseOfficeManager.OnOfficeDataLoaded += OnFirebaseDataLoaded;
 
+        // --- FIX: Enforce Initial Restriction ---
+        if (nav != null)
+        {
+            // UpdateNavigationUI is called just above, but we call it again here 
+            // after initial setup to ensure the placement status is immediately checked
+            // and the UI is disabled if the map isn't baked.
+            UpdateNavigationUI();
+            Debug.Log("[UI] Initial world placement check enforced.");
+        }
+        // ---------------------------------------------
+
         Debug.Log("ManilaServeUI initialized with hybrid location mode");
     }
-   
-    
+
     IEnumerator WaitForFirebaseData()
     {
         float timeout = 10f;
@@ -398,8 +417,8 @@ public class ManilaServeUI : MonoBehaviour
     {
         if (!currentOfficeDropdown) return;
 
-// Ask TMP to close
-currentOfficeDropdown.Hide();
+        // Ask TMP to close
+        currentOfficeDropdown.Hide();
 
         // Destroy any stray runtime list instance
         var root = currentOfficeDropdown.transform.root;
@@ -578,6 +597,51 @@ currentOfficeDropdown.Hide();
         bool currentFloorOnly = currentFloorOnlyToggle && currentFloorOnlyToggle.isOn;
         string currentFloor = GetCurrentFloorLabel();
 
+        // --- FIX 1: Determine the single office name to exclude ---
+        string officeToExclude = "";
+
+        if (useSpecificOfficeToggle && useSpecificOfficeToggle.isOn)
+        {
+            // 1. MANUAL MODE: Exclude the office selected in the 'Select Current Office' dropdown.
+            officeToExclude = selectedCurrentOffice;
+            if (string.IsNullOrEmpty(officeToExclude) && currentOfficeDropdown && currentOfficeDropdown.captionText)
+            {
+                officeToExclude = StripRichText(currentOfficeDropdown.captionText.text);
+            }
+        }
+        else // useCurrentLocationToggle is ON (Auto-Detect Mode)
+        {
+            // 2. AUTO-DETECT MODE: Exclude the office detected by the system.
+            if (autoDetectedLocationLabel && autoDetectedLocationLabel.gameObject.activeInHierarchy && !string.IsNullOrEmpty(autoDetectedLocationLabel.text))
+            {
+                string label = StripRichText(autoDetectedLocationLabel.text);
+
+                if (label.StartsWith("📍 Near:"))
+                {
+                    // CRITICAL FIX: Use simple Replace and Trim to extract the name
+                    officeToExclude = label.Replace("📍 Near:", "").Trim();
+                }
+                else if (label.Contains("Entrance"))
+                {
+                    // Handle Entrance exclusion as well (e.g., City Hall Entrance)
+                    // This assumes the name is after the separator '—'
+                    int separatorIndex = label.IndexOf("—");
+                    if (separatorIndex >= 0)
+                    {
+                        officeToExclude = label.Substring(separatorIndex + 1).Trim();
+                    }
+                    else
+                    {
+                        officeToExclude = entranceDisplayName; // Use the fixed fallback name
+                    }
+                }
+            }
+        }
+
+        // Normalize the exclusion name for robust matching
+        string normalizedExclude = Normalize(officeToExclude);
+        // -------------------------------------------------------------
+
         List<string> ground = new List<string>();
         List<string> second = new List<string>();
         List<string> unknown = new List<string>();
@@ -585,6 +649,13 @@ currentOfficeDropdown.Hide();
         foreach (var officeName in officeNames)
         {
             if (!string.IsNullOrEmpty(filter) && !Normalize(officeName).Contains(filter)) continue;
+
+            // --- FIX 2: Exclude the identified office from the destination list ---
+            if (!string.IsNullOrEmpty(officeToExclude) && Normalize(officeName) == normalizedExclude)
+            {
+                continue; // Skip this office
+            }
+            // ----------------------------------------------------------------------
 
             string floor = GetOfficeFloorLabel(officeName);
             if (currentFloorOnly && floor != currentFloor) continue;
@@ -907,6 +978,17 @@ currentOfficeDropdown.Hide();
 
         // Persist selection (if other UI depends on it)
         selectedOffice = selectedText;
+
+        // --- FIX 1: Manually set the destination dropdown caption ---
+        if (officeDropdown.captionText)
+        {
+            officeDropdown.captionText.text = selectedOffice;
+        }
+        // ------------------------------------------------------------
+
+        // Refresh the Current Office Dropdown (Mutual Exclusion)
+        PopulateCurrentOfficeDropdown();
+
         UpdateNavigationUI();
 
         // Start nav using your existing API; internally it resolves via GetOfficeWaypointPosition()
@@ -917,9 +999,55 @@ currentOfficeDropdown.Hide();
             return;
         }
 
+        // This call is correct. It triggers the enforcement check:
+        // SmartNavigationSystem.StartNavigationToOffice() -> checks enforcePopupFirst -> calls ManilaServeUI.ShowOfficeInfoPopup()
         navigationSystem.StartNavigationToOffice(selectedText);
     }
 
+    void OnCurrentOfficeSelected(int index)
+    {
+        if (suppressCurrentSelection || !currentOfficeDropdown) return;
+
+        var raw = currentOfficeDropdown.options[index].text;
+        var label = StripRichText(raw).Trim();
+
+        // Block prompt / dividers / "No offices"
+        if (index == 0 || currentHeaderIndices.Contains(index) || IsDividerOrPlaceholder(raw))
+        {
+            suppressCurrentSelection = true;
+            currentOfficeDropdown.SetValueWithoutNotify(lastValidCurrentIndex);
+            currentOfficeDropdown.RefreshShownValue();
+            suppressCurrentSelection = false;
+            StartCoroutine(ReopenDropdown(currentOfficeDropdown)); // keep list open
+            return;
+        }
+
+        // Accept selection
+        lastValidCurrentIndex = index;
+        selectedCurrentOffice = label;
+        Debug.Log($"[CurrentOffice] Selected: {selectedCurrentOffice}");
+
+        if (navigationSystem)
+        {
+            navigationSystem.currentUserOffice = selectedCurrentOffice;
+            navigationSystem.useOfficeAsStart = true;
+        }
+
+        // --- FIX 2: Refresh the Destination Dropdown immediately ---
+        PopulateOfficeDropdown();
+        // ------------------------------------------------------------
+
+        // --- FIX 3: Manually set the dropdown caption to show the selected text ---
+        if (currentOfficeDropdown.captionText)
+        {
+            currentOfficeDropdown.captionText.text = selectedCurrentOffice;
+        }
+        // --------------------------------------------------------------------------
+
+        // Only snap in manual mode (do NOT interfere with auto-detect)
+        if (!useAutoDetection && recenterCameraOnCurrentOfficeSelect)
+            TrySnapUserToSelectedOffice();
+    }
 
     void RefreshOfficeDropdown()
     {
@@ -961,7 +1089,7 @@ currentOfficeDropdown.Hide();
     void OnStopClicked()
     {
         // Stop nav visuals/state
-        navigationSystem?.StopNavigation(); // or StopNavigation(clearOfficeOverride: false)
+        navigationSystem?.StopNavigation(clearOfficeOverride: true);
 
         // Kill arrival popup watcher
         arrivalWatchActive = false;
@@ -971,11 +1099,32 @@ currentOfficeDropdown.Hide();
         var am = FindFirstObjectByType<ServiceArrivalManager>(FindObjectsInactive.Include);
         if (am != null) am.SendMessage("ClosePopup", SendMessageOptions.DontRequireReceiver);
 
+        // --- FIX 3: Reset Office Selections and Dropdowns ---
+        selectedOffice = "";          // Clear destination
+        selectedCurrentOffice = "";   // Clear manual start office
+
+        // Reset destination dropdown to prompt
+        if (officeDropdown)
+        {
+            officeDropdown.SetValueWithoutNotify(0);
+            officeDropdown.RefreshShownValue();
+            // Force refresh destination options list
+            PopulateOfficeDropdown();
+        }
+        // Reset manual current office dropdown to prompt
+        if (currentOfficeDropdown)
+        {
+            currentOfficeDropdown.SetValueWithoutNotify(0);
+            currentOfficeDropdown.RefreshShownValue();
+            // Force refresh manual start options list
+            PopulateCurrentOfficeDropdown();
+        }
+        // ----------------------------------------------------
+
         isNavigationActive = false;
         UpdateNavigationUI();
         ShowSearchFeedback("Navigation stopped", Color.yellow);
     }
-
 
     public void ShowArrivalConfirmation(string officeName)
     {
@@ -1050,17 +1199,80 @@ currentOfficeDropdown.Hide();
         StopAllCoroutines();
     }
 
+
     void UpdateNavigationUI()
     {
-        bool hasDestination = !string.IsNullOrEmpty(selectedOffice);
+        bool isNav = SmartNavigationSystem.IsAnyNavigationActive();
+        bool isWorldPlaced = nav != null && nav.IsWorldPlaced;
 
-        // ⭐ NEW: Check if start location is valid based on mode
+        // --- START FIX: Humanoid Visibility (Only appears if placed AND not navigating) ---
+        if (humanoidVisualCue)
+        {
+            // The robot is visible ONLY when World is placed AND Nav is NOT active.
+            bool shouldBeVisible = isWorldPlaced && !isNav;
+
+            if (shouldBeVisible && !humanoidVisualCue.activeSelf)
+            {
+                // Position logic (for initial placement)
+                // We'll leave the full positioning logic here, though the initial
+                // appearance is now controlled by the PlaceOnFloorARF hook.
+                Transform entranceT = ResolveEntranceNode();
+                const float ROBOT_HALF_HEIGHT_OFFSET = 0.5f;
+
+                if (entranceT != null)
+                {
+                    Vector3 entrancePos = entranceT.position;
+                    humanoidVisualCue.transform.position = new Vector3(
+                        entrancePos.x,
+                        entrancePos.y + ROBOT_HALF_HEIGHT_OFFSET + 0.01f,
+                        entrancePos.z
+                    );
+                    humanoidVisualCue.transform.rotation = Quaternion.Euler(0, -90f, 0);
+                    if (humanoidVisualCue.transform.parent == null && nav.worldRoot != null)
+                    {
+                        humanoidVisualCue.transform.SetParent(nav.worldRoot, true);
+                    }
+                }
+            }
+
+            if (humanoidVisualCue.activeSelf != shouldBeVisible)
+            {
+                humanoidVisualCue.SetActive(shouldBeVisible);
+            }
+        }
+        // --- END Humanoid Visibility ---
+
+
+        // --- START FIX: Chatbot/Checklist Logic (Disabled ONLY when navigating) ---
+        // These buttons MUST be interactable if the app is open, regardless of floor placement.
+        if (chatbotButton)
+        {
+            chatbotButton.interactable = !isNav;
+        }
+        if (checklistButton)
+        {
+            checklistButton.interactable = !isNav;
+        }
+        // --- END FIX ---
+
+
+
+        // --- World Placement Check (Restrict Navigation/Dropdowns if not placed) ---
+        if (!isWorldPlaced)
+        {
+            if (statusText) statusText.text = "Point camera at floor and tap to place the map.";
+            if (navigateButton) navigateButton.interactable = false;
+            if (stopButton) stopButton.gameObject.SetActive(false);
+            // Dropdowns are disabled here.
+        }
+        // --- End World Placement Check ---
+
+        bool hasDestination = !string.IsNullOrEmpty(selectedOffice);
         bool hasValidStart = useAutoDetection || !string.IsNullOrEmpty(selectedCurrentOffice);
 
         bool canNavigate = hasDestination && hasValidStart &&
-                           (navigationSystem == null || navigationSystem.CanStartNavigation());
+                             (navigationSystem == null || navigationSystem.CanStartNavigation());
 
-        bool isNav = SmartNavigationSystem.IsAnyNavigationActive();
 
         if (navigateButton)
         {
@@ -1071,6 +1283,26 @@ currentOfficeDropdown.Hide();
         if (stopButton)
         {
             stopButton.gameObject.SetActive(isNav);
+        }
+
+        // Ensure destination dropdown is interactable if world is placed
+        if (officeDropdown)
+        {
+            if (officeDropdown.options.Count > 1)
+            {
+                // [FIX] Restore the check: Only enable if world is placed and options exist.
+                officeDropdown.interactable = isWorldPlaced; // LINE 808
+            }
+        }
+
+        // Ensure Current Office Dropdown is re-enabled once placed
+        if (currentOfficeDropdown)
+        {
+            if (currentOfficeDropdown.options.Count > 1)
+            {
+                // [FIX] Restore the check: Only enable if world is placed and options exist.
+                currentOfficeDropdown.interactable = isWorldPlaced; // LINE 817
+            }
         }
 
         // ⭐ Smart status messages based on mode
@@ -1097,6 +1329,26 @@ currentOfficeDropdown.Hide();
         UpdateNavigationStatusDisplay();
     }
 
+    public void ShowRobotAtPlacement()
+    {
+        if (!humanoidVisualCue) return;
+
+        // We only activate the robot if navigation is not already running (first placement).
+        bool isNav = SmartNavigationSystem.IsAnyNavigationActive();
+
+        if (!isNav)
+        {
+            // --- Activation Logic from UpdateNavigationUI ---
+            humanoidVisualCue.SetActive(true);
+
+            // Reset local position/rotation (snapping to map origin)
+            humanoidVisualCue.transform.localPosition = new Vector3(0, 0.05f, -0.5f);
+            humanoidVisualCue.transform.localRotation = Quaternion.Euler(0, -90f, 0);
+
+            Debug.Log("[UI/Robot] Robot explicitly shown and positioned by PlaceOnFloorARF hook.");
+        }
+    }
+
     void UpdateNavigationStatusDisplay()
     {
         if (!navigationStatusText) return;
@@ -1115,6 +1367,20 @@ currentOfficeDropdown.Hide();
 
     void Update()
     {
+        // Update navigation status periodically (every 30 frames ~ 0.5 seconds)
+        if (Time.frameCount % 30 == 0)
+        {
+            bool was = isNavigationActive;
+            isNavigationActive = SmartNavigationSystem.IsAnyNavigationActive();
+            if (was != isNavigationActive) UpdateNavigationUI();
+
+            // --- NEW FIX: Force UI Check every 30 frames for placement change ---
+            UpdateNavigationUI();
+            // --------------------------------------------------------------------
+
+            UpdateNavigationStatusDisplay();
+        }
+
         // Update navigation status periodically (every 30 frames ~ 0.5 seconds)
         if (Time.frameCount % 30 == 0)
         {
@@ -1159,12 +1425,12 @@ currentOfficeDropdown.Hide();
                 }
             }
         }
-       // PollArrivalWatch();
+        // PollArrivalWatch();
     }
 
     void PollArrivalWatch()
     {
-       
+
     }
     void OnDestroy()
     {
@@ -1224,7 +1490,7 @@ currentOfficeDropdown.Hide();
             (Normalize(w.officeName) == norm || Normalize(w.name) == norm));
     }
 
- 
+
     public string GetOfficeFloorLabel(string officeName)
     {
         var wp = FindOfficeWaypoint(officeName);
@@ -1741,7 +2007,7 @@ currentOfficeDropdown.Hide();
         {
             Debug.Log($"Waypoint: {wp.name} | OfficeName: '{wp.officeName}' | Type: {wp.waypointType} | WaypointName: '{wp.waypointName}'");
         }
- 
+
     }
 
     public string GetSelectedOffice()
@@ -1781,11 +2047,9 @@ currentOfficeDropdown.Hide();
 
         Debug.Log($"ShowOfficeInfoPopup called for: '{officeName}'");
 
-        // Try to get office from Firebase with mapping
         FirebaseOfficeManager.Office firebaseOffice = null;
         if (firebaseManager != null)
         {
-            // Step 1: Try mapped name first
             string searchName = officeName;
             if (officeNameMappings != null && officeNameMappings.ContainsKey(officeName))
             {
@@ -1793,16 +2057,13 @@ currentOfficeDropdown.Hide();
                 Debug.Log($"Mapped '{officeName}' → '{searchName}'");
             }
 
-            // Step 2: Try to get from Firebase
             firebaseOffice = firebaseManager.GetOfficeByName(searchName);
 
-            // Step 3: Fallback to original name if mapping didn't work
             if (firebaseOffice == null && searchName != officeName)
             {
                 firebaseOffice = firebaseManager.GetOfficeByName(officeName);
             }
 
-            // Step 4: Last resort - aggressive partial matching
             if (firebaseOffice == null)
             {
                 var allOffices = firebaseManager.GetAllOfficeNames();
@@ -1827,7 +2088,9 @@ currentOfficeDropdown.Hide();
             Debug.Log($"✓ Using Firebase data for: {firebaseOffice.OfficeName}");
 
             if (popupOfficeTitleText) popupOfficeTitleText.text = firebaseOffice.OfficeName;
+
             if (popupRoomNumberText) popupRoomNumberText.text = $"Location: {firebaseOffice.Location}";
+
             if (popupDirectoryText) popupDirectoryText.text = $"Head: {firebaseOffice.Head}\nPhone: {firebaseOffice.Phone}";
 
             if (popupServicesText)
@@ -1846,12 +2109,12 @@ currentOfficeDropdown.Hide();
         else
         {
             Debug.LogWarning($"✗ No Firebase data found for: '{officeName}'");
-            Debug.Log($"Available Firebase offices: {string.Join(", ", firebaseManager?.GetAllOfficeNames() ?? new List<string>())}");
-
+            // --- START FALLBACK FIX ---
             if (popupOfficeTitleText) popupOfficeTitleText.text = officeName;
             if (popupRoomNumberText) popupRoomNumberText.text = "Location: Not available";
             if (popupDirectoryText) popupDirectoryText.text = "Contact info not available";
             if (popupServicesText) popupServicesText.text = "Services: Not available";
+            // --- END FALLBACK FIX ---
         }
 
         // Setup buttons
@@ -1911,8 +2174,8 @@ currentOfficeDropdown.Hide();
                 ShowSearchFeedback("Please select your current office first", Color.yellow);
                 return;
             }
- 
-        Debug.Log($"[MANUAL] Starting navigation from {selectedCurrentOffice} to: {selectedOffice}");
+
+            Debug.Log($"[MANUAL] Starting navigation from {selectedCurrentOffice} to: {selectedOffice}");
             StartCoroutine(StartManualRoute(selectedCurrentOffice, selectedOffice));
             return; // exit here; the coroutine will finish the setup
         }
@@ -1931,6 +2194,14 @@ currentOfficeDropdown.Hide();
             ShowSearchFeedback("Navigation system not found", Color.red);
             return;
         }
+
+        // --- FIX: Check World Placement before proceeding ---
+        if (!navigationSystem.IsWorldPlaced)
+        {
+            ShowSearchFeedback("Map not placed. Point camera at floor and tap to anchor the AR world.", Color.yellow);
+            return;
+        }
+        // ---------------------------------------------------
 
         // Always start from a clean session
         navigationSystem.StopNavigation(clearOfficeOverride: false);
@@ -1956,38 +2227,38 @@ currentOfficeDropdown.Hide();
             }
             Debug.Log($"[MANUAL] Starting navigation from {selectedCurrentOffice} to: {destinationOffice}");
             StartCoroutine(StartManualRoute(selectedCurrentOffice, destinationOffice));
-            return;
+
+            // The StartManualRoute coroutine handles setting isNavigationActive and UpdateNavigationUI
+            return; // Exit here as the coroutine handles the rest of the flow
         }
 
+        // This path is for AUTO mode only.
         isNavigationActive = true;
         UpdateNavigationUI();
     }
 
     IEnumerator StartManualRoute(string startOffice, string destOffice)
     {
-        // Clean session (don’t clear override)
         navigationSystem.StopNavigation(clearOfficeOverride: false);
 
-        // Keep the office override ON so GetCurrentPosition starts at the selected office
         var mappedStart = MapToWaypointName(startOffice);
         navigationSystem.currentUserOffice = mappedStart;
+
         navigationSystem.useOfficeAsStart = true;
 
-        // Pre-snap so any camera fallback also starts at the office (first-run robustness)
-        TrySnapUserToOffice(mappedStart);
-
-        // Let transforms/pose update before building the path
-        yield return null;                     // or yield return new WaitForEndOfFrame();
-
-        // Use the same builder as AUTO; it will read the override at route start
         navigationSystem.StartNavigationFromCurrentLocation(destOffice);
+        navigationSystem.useOfficeAsStart = false;
+
         ShowSearchFeedback($"Navigating from {startOffice} to {destOffice}", Color.green);
 
         ArmArrivalWatch(destOffice);
 
         isNavigationActive = true;
         UpdateNavigationUI();
+
+        yield return null;
     }
+
 
     string MapToWaypointName(string officeName)
     {
@@ -2054,9 +2325,9 @@ currentOfficeDropdown.Hide();
             officeDropdown.RefreshShownValue();
         }
     }
-void InitializeOfficeNameMappings()
-{
-    officeNameMappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    void InitializeOfficeNameMappings()
+    {
+        officeNameMappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         // EXACT MATCHES (Waypoint officeName → Firebase OfficeName)
         { "City Treasurer", "Treasurer & Assessor's Office" },
@@ -2076,7 +2347,7 @@ void InitializeOfficeNameMappings()
         // Handle PWD waypoint (has empty officeName, uses waypointName)
         { "SocialWelfare", "Manila Department of Social Welfare (MDSW)" }, // PWD waypoint
     };
-}
+    }
     [ContextMenu("Debug Firebase Office Match")]
     void DebugFirebaseMatching()
     {
@@ -2146,42 +2417,6 @@ void InitializeOfficeNameMappings()
         {
             Debug.LogError("FirebaseManager is NULL!");
         }
-    }
-
-
-
-    void OnCurrentOfficeSelected(int index)
-    {
-        if (suppressCurrentSelection || !currentOfficeDropdown) return;
-
-        var raw = currentOfficeDropdown.options[index].text;
-        var label = StripRichText(raw).Trim();
-
-        // Block prompt / dividers / "No offices"
-        if (index == 0 || currentHeaderIndices.Contains(index) || IsDividerOrPlaceholder(raw))
-        {
-            suppressCurrentSelection = true;
-            currentOfficeDropdown.SetValueWithoutNotify(lastValidCurrentIndex);
-            currentOfficeDropdown.RefreshShownValue();
-            suppressCurrentSelection = false;
-            StartCoroutine(ReopenDropdown(currentOfficeDropdown)); // keep list open
-            return;
-        }
-
-        // Accept selection
-        lastValidCurrentIndex = index;
-        selectedCurrentOffice = label;
-        Debug.Log($"[CurrentOffice] Selected: {selectedCurrentOffice}");
-
-        if (navigationSystem)
-        {
-            navigationSystem.currentUserOffice = selectedCurrentOffice;
-            navigationSystem.useOfficeAsStart = true;
-        }
-
-        // Only snap in manual mode (do NOT interfere with auto-detect)
-        if (!useAutoDetection && recenterCameraOnCurrentOfficeSelect)
-            TrySnapUserToSelectedOffice();
     }
 
     void TrySnapUserToSelectedOffice()

@@ -103,24 +103,40 @@ public class ServiceArrivalManager : MonoBehaviour
     {
         if (!label) return;
 
-        // Prefer explicitly assigned safe font
-        var font = requirementsFont != null ? requirementsFont : TMP_Settings.defaultFontAsset;
-        if (font != null)
+        TMP_FontAsset font = null;
+
+        // Try the inspector-assigned font, but only if it looks usable.
+        try
         {
-            label.font = font;
-            // Some broken assets have null material; guard and set if present
-            if (font.material != null)
-                label.fontSharedMaterial = font.material;
+            if (requirementsFont != null)
+            {
+                // Accessing .material on broken assets can throw; guard with try/catch.
+                var mat = requirementsFont.material;
+                if (mat != null)
+                    font = requirementsFont;
+            }
+        }
+        catch
+        {
+            // Broken asset → ignore and fall back
+            font = null;
         }
 
-        // Optional: basic text settings
+        // Fall back to TMP default if no valid font provided
+        if (font == null)
+            font = TMP_Settings.defaultFontAsset;
+
+        if (font != null)
+            label.font = font;
+
+        // Basic safe text settings
         label.enableAutoSizing = false;
         label.overflowMode = TextOverflowModes.Ellipsis;
         label.alignment = TextAlignmentOptions.Left;
         label.color = Color.black;
+
     }
 
-    // Call this from navigation when you know the officeId (best)
     public void ShowArrivalPopupById(string officeId, string officeNameFallback = null)
     {
         currentOfficeId = officeId;
@@ -230,8 +246,11 @@ public class ServiceArrivalManager : MonoBehaviour
         if (serviceOfferPanel) serviceOfferPanel.SetActive(false);
         if (requirementView) requirementView.SetActive(true);
     }
+
     void PopulateServices(List<FirebaseOfficeManager.Service> services)
     {
+        Debug.Log($"[SERVICES] Received {services?.Count ?? 0} services for processing.");
+
         if (servicesContainer)
         {
             for (int i = servicesContainer.childCount - 1; i >= 0; i--)
@@ -241,16 +260,23 @@ public class ServiceArrivalManager : MonoBehaviour
         if (services == null || services.Count == 0)
         {
             CreateNoServicesMessage();
-            SetAddButtonEnabled(false); // disable Add when no services available
+            SetAddButtonEnabled(false); 
             return;
         }
 
-        // We still keep Add disabled here; it becomes enabled after a service is selected
         SetAddButtonEnabled(false);
 
         foreach (var s in services)
             CreateServiceButton(s);
+
+        if (servicesContainer.GetComponent<LayoutGroup>() != null)
+        {
+            UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)servicesContainer.transform);
+        }
     }
+
+    // ServiceArrivalManager.cs (CreateServiceButton method)
+
     void CreateServiceButton(FirebaseOfficeManager.Service service)
     {
         if (!serviceButtonPrefab || !servicesContainer)
@@ -262,11 +288,20 @@ public class ServiceArrivalManager : MonoBehaviour
         var btnObj = Instantiate(serviceButtonPrefab, servicesContainer);
         btnObj.name = $"Btn_{service.ServiceName}";
 
-        var btnText = btnObj.GetComponentInChildren<TextMeshProUGUI>();
-        if (btnText) btnText.text = service.ServiceName;
-
         var button = btnObj.GetComponent<Button>();
         if (button) button.onClick.AddListener(() => OnServiceButtonClicked(service));
+
+        var btnText = btnObj.GetComponentInChildren<TextMeshProUGUI>();
+        if (btnText)
+        {
+            btnText.text = service.ServiceName;
+
+            btnText.SetAllDirty();
+        }
+        else
+        {
+            Debug.LogError($"[TMP FIX] Button prefab '{serviceButtonPrefab.name}' is missing TextMeshProUGUI component.");
+        }
     }
 
     void CreateNoServicesMessage()
@@ -307,22 +342,31 @@ public class ServiceArrivalManager : MonoBehaviour
                 Destroy(requirementsContent.GetChild(i).gameObject);
         }
 
+        var raw = requirements ?? new List<FirebaseOfficeManager.Requirement>();
 
+        // Sort by Priority (ascending) and then by Name
+        var list = raw
+        .Where(r => r != null && !string.IsNullOrWhiteSpace(r.Name))
+        .GroupBy(r => Norm(r.Name)) // Ensure unique names
+        .Select(g => g.First())
+        .OrderBy(r => r.Priority)               // Sort by Priority (lower number is higher priority)
+        .ThenBy(r => r.Name)                    // Then sort by name alphabetically
+        .ToList();
 
-        var list = requirements ?? new List<FirebaseOfficeManager.Requirement>();
         if (list.Count == 0)
         {
             CreateNoRequirementsMessage();
-            SetAddButtonEnabled(true); // enable Add even if no specific requirements
+            SetAddButtonEnabled(true); // allow Add even if no detailed requirements
             return;
         }
 
         for (int i = 0; i < list.Count; i++)
-            CreateRequirementItem(list[i].Name, i + 1);
+            CreateRequirementItem(list[i].Name, i + 1); // Pass only the name, like the original simplified version
 
-        SetAddButtonEnabled(true); // requirements present → enable Add
+        SetAddButtonEnabled(true);
     }
 
+    // Reverted to original simplified implementation using only the Name string
     void CreateRequirementItem(string requirement, int number)
     {
         if (!requirementsContent) return;
@@ -330,9 +374,14 @@ public class ServiceArrivalManager : MonoBehaviour
         if (requirementItemPrefab != null)
         {
             var row = Instantiate(requirementItemPrefab, requirementsContent.transform);
-            var label = row.GetComponentInChildren<TextMeshProUGUI>();
-            if (label) label.text = $"{number}. {requirement}";
             row.name = $"Requirement_{number}";
+
+            var label = row.GetComponentInChildren<TextMeshProUGUI>();
+            if (label)
+            {
+                label.text = $"{number}. {requirement}";
+                ApplySafeFont(label);
+            }
         }
         else
         {
@@ -341,9 +390,7 @@ public class ServiceArrivalManager : MonoBehaviour
 
             var text = reqObj.AddComponent<TextMeshProUGUI>();
             text.text = $"{number}. {requirement}";
-            text.fontSize = 20;
-            text.color = Color.black;
-            text.alignment = TextAlignmentOptions.Left;
+            ApplySafeFont(text);
 
             var fitter = reqObj.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
@@ -356,38 +403,7 @@ public class ServiceArrivalManager : MonoBehaviour
             rt.sizeDelta = new Vector2(550, 50);
         }
 
-        if (requirementItemPrefab != null)
-        {
-            var row = Instantiate(requirementItemPrefab, requirementsContent.transform);
-            var label = row.GetComponentInChildren<TextMeshProUGUI>();
-            if (label)
-            {
-                label.text = $"{number}. {requirement}";
-                ApplySafeFont(label); // <<< ensure valid font + material
-            }
-            row.name = "Requirement_{number}";
-        }
-        else
-        {
-            var reqObj = new GameObject("Requirement_{number}");
-            reqObj.transform.SetParent(requirementsContent, false);
-
-            var text = reqObj.AddComponent<TextMeshProUGUI>();
-            text.text = $"{number}. {requirement}";
-            ApplySafeFont(text); // <<< ensure valid font + material
-
-            var fitter = reqObj.AddComponent<ContentSizeFitter>();
-            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-            var layout = reqObj.AddComponent<LayoutElement>();
-            layout.minHeight = 40;
-            layout.preferredWidth = 550;
-
-            var rt = reqObj.GetComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(550, 50);
-        }
     }
-
     void CreateNoRequirementsMessage()
     {
         if (!requirementsContent) return;

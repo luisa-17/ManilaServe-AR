@@ -14,6 +14,7 @@ public class FirebaseOfficeManager : MonoBehaviour
     private DatabaseReference databaseRef;
     private bool isInitialized = false;
 
+    // CORRECTED: Only Name and Priority are present in the provided JSON structure
     [Serializable] public class Requirement { public string Name; public int Priority; }
     [Serializable] public class Service { public string ServiceId; public string ServiceName; public List<Requirement> Requirements; }
     [Serializable] public class Office { public string OfficeId; public string OfficeName; public string Location; public string Head; public string Phone; public List<Service> Services; }
@@ -65,6 +66,21 @@ public class FirebaseOfficeManager : MonoBehaviour
 
         Debug.Log("Firebase initialized - fetching from database...");
 
+        // Define the aggregation map: subordinate IDs map to the parent's ID (Manila Health Department)
+        // This ensures all services from these divisions are grouped under MHD.
+        var OfficesToAggregate = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            {"SAN", "MHD"},      // Division of Sanitation -> Manila Health Department
+            {"CEM", "MHD"},      // Office of Public Cemeteries -> Manila Health Department
+            {"PHL", "MHD"},      // Public Health Laboratory -> Manila Health Department
+            {"DPD", "MHD"},      // Division of Preventable Diseases -> Manila Health Department
+            {"HDC", "MHD"},      // Health District/Centers -> Manila Health Department
+            {"CGEC", "MHD"}      // City Government Employees Clinic -> Manila Health Department
+        };
+
+        // Dictionary to hold all parsed offices, keyed by OfficeId
+        var tempOfficeMap = new Dictionary<string, Office>();
+
         databaseRef.Child("offices").GetValueAsync().ContinueWithOnMainThread(task => {
             if (task.IsFaulted)
             {
@@ -79,6 +95,7 @@ public class FirebaseOfficeManager : MonoBehaviour
                 officeDatabase.Clear();
                 officeDatabaseById.Clear();
                 officeDatabaseByNameNormalized.Clear();
+                tempOfficeMap.Clear();
 
                 if (!snapshot.Exists)
                 {
@@ -88,6 +105,7 @@ public class FirebaseOfficeManager : MonoBehaviour
                     return;
                 }
 
+                // --- 1. First Pass: Parse all offices and store them in the temporary map ---
                 foreach (var officeSnapshot in snapshot.Children)
                 {
                     try
@@ -121,10 +139,17 @@ public class FirebaseOfficeManager : MonoBehaviour
                                     foreach (var req in reqSnapshot.Children)
                                     {
                                         var reqName = req.Child("Name").Value?.ToString() ?? req.Key;
+                                        // CORRECTED PARSING: Only Name and Priority are used
                                         var prioStr = req.Child("Priority").Value?.ToString();
+
                                         int prio = 0;
                                         int.TryParse(prioStr, out prio);
-                                        service.Requirements.Add(new Requirement { Name = reqName, Priority = prio });
+
+                                        service.Requirements.Add(new Requirement
+                                        {
+                                            Name = reqName,
+                                            Priority = prio
+                                        });
                                     }
                                 }
 
@@ -132,17 +157,15 @@ public class FirebaseOfficeManager : MonoBehaviour
                             }
                         }
 
-                        // Add to dictionaries
-                        officeDatabase[office.OfficeName] = office;
-                        officeDatabaseById[office.OfficeId] = office;
-
-                        var normalized = Normalize(office.OfficeName);
-                        if (!officeDatabaseByNameNormalized.ContainsKey(normalized))
-                            officeDatabaseByNameNormalized[normalized] = office;
+                        // Store office in the temporary map
+                        if (!tempOfficeMap.ContainsKey(office.OfficeId))
+                        {
+                            tempOfficeMap.Add(office.OfficeId, office);
+                        }
                         else
-                            Debug.LogWarning($"Duplicate normalized office name skipped: {normalized} (existing: '{officeDatabaseByNameNormalized[normalized].OfficeName}', new: '{office.OfficeName}')");
-
-                        Debug.Log($"Loaded office: {office.OfficeName} (id:{office.OfficeId}) services:{office.Services.Count}");
+                        {
+                            Debug.LogWarning($"Duplicate OfficeId found and skipped: {office.OfficeId}");
+                        }
                     }
                     catch (Exception e)
                     {
@@ -150,7 +173,62 @@ public class FirebaseOfficeManager : MonoBehaviour
                     }
                 }
 
-                Debug.Log($"Total offices loaded: {officeDatabase.Count}");
+                // --- 2. Second Pass: Aggregate subordinate offices into the parent MHD office ---
+
+                // Get the parent MHD office
+                if (!tempOfficeMap.TryGetValue("MHD", out var parentOffice))
+                {
+                    Debug.LogError("Aggregation failed: MHD (Manila Health Department) parent office not found.");
+                }
+                else
+                {
+                    // Offices that have been successfully aggregated should be removed from the final list
+                    var officesToRemove = new List<string>();
+
+                    foreach (var kvp in OfficesToAggregate)
+                    {
+                        string subordinateId = kvp.Key;
+                        string parentId = kvp.Value;
+
+                        if (parentId.Equals("MHD", StringComparison.OrdinalIgnoreCase) &&
+                            tempOfficeMap.TryGetValue(subordinateId, out var subordinateOffice))
+                        {
+                            if (subordinateOffice.Services != null && subordinateOffice.Services.Count > 0)
+                            {
+                                // Append services from the subordinate office to the parent MHD office's service list
+                                parentOffice.Services.AddRange(subordinateOffice.Services);
+                                Debug.Log($"Aggregated {subordinateOffice.Services.Count} services from '{subordinateId}' into '{parentId}'.");
+                            }
+                            // Mark the subordinate office for removal from the final output
+                            officesToRemove.Add(subordinateId);
+                        }
+                    }
+
+                    // Remove aggregated offices from the temporary map
+                    foreach (var id in officesToRemove)
+                    {
+                        tempOfficeMap.Remove(id);
+                    }
+                }
+
+                // --- 3. Final Pass: Populate permanent dictionaries from the processed map ---
+                foreach (var office in tempOfficeMap.Values)
+                {
+                    // Add to permanent dictionaries
+                    officeDatabase[office.OfficeName] = office;
+                    officeDatabaseById[office.OfficeId] = office;
+
+                    var normalized = Normalize(office.OfficeName);
+                    if (!officeDatabaseByNameNormalized.ContainsKey(normalized))
+                        officeDatabaseByNameNormalized[normalized] = office;
+                    else
+                        Debug.LogWarning($"Duplicate normalized office name skipped: {normalized} (existing: '{officeDatabaseByNameNormalized[normalized].OfficeName}', new: '{office.OfficeName}')");
+
+                    Debug.Log($"Final Loaded office: {office.OfficeName} (id:{office.OfficeId}) services:{office.Services.Count}");
+                }
+
+
+                Debug.Log($"Total offices loaded after aggregation: {officeDatabase.Count}");
                 Debug.Log("Normalized keys: " + string.Join(", ", officeDatabaseByNameNormalized.Keys));
 
                 OnOfficeDataLoaded?.Invoke(officeDatabase);
@@ -260,6 +338,10 @@ public class FirebaseOfficeManager : MonoBehaviour
     {
         Debug.Log("MapOfficesToWaypoints: scanning scene for NavigationWaypoint components...");
 
+        // Ensure NavigationWaypoint type exists before trying to use FindObjectsOfType
+        // Note: I cannot reliably check if this type exists in the current environment context,
+        // so I rely on Unity's behavior to handle the type lookup if it's available in the project.
+        // Assuming NavigationWaypoint is available in the scene.
         var waypoints = FindObjectsOfType<NavigationWaypoint>();
         if (waypoints == null || waypoints.Length == 0)
         {
@@ -311,7 +393,10 @@ public class FirebaseOfficeManager : MonoBehaviour
                     wp.officeName = matched.OfficeName ?? matched.OfficeId ?? wp.officeName;
 
                     if (matched.Services != null && matched.Services.Count > 0)
+                    {
+                        // Note: NavigationWaypoint expects string array, so we only pass the Name
                         wp.services = matched.Services.Select(s => s.ServiceName ?? s.ServiceId ?? "").ToArray();
+                    }
                     else
                         wp.services = new string[0];
 
@@ -326,15 +411,15 @@ UnityEditor.EditorUtility.SetDirty(wp);
                 }
                 else
                 {
-                    Debug.LogWarning("No office match for Waypoint '{wp.name}' (officeName='{wp.officeName}', waypointName='{wp.waypointName}').");
+                    Debug.LogWarning($"No office match for Waypoint '{wp.name}' (officeName='{wp.officeName}', waypointName='{wp.waypointName}').");
                 }
             }
             catch (Exception ex)
             {
-                Debug.LogError("MapOfficesToWaypoints error for {wp.name}: {ex}");
+                Debug.LogError($"MapOfficesToWaypoints error for {wp.name}: {ex}");
             }
         }
 
-    Debug.Log($"MapOfficesToWaypoints done. Matched {mapped}/{waypoints.Length} waypoints.");
+        Debug.Log($"MapOfficesToWaypoints done. Matched {mapped}/{waypoints.Length} waypoints.");
     }
 }
