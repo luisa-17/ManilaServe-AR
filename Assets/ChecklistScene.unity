@@ -639,7 +639,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 244181223802110299, guid: c574d341741951e41aec18c2b48c05f7, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 1.1000023
+      value: 1.1000061
       objectReference: {fileID: 0}
     - target: {fileID: 244181223802110299, guid: c574d341741951e41aec18c2b48c05f7, type: 3}
       propertyPath: m_AnchoredPosition.y
@@ -859,11 +859,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6252178116681635609, guid: c574d341741951e41aec18c2b48c05f7, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 34
+      value: 50
       objectReference: {fileID: 0}
     - target: {fileID: 6252178116681635609, guid: c574d341741951e41aec18c2b48c05f7, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: -214.22
+      value: -230.22
       objectReference: {fileID: 0}
     - target: {fileID: 6695669908745776197, guid: c574d341741951e41aec18c2b48c05f7, type: 3}
       propertyPath: m_AnchorMax.y
@@ -1202,7 +1202,7 @@ MonoBehaviour:
   enforcePriorityOrder: 0
   highlightNext: 1
   nextHighlightColor: {r: 1, g: 0.95, b: 0.65, a: 1}
-  normalLabelColor: {r: 1, g: 1, b: 1, a: 1}
+  normalLabelColor: {r: 0, g: 0, b: 0, a: 1}
   showPriorityNumberPrefix: 0
   nextUpText: {fileID: 0}
   requirementsRoot: {fileID: 559544316}
@@ -1297,6 +1297,18 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6169258436797246622, guid: 64e6e33bf07b2004fa1c9d1c24223517, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6420143319011126910, guid: 64e6e33bf07b2004fa1c9d1c24223517, type: 3}
+      propertyPath: m_fontColor.b
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6420143319011126910, guid: 64e6e33bf07b2004fa1c9d1c24223517, type: 3}
+      propertyPath: m_fontColor.g
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6420143319011126910, guid: 64e6e33bf07b2004fa1c9d1c24223517, type: 3}
+      propertyPath: m_fontColor.r
       value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []

@@ -38,7 +38,7 @@ public class ChecklistRequirementRowView : MonoBehaviour
 
     // Basic helpers (existing)
     public void SetLabel(string text) { if (label) label.text = text; }
-    public void SetLabelColor(Color c) { if (label) label.color = c; }
+    public void SetLabelColor(Color c) { if (label) label.color = Color.black; }
     public void SetInteractable(bool on) { if (toggle) toggle.interactable = on; }
 
     // New helpers for visuals (safe if refs are not assigned)

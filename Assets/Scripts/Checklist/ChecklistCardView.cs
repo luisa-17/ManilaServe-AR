@@ -36,7 +36,7 @@ public class ChecklistCardView : MonoBehaviour
     [Tooltip("Highlight the next required item")]
     public bool highlightNext = true;
     public Color nextHighlightColor = new Color(1f, 0.95f, 0.65f); // pale yellow
-    public Color normalLabelColor = Color.white;
+    public Color normalLabelColor = Color.black;
     public bool showPriorityNumberPrefix = false; // e.g., "1) Application Form"
 
     public TextMeshProUGUI nextUpText;

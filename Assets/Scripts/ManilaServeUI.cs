@@ -1200,6 +1200,16 @@ public class ManilaServeUI : MonoBehaviour
         }
     }
 
+    private void DespawnWelcomePortal()
+    {
+        var placeOnFloor = FindFirstObjectByType<PlaceOnFloorARF>();
+        if (placeOnFloor != null)
+        {
+            placeOnFloor.DespawnPlacementVisual();
+            Debug.Log("[UI] Welcome Portal Despawned due to navigation start.");
+        }
+    }
+
     void OnArrivalOKClicked()
     {
         if (arrivalPanel) arrivalPanel.SetActive(false);
@@ -2187,6 +2197,8 @@ public class ManilaServeUI : MonoBehaviour
             return; // exit here; the coroutine will finish the setup
         }
 
+        DespawnWelcomePortal();
+
         isNavigationActive = true;
         UpdateNavigationUI();
     }
@@ -2239,6 +2251,8 @@ public class ManilaServeUI : MonoBehaviour
             return; // Exit here as the coroutine handles the rest of the flow
         }
 
+        DespawnWelcomePortal();
+
         // This path is for AUTO mode only.
         isNavigationActive = true;
         UpdateNavigationUI();
@@ -2269,6 +2283,8 @@ public class ManilaServeUI : MonoBehaviour
         ShowSearchFeedback($"Navigating from {startOffice} to {destOffice}", Color.green);
 
         ArmArrivalWatch(destOffice);
+
+        DespawnWelcomePortal();
 
         isNavigationActive = true;
         UpdateNavigationUI();

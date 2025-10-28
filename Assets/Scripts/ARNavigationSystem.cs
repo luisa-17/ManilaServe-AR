@@ -1067,7 +1067,12 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         shaft.name = "Shaft";
         shaft.transform.SetParent(arrowPrefab.transform, false);
         shaft.transform.localScale = new Vector3(shaftWidth, verticalThickness, shaftLength);
-        shaft.transform.localPosition = new Vector3(0f, 0f, -shaftHalfZ); // ends at Z=0 (front)
+
+        // Overlap the shaft into the head (≈48% of shaft length).
+        // With shaftLength = 0.6, this yields center Z ≈ -0.014 (like your screenshot).
+        const float shaftOverlapFrac = 0.48f;                 // tweak 0.45–0.55 to taste
+        float shaftOverlapZ = shaftLength * shaftOverlapFrac; // world units along +Z
+        shaft.transform.localPosition = new Vector3(0f, 0f, -shaftHalfZ + shaftOverlapZ);
 
         // Head
         GameObject head = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -1076,7 +1081,7 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         head.transform.localScale = new Vector3(headWidth, verticalThickness, headLength);
         head.transform.localRotation = Quaternion.Euler(0, 45f, 0);
 
-        // IMPORTANT: push the head forward so its back face sits at Z=0
+        // Leave the head back face at Z=0 (shaft now slides underneath it)
         head.transform.localPosition = new Vector3(0f, 0f, +headHalfZ);
 
         // Materials
@@ -4184,37 +4189,66 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         Vector3 pathfindingStart;
         if (useOfficeAsStart && !string.IsNullOrEmpty(currentUserOffice))
         {
-            var officeWP = FindTargetWaypointAdvanced(currentUserOffice);
-            pathfindingStart = officeWP != null ? officeWP.position : GetRoutingStartPosition();
-
-            // === Minimal fix: Manual Start → snap WorldRoot to camera and start at camera ===
-            if (officeWP != null)
+            // Resolve the selected office to a live scene waypoint (not a prefab)
+            NavigationWaypoint officeWpComp = null;
+            try
             {
-                var camNow = GetVisualAnchorPose(); // live AR camera
+                var raw = FindTargetWaypointAdvanced(currentUserOffice);    // may be Transform or GameObject
+                officeWpComp = GetWaypointFromUnknown(raw);                 // converts to NavigationWaypoint if in-scene
+            }
+            catch { /* ignore */ }
 
-                var worldRootGO = GameObject.Find("WorldRoot"); // change name if different
-                if (worldRootGO != null)
+            if (!officeWpComp)
+            {
+                // Last resort: scan runtime waypoints by name
+                var allScan = GetAllRuntimeWaypoints();
+                officeWpComp = allScan.FirstOrDefault(wp =>
+                                 string.Equals(wp.officeName, currentUserOffice, System.StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(wp.waypointName, currentUserOffice, System.StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(wp.name, currentUserOffice, System.StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (officeWpComp)
+            {
+                // Minimal Manual-Start fix: move WorldRoot so the selected office is under the live camera
+                var camNow = GetVisualAnchorPose();    // live AR camera pose
+                var officePos = officeWpComp.transform.position;
+
+                // Try to find your content root by name; change if your object has a different name
+                var worldRootGO = GameObject.Find("WorldRoot");
+                if (!worldRootGO)
                 {
-                    var delta = camNow - officeWP.position;
+                    // fallback: move the office’s top-most parent
+                    worldRootGO = officeWpComp.transform.root.gameObject;
+                }
+
+                if (worldRootGO)
+                {
+                    var delta = camNow - officePos; // translate content so office → camera
                     worldRootGO.transform.position += delta;
-                    Debug.Log($"[ManualAlign] Shifted WorldRoot by {delta} so '{currentUserOffice}' aligns to camera.");
+
+                    // Optional: log the result so you can verify in Console that alignment happened
+                    var newOfficePos = officeWpComp.transform.position;
+                    Debug.Log($"[ManualAlign] Shifted '{worldRootGO.name}' by {delta}. " +
+                              $"Office '{currentUserOffice}' now {Vector3.Distance(newOfficePos, camNow):F2}m from camera.");
                 }
                 else
                 {
-                    Debug.LogWarning("[ManualAlign] WorldRoot not found. Ensure the name matches your scene object.");
+                    Debug.LogWarning("[ManualAlign] WorldRoot not found. Ensure the scene object is named 'WorldRoot' or change the string.");
                 }
 
-                // After alignment, start exactly at the camera (selected office is now underfoot)
+                // After alignment, the selected office is at the camera. Start pathfinding from the camera.
                 pathfindingStart = camNow;
             }
             else
             {
                 Debug.LogWarning($"[ManualStart] No waypoint found for '{currentUserOffice}'. Falling back to auto start.");
+                pathfindingStart = GetRoutingStartPosition();
             }
-            // ==============================================================
         }
         else
         {
+            // Auto-Detect Mode
             pathfindingStart = GetRoutingStartPosition();
         }
 
