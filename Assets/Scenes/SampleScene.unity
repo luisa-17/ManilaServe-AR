@@ -254,7 +254,7 @@ Transform:
   m_GameObject: {fileID: 6102784}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 17.45, y: 0, z: -68.58}
+  m_LocalPosition: {x: 14.34, y: 0, z: -68.58}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -980,7 +980,7 @@ Transform:
   m_GameObject: {fileID: 36255167}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -36.68, y: 0, z: 24.67}
+  m_LocalPosition: {x: -30.73, y: 0, z: 24.27}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1429,7 +1429,7 @@ Transform:
   m_GameObject: {fileID: 50772968}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 24.04, y: 0, z: 32.7}
+  m_LocalPosition: {x: 19.24, y: 0, z: 32.7}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -2234,7 +2234,7 @@ Transform:
   m_GameObject: {fileID: 79525823}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 36.37, y: 0, z: 27.71}
+  m_LocalPosition: {x: 25.05, y: 0, z: 27.71}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -2645,7 +2645,7 @@ Transform:
   m_GameObject: {fileID: 98712945}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 23.98, y: 0, z: 13.43}
+  m_LocalPosition: {x: 19.19, y: 0, z: 13.43}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -4371,6 +4371,106 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 158269076}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &161366547
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 161366548}
+  - component: {fileID: 161366551}
+  - component: {fileID: 161366550}
+  - component: {fileID: 161366549}
+  m_Layer: 0
+  m_Name: Waypoint_LeftMidStairs-1st
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!4 &161366548
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 161366547}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -6.33, y: 5, z: 43.15}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1762771198}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &161366549
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 161366547}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ba827ec15be2023499cb20226fbe059b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  radius: 0.25
+  drawLinks: 1
+  office: {r: 0, g: 0.8, b: 0.2, a: 0.9}
+  corridor: {r: 0.1, g: 0.7, b: 1, a: 0.9}
+  junction: {r: 1, g: 0.9, b: 0.2, a: 0.9}
+  stairs: {r: 1, g: 0.2, b: 0.8, a: 0.9}
+--- !u!65 &161366550
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 161366547}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 2, y: 2, z: 2}
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &161366551
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 161366547}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2909c367c7137e145a46e44c83bcb5ab, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  waypointName: Waypoint_LeftMidStairs-1st
+  officeName: 
+  waypointType: 3
+  services: []
+  connectedWaypoints:
+  - {fileID: 441885651}
+  connectionDistance: 10
+  wallLayerMask:
+    serializedVersion: 2
+    m_Bits: 256
+  losCheckRadius: 0.15
+  losSampleSpacing: 0.4
+  waypointColor: {r: 0, g: 1, b: 1, a: 1}
+  showInEditor: 1
+  gizmoYOffset: 0
 --- !u!1 &162123103
 GameObject:
   m_ObjectHideFlags: 0
@@ -6036,7 +6136,7 @@ Transform:
   m_GameObject: {fileID: 223640450}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -8.95, y: 0, z: 25.85}
+  m_LocalPosition: {x: -6.51, y: 0, z: 25.85}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -6220,7 +6320,7 @@ Transform:
   m_GameObject: {fileID: 244633641}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 15.51, y: 0, z: -84.22}
+  m_LocalPosition: {x: 12.73, y: 0, z: -84.22}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -6448,14 +6548,14 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 254576757}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 441642895}
   - {fileID: 488403221}
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 494809780}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &258847019
 GameObject:
@@ -6826,7 +6926,7 @@ Transform:
   m_GameObject: {fileID: 272109955}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 10.28, y: 0, z: 59.44}
+  m_LocalPosition: {x: 10.93, y: 0, z: 57.98}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -7312,7 +7412,7 @@ Transform:
   m_GameObject: {fileID: 298293682}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 19.76, y: 0, z: -47.3}
+  m_LocalPosition: {x: 15.62, y: 0, z: -47.3}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -8823,7 +8923,8 @@ MonoBehaviour:
   waypointType: 3
   services: []
   connectedWaypoints:
-  - {fileID: 915660069}
+  - {fileID: 1799287010}
+  - {fileID: 559975967}
   connectionDistance: 10
   wallLayerMask:
     serializedVersion: 2
@@ -8842,7 +8943,7 @@ Transform:
   m_GameObject: {fileID: 364861427}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 12.49, y: 5, z: 42.39}
+  m_LocalPosition: {x: 5.21, y: 5, z: 42.87}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -11467,7 +11568,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &441885651
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -11484,7 +11585,9 @@ MonoBehaviour:
   officeName: 
   waypointType: 3
   services: []
-  connectedWaypoints: []
+  connectedWaypoints:
+  - {fileID: 1237682062}
+  - {fileID: 161366551}
   connectionDistance: 10
   wallLayerMask:
     serializedVersion: 2
@@ -11503,7 +11606,7 @@ Transform:
   m_GameObject: {fileID: 441885650}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -15.07, y: 0, z: 35.34}
+  m_LocalPosition: {x: -10.62, y: 0, z: 48.48}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -11842,7 +11945,7 @@ Transform:
   m_GameObject: {fileID: 459557699}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -24.5, y: 0, z: 17.15}
+  m_LocalPosition: {x: -20.2, y: 0, z: 13.8}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -13200,6 +13303,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 78998444}
+  - {fileID: 254576758}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &494809781
@@ -13404,7 +13508,7 @@ Transform:
   m_GameObject: {fileID: 495848546}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -22.48, y: 0, z: -11}
+  m_LocalPosition: {x: -18.91, y: 0, z: -10.55}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -14488,7 +14592,7 @@ Transform:
   m_GameObject: {fileID: 555735707}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 24.03, y: 0, z: 27.37}
+  m_LocalPosition: {x: 19.23, y: 0, z: 27.37}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -14540,7 +14644,7 @@ Transform:
   m_GameObject: {fileID: 559975965}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.33, y: 0, z: 41.14}
+  m_LocalPosition: {x: 0.83, y: 0, z: 41.8}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -15708,8 +15812,8 @@ MonoBehaviour:
   waypointType: 1
   services: []
   connectedWaypoints:
-  - {fileID: 1961416434}
   - {fileID: 1274116915}
+  - {fileID: 555735708}
   connectionDistance: 10
   wallLayerMask:
     serializedVersion: 2
@@ -15728,7 +15832,7 @@ Transform:
   m_GameObject: {fileID: 602467022}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 17.1, y: 0, z: 26.82}
+  m_LocalPosition: {x: 11.18, y: 0, z: 26.83}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -17900,11 +18004,13 @@ MonoBehaviour:
   specificOfficePanel: {fileID: 71627611}
   autoDetectedLocationLabel: {fileID: 2031602273}
   currentOfficeDropdown: {fileID: 1830557585}
+  CentralCurrentOffice: 
   entranceDisplayName: City Hall Entrance
   entranceNearRadiusMeters: 2.5
   officeNearRadiusMeters: 5
   navigationStatusPanel: {fileID: 0}
   navigationStatusText: {fileID: 0}
+  CentralTargetOffice: 
   customDropdownSprite: {fileID: 10905, guid: 0000000000000000f000000000000000, type: 0}
   customBackgroundColor: {r: 0, g: 0, b: 0, a: 0.70980394}
   customTextColor: {r: 1, g: 1, b: 1, a: 1}
@@ -19391,6 +19497,108 @@ MonoBehaviour:
   corridor: {r: 0.1, g: 0.7, b: 1, a: 0.9}
   junction: {r: 1, g: 0.9, b: 0.2, a: 0.9}
   stairs: {r: 1, g: 0.2, b: 0.8, a: 0.9}
+--- !u!1 &773533905
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 773533906}
+  - component: {fileID: 773533909}
+  - component: {fileID: 773533908}
+  - component: {fileID: 773533907}
+  m_Layer: 0
+  m_Name: Waypoint_LeftStairs-1st
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!4 &773533906
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 773533905}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -1.61, y: 0, z: 41.74}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1762771198}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &773533907
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 773533905}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ba827ec15be2023499cb20226fbe059b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  radius: 0.25
+  drawLinks: 1
+  office: {r: 0, g: 0.8, b: 0.2, a: 0.9}
+  corridor: {r: 0.1, g: 0.7, b: 1, a: 0.9}
+  junction: {r: 1, g: 0.9, b: 0.2, a: 0.9}
+  stairs: {r: 1, g: 0.2, b: 0.8, a: 0.9}
+--- !u!65 &773533908
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 773533905}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 2.63, y: 2.38, z: 2.65}
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &773533909
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 773533905}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2909c367c7137e145a46e44c83bcb5ab, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  waypointName: Waypoint_LeftStairs-1st
+  officeName: 
+  waypointType: 3
+  services: []
+  connectedWaypoints:
+  - {fileID: 161366551}
+  - {fileID: 1961416434}
+  - {fileID: 1241429783}
+  connectionDistance: 10
+  wallLayerMask:
+    serializedVersion: 2
+    m_Bits: 256
+  losCheckRadius: 0.15
+  losSampleSpacing: 0.4
+  waypointColor: {r: 0, g: 1, b: 1, a: 1}
+  showInEditor: 1
+  gizmoYOffset: 0
 --- !u!1 &775936561
 GameObject:
   m_ObjectHideFlags: 0
@@ -19749,7 +19957,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &792071398
 Transform:
   m_ObjectHideFlags: 0
@@ -19759,7 +19967,7 @@ Transform:
   m_GameObject: {fileID: 792071397}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -10.99, y: 0, z: 66.65}
+  m_LocalPosition: {x: -9.38, y: 0, z: 66.89}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -19783,7 +19991,7 @@ MonoBehaviour:
   services: []
   connectedWaypoints:
   - {fileID: 1543430398}
-  - {fileID: 1720620889}
+  - {fileID: 1237682062}
   connectionDistance: 10
   wallLayerMask:
     serializedVersion: 2
@@ -21805,107 +22013,6 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   m_IsOn: 0
---- !u!1 &915660068
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 915660072}
-  - component: {fileID: 915660069}
-  - component: {fileID: 915660071}
-  - component: {fileID: 915660070}
-  m_Layer: 0
-  m_Name: Waypoint_RightMidStairs-1st (1)
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &915660069
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 915660068}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2909c367c7137e145a46e44c83bcb5ab, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  waypointName: Waypoint_RighMidStairs-1st
-  officeName: 
-  waypointType: 3
-  services: []
-  connectedWaypoints:
-  - {fileID: 1799287010}
-  - {fileID: 364861428}
-  connectionDistance: 10
-  wallLayerMask:
-    serializedVersion: 2
-    m_Bits: 256
-  losCheckRadius: 0.15
-  losSampleSpacing: 0.4
-  waypointColor: {r: 0, g: 1, b: 1, a: 1}
-  showInEditor: 1
-  gizmoYOffset: 0
---- !u!114 &915660070
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 915660068}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ba827ec15be2023499cb20226fbe059b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  radius: 0.25
-  drawLinks: 1
-  office: {r: 0, g: 0.8, b: 0.2, a: 0.9}
-  corridor: {r: 0.1, g: 0.7, b: 1, a: 0.9}
-  junction: {r: 1, g: 0.9, b: 0.2, a: 0.9}
-  stairs: {r: 1, g: 0.2, b: 0.8, a: 0.9}
---- !u!65 &915660071
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 915660068}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 2, y: 2, z: 2}
-  m_Center: {x: 0, y: 0, z: 0}
---- !u!4 &915660072
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 915660068}
-  serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 12.43, y: 5, z: 47.22}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1762771198}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &916601965
 GameObject:
   m_ObjectHideFlags: 0
@@ -26435,7 +26542,7 @@ Transform:
   m_GameObject: {fileID: 1102173908}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 12.4, y: 0, z: -108.62}
+  m_LocalPosition: {x: 10.33, y: 0, z: -108.62}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -26725,7 +26832,7 @@ Transform:
   m_GameObject: {fileID: 1109056952}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -20.6, y: 0, z: -26.4}
+  m_LocalPosition: {x: -17.07, y: 0, z: -26.4}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -27413,7 +27520,7 @@ Transform:
   m_GameObject: {fileID: 1158190804}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 1.27, y: 10, z: 0.42}
+  m_LocalPosition: {x: 1.27, y: 8, z: 0.42}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -27422,10 +27529,8 @@ Transform:
   - {fileID: 1543430397}
   - {fileID: 441885652}
   - {fileID: 1237682063}
-  - {fileID: 1720620890}
   - {fileID: 792071398}
   - {fileID: 1799287011}
-  - {fileID: 1980469882}
   - {fileID: 272109957}
   - {fileID: 1525727015}
   - {fileID: 1222034738}
@@ -28422,7 +28527,7 @@ Transform:
   m_GameObject: {fileID: 1222034736}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 9.85, y: 0, z: 77.67}
+  m_LocalPosition: {x: 8.21, y: 0, z: 77.67}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -28568,7 +28673,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1237682062
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -28581,11 +28686,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2909c367c7137e145a46e44c83bcb5ab, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  waypointName: Waypoint_LeftStairs-2nd
+  waypointName: Waypoint_LeftStairsCorridor-2nd
   officeName: 
   waypointType: 1
   services: []
-  connectedWaypoints: []
+  connectedWaypoints:
+  - {fileID: 792071399}
+  - {fileID: 441885651}
   connectionDistance: 10
   wallLayerMask:
     serializedVersion: 2
@@ -28604,7 +28711,7 @@ Transform:
   m_GameObject: {fileID: 1237682061}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -10.3, y: 0, z: 53.1}
+  m_LocalPosition: {x: -10.02, y: 0, z: 56.48}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -28685,7 +28792,7 @@ Transform:
   m_GameObject: {fileID: 1241429782}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.2, y: 0, z: 54.9}
+  m_LocalPosition: {x: -0.92, y: 0, z: 55.04}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -28975,7 +29082,7 @@ Transform:
   m_GameObject: {fileID: 1252676998}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 21.8, y: 0, z: -25.2}
+  m_LocalPosition: {x: 17.599998, y: 0, z: -25.2}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -29786,6 +29893,7 @@ MonoBehaviour:
   connectedWaypoints:
   - {fileID: 602467023}
   - {fileID: 555735708}
+  - {fileID: 1961416434}
   connectionDistance: 10
   wallLayerMask:
     serializedVersion: 2
@@ -29804,7 +29912,7 @@ Transform:
   m_GameObject: {fileID: 1274116914}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 6.7, y: 0, z: 26.64}
+  m_LocalPosition: {x: 3.95, y: 0, z: 26.76}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -33110,7 +33218,7 @@ Transform:
   m_GameObject: {fileID: 1430554581}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 13.93, y: 0, z: -96.68}
+  m_LocalPosition: {x: 11.860001, y: 0, z: -96.68}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -33587,7 +33695,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
   m_LocalPosition: {x: 0.26, y: 0, z: -0.03}
-  m_LocalScale: {x: 10, y: 1, z: 25}
+  m_LocalScale: {x: 8, y: 1, z: 25}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1024529891}
@@ -35041,7 +35149,7 @@ Transform:
   m_GameObject: {fileID: 1484915010}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -23.01, y: 0, z: -6.93}
+  m_LocalPosition: {x: -18.37, y: 0, z: -6.93}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -35704,7 +35812,7 @@ Transform:
   m_GameObject: {fileID: 1525727013}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 12.24, y: 0, z: 68.44}
+  m_LocalPosition: {x: 9.93, y: 0, z: 67.71}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -35830,7 +35938,7 @@ Transform:
   m_GameObject: {fileID: 1543430396}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -9.22, y: 0, z: 77.31}
+  m_LocalPosition: {x: -7.86, y: 0, z: 76.68}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -37961,7 +38069,7 @@ Transform:
   m_GameObject: {fileID: 1686063861}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -15.02, y: 0, z: -64.07}
+  m_LocalPosition: {x: -12, y: 0, z: -64.07}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -38300,84 +38408,6 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1713946554}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
---- !u!1 &1720620888
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1720620890}
-  - component: {fileID: 1720620889}
-  - component: {fileID: 1720620891}
-  m_Layer: 0
-  m_Name: Waypoint_LeftCorridor-2nd
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1720620889
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1720620888}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2909c367c7137e145a46e44c83bcb5ab, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  waypointName: Waypoint_LeftCorridor-2nd
-  officeName: 
-  waypointType: 1
-  services: []
-  connectedWaypoints:
-  - {fileID: 792071399}
-  connectionDistance: 8
-  wallLayerMask:
-    serializedVersion: 2
-    m_Bits: 256
-  losCheckRadius: 0.15
-  losSampleSpacing: 0.4
-  waypointColor: {r: 0, g: 1, b: 1, a: 1}
-  showInEditor: 1
-  gizmoYOffset: 0
---- !u!4 &1720620890
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1720620888}
-  serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -10.15, y: 0, z: 60.48}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1158190805}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1720620891
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1720620888}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ba827ec15be2023499cb20226fbe059b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  radius: 0.25
-  drawLinks: 1
-  office: {r: 0, g: 0.8, b: 0.2, a: 0.9}
-  corridor: {r: 0.1, g: 0.7, b: 1, a: 0.9}
-  junction: {r: 1, g: 0.9, b: 0.2, a: 0.9}
-  stairs: {r: 1, g: 0.2, b: 0.8, a: 0.9}
 --- !u!1 &1721750131
 GameObject:
   m_ObjectHideFlags: 0
@@ -39292,8 +39322,9 @@ Transform:
   - {fileID: 1241429784}
   - {fileID: 2007276531}
   - {fileID: 364861429}
-  - {fileID: 915660072}
   - {fileID: 559975966}
+  - {fileID: 773533906}
+  - {fileID: 161366548}
   - {fileID: 374007608}
   - {fileID: 396844384}
   - {fileID: 779663107}
@@ -39780,7 +39811,7 @@ Transform:
   m_GameObject: {fileID: 1785664500}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -18.38, y: 0, z: -41.45}
+  m_LocalPosition: {x: -14.92, y: 0, z: -41.45}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -40079,8 +40110,8 @@ MonoBehaviour:
   waypointType: 3
   services: []
   connectedWaypoints:
-  - {fileID: 915660069}
-  - {fileID: 1980469879}
+  - {fileID: 272109956}
+  - {fileID: 272109956}
   connectionDistance: 10
   wallLayerMask:
     serializedVersion: 2
@@ -40099,7 +40130,7 @@ Transform:
   m_GameObject: {fileID: 1799287009}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 2.13, y: 0, z: 47.51}
+  m_LocalPosition: {x: 6.23, y: 0, z: 48.66}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -41239,7 +41270,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
   m_LocalPosition: {x: 0.26, y: 0, z: -0.03}
-  m_LocalScale: {x: 10, y: 1, z: 25}
+  m_LocalScale: {x: 8, y: 1, z: 25}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1762771198}
@@ -42717,7 +42748,7 @@ Transform:
   m_GameObject: {fileID: 1885346563}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -25.05, y: 0, z: 39.33}
+  m_LocalPosition: {x: -20.73, y: 0, z: 39.32}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -43055,7 +43086,7 @@ Transform:
   m_GameObject: {fileID: 1904537089}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 22.67, y: 0, z: -17.6}
+  m_LocalPosition: {x: 18.43, y: 0, z: -17.6}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -43312,6 +43343,8 @@ MonoBehaviour:
   useOfficeAsStart: 0
   stairsMinVertical: 0.75
   flatArrowLift: 0.02
+  anchorStartToLivePose: 1
+  insertMergePoint: 0
   arGroundPlaneY: 0
   useARGroundPlane: 1
   worldRoot: {fileID: 254576758}
@@ -43421,6 +43454,10 @@ MonoBehaviour:
   routeMat: {fileID: 0}
   routeColor: {r: 0, g: 0.65, b: 1, a: 0.85}
   routeWidth: 0.07
+  cornerSwitchMeters: 0.75
+  headingBias: 0.1
+  backstepHysteresis: 0.4
+  cornerSkipMeters: 0.5
   useProxyFloor: 1
   pathPositionsAreLocalToWorldRoot: 0
   repathDistThreshold: 0.25
@@ -43530,7 +43567,7 @@ Transform:
   m_GameObject: {fileID: 1909836874}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -23.6, y: 0, z: 2.14}
+  m_LocalPosition: {x: -19.28, y: 0, z: 2.14}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -43609,7 +43646,7 @@ Transform:
   m_GameObject: {fileID: 1920382822}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -17.83, y: 0, z: 25.17}
+  m_LocalPosition: {x: -12.48, y: 0, z: 25.61}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -43792,7 +43829,7 @@ Transform:
   m_GameObject: {fileID: 1927385315}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -25.03, y: 0, z: 24.58}
+  m_LocalPosition: {x: -20.14, y: 0, z: 24.98}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -44991,7 +45028,7 @@ Transform:
   m_GameObject: {fileID: 1961416432}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.4199996, y: 0, z: 26.47}
+  m_LocalPosition: {x: -0.39, y: 0, z: 26.53}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -45015,8 +45052,8 @@ MonoBehaviour:
   services: []
   connectedWaypoints:
   - {fileID: 223640451}
-  - {fileID: 602467023}
   - {fileID: 1241429783}
+  - {fileID: 1274116915}
   connectionDistance: 10
   wallLayerMask:
     serializedVersion: 2
@@ -45808,107 +45845,6 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1979624172}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
---- !u!1 &1980469878
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1980469882}
-  - component: {fileID: 1980469879}
-  - component: {fileID: 1980469881}
-  - component: {fileID: 1980469880}
-  m_Layer: 0
-  m_Name: Waypoint_RightStairs-2nd (1)
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1980469879
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1980469878}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2909c367c7137e145a46e44c83bcb5ab, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  waypointName: Waypoint_RightStairs-2nd
-  officeName: 
-  waypointType: 3
-  services: []
-  connectedWaypoints:
-  - {fileID: 272109956}
-  - {fileID: 1799287010}
-  connectionDistance: 10
-  wallLayerMask:
-    serializedVersion: 2
-    m_Bits: 256
-  losCheckRadius: 0.15
-  losSampleSpacing: 0.4
-  waypointColor: {r: 0, g: 1, b: 1, a: 1}
-  showInEditor: 1
-  gizmoYOffset: 0
---- !u!114 &1980469880
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1980469878}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ba827ec15be2023499cb20226fbe059b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  radius: 0.25
-  drawLinks: 1
-  office: {r: 0, g: 0.8, b: 0.2, a: 0.9}
-  corridor: {r: 0.1, g: 0.7, b: 1, a: 0.9}
-  junction: {r: 1, g: 0.9, b: 0.2, a: 0.9}
-  stairs: {r: 1, g: 0.2, b: 0.8, a: 0.9}
---- !u!65 &1980469881
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1980469878}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 3.7, y: 2.08, z: 3.01}
-  m_Center: {x: 0, y: 0, z: 0}
---- !u!4 &1980469882
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1980469878}
-  serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 2.02, y: 0, z: 52.66}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1158190805}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1984991759
 GameObject:
   m_ObjectHideFlags: 0
@@ -46529,7 +46465,7 @@ Transform:
   m_GameObject: {fileID: 2007276529}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 21.900002, y: 0, z: 3.3}
+  m_LocalPosition: {x: 18.51, y: 0, z: 3.7}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -47898,7 +47834,7 @@ Transform:
   m_GameObject: {fileID: 2064197060}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 24.06, y: 0, z: -2.48}
+  m_LocalPosition: {x: 19.54, y: 0, z: -2.48}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -48658,7 +48594,7 @@ Transform:
   m_GameObject: {fileID: 2095134346}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -8.1, y: 0, z: -109.1}
+  m_LocalPosition: {x: -6.41, y: 0, z: -109.1}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -49634,7 +49570,6 @@ SceneRoots:
   - {fileID: 1051318485}
   - {fileID: 494809780}
   - {fileID: 1412818506}
-  - {fileID: 254576758}
   - {fileID: 1904986750}
   - {fileID: 139717834}
   - {fileID: 662374405}

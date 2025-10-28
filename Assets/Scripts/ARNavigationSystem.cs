@@ -3,16 +3,16 @@
 using Vuforia;
 #endif
 
-    using UnityEngine;
-    using UnityEngine.UI;
-    using TMPro;
-    using System.Collections.Generic;
-    using System.Collections; 
-    using System.Linq;
-    using UnityEngine.Rendering;
-    using System;
-    using Random = UnityEngine.Random;
-    using System.Text;
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+using System.Collections.Generic;
+using System.Collections;
+using System.Linq;
+using UnityEngine.Rendering;
+using System;
+using Random = UnityEngine.Random;
+using System.Text;
 
 
 #if UNITY_EDITOR
@@ -52,12 +52,12 @@ public class SmartNavigationSystem : MonoBehaviour
     [SerializeField] private bool worldBaked = false;
 
     // Force using waypoint graph (no direct shortcuts)
-[SerializeField] private bool forceWaypointRouting = true;
+    [SerializeField] private bool forceWaypointRouting = true;
 
-// Path containers (add if you don’t already have them)
-[SerializeField] private List<NavigationWaypoint> currentPathNodes = new List<NavigationWaypoint>();
-[SerializeField] private List<Vector3> currentPath = new List<Vector3>();
-private HashSet<int> stairsSegments = new HashSet<int>();
+    // Path containers (add if you don’t already have them)
+    [SerializeField] private List<NavigationWaypoint> currentPathNodes = new List<NavigationWaypoint>();
+    [SerializeField] private List<Vector3> currentPath = new List<Vector3>();
+    private HashSet<int> stairsSegments = new HashSet<int>();
     [SerializeField] private bool drawRouteLine = false;
 
 
@@ -180,6 +180,9 @@ private HashSet<int> stairsSegments = new HashSet<int>();
     // Use one threshold across the class
     [SerializeField] float stairsMinVertical = 0.75f; // treat >= ~0.75m as a stairs segment
     [SerializeField] float flatArrowLift = 0.005f; // small lift to avoid z-fighting on flat segments
+
+    [SerializeField] private bool anchorStartToLivePose = true; // leave true for AR stability
+    [SerializeField] private bool insertMergePoint = false;     // optional (off = simpler)
 
 
     // Auto-locate anchors if not assigned (so PathRoot has a valid parent)
@@ -328,7 +331,7 @@ Debug.Log("[Anchor] baked under WorldRoot.");
     public GameObject arrowPrefab;               // arrow prefab to instantiate
     public Material arrowMaterial;
     public Color arrowColor = Color.red;
-    public float arrowSize = 0.8f; 
+    public float arrowSize = 0.8f;
     public bool useGroundDetection = true;
     public Transform arrowsParent;
     [Min(0)] public int arrowPoolPrewarm = 48;
@@ -516,6 +519,22 @@ Debug.Log("[Anchor] baked under WorldRoot.");
     private NavigationWaypoint currentDestinationWaypoint = null;
     private float targetMarkerBaseY = float.NaN; // for bobbing
 
+    // Sticky/heading-aware segment selection
+    [SerializeField] private float cornerSwitchMeters = 0.75f;   // distance to the corner within which we allow heading-based switch
+    [SerializeField] private float headingBias = 0.10f;          // extra advantage next segment needs over current
+    private int _activeSeg = -1;                                  // last stable segment index
+
+    // Monotonic progress along the path (prevents backward arrows at corners)
+    [SerializeField] private float backstepHysteresis = 0.40f;   // how much "back" we allow (meters)
+    [SerializeField] private float cornerSkipMeters = 0.50f;   // skip short stubs near the corner
+
+    private float _progressMeters = 0f;
+    private bool _progressValid = false;
+
+    private readonly List<float> _segLenXZ = new List<float>();  // length of each segment in XZ
+    private readonly List<float> _cumLenXZ = new List<float>();  // cumulative length prefix (size = segCount+1)
+
+
     // Call this from UI when user selects "I'm at <Office>"
     public bool SetStartOfficeByDisplay(string displayName)
     {
@@ -559,7 +578,7 @@ Debug.Log("[Anchor] baked under WorldRoot.");
     // CanonicalName -> list of Office waypoints (active or inactive)
     Dictionary<string, List<NavigationWaypoint>> officeIndex = new Dictionary<string, List<NavigationWaypoint>>();
 
- 
+
     public void BuildOfficeIndexFromScene()
     {
         if (officeIndex == null) officeIndex = new Dictionary<string, List<NavigationWaypoint>>();
@@ -951,8 +970,8 @@ Debug.Log("[Anchor] baked under WorldRoot.");
     {
         EnsureTargetMarker();
 
-// Determine if this point is “elevated” (second floor) vs AR floor
-float floorYAtXZ = GetGroundPosition(new Vector3(worldPos.x, 0f, worldPos.z)).y;
+        // Determine if this point is “elevated” (second floor) vs AR floor
+        float floorYAtXZ = GetGroundPosition(new Vector3(worldPos.x, 0f, worldPos.z)).y;
         bool elevated = Mathf.Abs(worldPos.y - floorYAtXZ) > 1.0f;
 
         Vector3 pos = (preserveYIfElevated && elevated) ? worldPos : GetGroundPosition(worldPos);
@@ -1035,55 +1054,41 @@ float floorYAtXZ = GetGroundPosition(new Vector3(worldPos.x, 0f, worldPos.z)).y;
 
     void CreateEnhancedArrowPrefab()
     {
-        // If you assign a prefab in the Inspector, we won’t generate one
         if (arrowPrefab != null) return;
 
         arrowPrefab = new GameObject("ArrowPrefab");
 
-        // Calculate half dimensions
         float shaftHalfZ = shaftLength * 0.5f;
         float headHalfZ = headLength * 0.5f;
-        float verticalThickness = 0.05f; // Fixed small Y for flatness
+        float verticalThickness = 0.05f;
 
         // Shaft
         GameObject shaft = GameObject.CreatePrimitive(PrimitiveType.Cube);
         shaft.name = "Shaft";
         shaft.transform.SetParent(arrowPrefab.transform, false);
-
-        // Scale the shaft using new parameters
         shaft.transform.localScale = new Vector3(shaftWidth, verticalThickness, shaftLength);
+        shaft.transform.localPosition = new Vector3(0f, 0f, -shaftHalfZ); // ends at Z=0 (front)
 
-        // Position the shaft so its front edge (positive Z) meets Z=0
-        // Position = - (Half Length)
-        shaft.transform.localPosition = new Vector3(0f, 0f, -shaftHalfZ);
-
-        // Head (Cube primitive, shaped and rotated to look like a point)
+        // Head
         GameObject head = GameObject.CreatePrimitive(PrimitiveType.Cube);
         head.name = "Head";
         head.transform.SetParent(arrowPrefab.transform, false);
-
-        // Scale the head
         head.transform.localScale = new Vector3(headWidth, verticalThickness, headLength);
-
-        // Position the head so its back edge (negative Z) meets Z=0
-        // Position = + (Half Length)
-        head.transform.localPosition = new Vector3(0f, 0f, 0f);
-
-        // CRITICAL FIX: Visually form a diamond tip by rotation
         head.transform.localRotation = Quaternion.Euler(0, 45f, 0);
 
-        // Material (URP-safe)
+        // IMPORTANT: push the head forward so its back face sits at Z=0
+        head.transform.localPosition = new Vector3(0f, 0f, +headHalfZ);
+
+        // Materials
         var mat = arrowSharedMat ??= CreateArrowMaterial(arrowColor);
         shaft.GetComponent<Renderer>().sharedMaterial = mat;
         head.GetComponent<Renderer>().sharedMaterial = mat;
 
-        // No physics
+        // Cleanup
         Destroy(shaft.GetComponent<Collider>());
         Destroy(head.GetComponent<Collider>());
 
         arrowPrefab.SetActive(false);
-        // The arrow's pivot (arrowPrefab.transform) is now exactly at the point where the shaft and head connect (Z=0).
-        Debug.Log("ArrowPrefab generated (runtime) with no gap between shaft and head.");
     }
 
     void CreateEnhancedTargetMarker()
@@ -1328,27 +1333,53 @@ float floorYAtXZ = GetGroundPosition(new Vector3(worldPos.x, 0f, worldPos.z)).y;
 
     // Inside SmartNavigationSystem class
 
-    Vector3 GetRoutingStartPosition()
+    public Vector3 GetRoutingStartPosition()
     {
         if (useOfficeAsStart && !string.IsNullOrEmpty(currentUserOffice))
         {
             var wpT = FindTargetWaypointAdvanced(currentUserOffice);
             if (wpT != null)
                 return wpT.position;
+
             Debug.LogWarning($"[GetRoutingStartPosition] Office waypoint not found for '{currentUserOffice}', using entrance/camera fallback.");
         }
 
-        Vector3 livePos = GetCurrentPosition();
+        // Always use live camera for fallback routing start
+        Vector3 livePos = GetVisualAnchorPose();
 
-        float entranceMeters = float.MaxValue;
-        if (startFromEntrance && entranceNode != null && IsAtEntrance(out entranceMeters))
+        if (startFromEntrance && entranceNode != null && IsAtEntrance(out float entranceMeters))
         {
-            Debug.Log($"[GetRoutingStartPosition] Using entrance node, distance={entranceMeters:F2}m.");
-            return entranceNode.position;
+            // Only use the entrance if you're not essentially on top of it
+            if (entranceMeters > 0.75f) // tune 0.5–1.0m
+            {
+                Debug.Log($"[GetRoutingStartPosition] Using entrance node, distance={entranceMeters:F2}m.");
+                return entranceNode.position;
+            }
+
+            Debug.Log($"[GetRoutingStartPosition] Near entrance but using live camera ({entranceMeters:F2}m).");
         }
 
         Debug.Log($"[GetRoutingStartPosition] Using live camera position: {livePos}");
         return livePos;
+    }
+
+    private float PathLength(List<Vector3> pts)
+    {
+        if (pts == null || pts.Count < 2) return 0f;
+        float L = 0f;
+        for (int i = 1; i < pts.Count; i++) L += Vector3.Distance(pts[i - 1], pts[i]);
+        return L;
+    }
+
+    private void EnsureNonTrivialPath(Vector3 goal)
+    {
+        if (currentPath == null || currentPath.Count < 2 || PathLength(currentPath) < 0.75f)
+        {
+            var live = GetVisualAnchorPose();
+            currentPath = new List<Vector3> { live, goal };
+            Debug.LogWarning("[PATH] Path was trivial; forced 2-point path (live → goal).");
+        }
+        PinFirstVertexToLivePose();
     }
 
     public void StartNavigationConfirmedByUI(string officeName)
@@ -1610,7 +1641,7 @@ float floorYAtXZ = GetGroundPosition(new Vector3(worldPos.x, 0f, worldPos.z)).y;
     void SnapPathYsRespectingStairs(List<Vector3> path)
     {
         if (path == null || path.Count < 2) return;
-    
+
         // Mark nodes that must preserve Y if adjacent to a stairs segment
         bool[] preserveY = new bool[path.Count];
 
@@ -1718,7 +1749,7 @@ float floorYAtXZ = GetGroundPosition(new Vector3(worldPos.x, 0f, worldPos.z)).y;
         stairsSegments.Clear();
         if (currentPathNodes == null) return;
 
-for (int i = 0; i < currentPathNodes.Count - 1; i++)
+        for (int i = 0; i < currentPathNodes.Count - 1; i++)
         {
             var a = currentPathNodes[i];
             var b = currentPathNodes[i + 1];
@@ -1966,8 +1997,8 @@ for (int i = 0; i < currentPathNodes.Count - 1; i++)
 
         return null;
     }
-   
-    
+
+
     private float lastPathCalcTime = -999f;
     public float minPathRecalcInterval = 0.6f; // seconds
 
@@ -1978,73 +2009,136 @@ for (int i = 0; i < currentPathNodes.Count - 1; i++)
         if (currentPath == null) currentPath = new List<Vector3>();
         else currentPath.Clear();
 
-        // Keep true floor heights so graph can route via stairs
-        Vector3 fromStart = GetRoutingStartPosition(); // keep current Y
-        Vector3 toGoal = targetDestination;         // keep second-floor Y
+        // --- Determine the pathfinding start (Manual Office or Live/Entrance) ---
+        Vector3 pathStartOrigin;
+        if (useOfficeAsStart && !string.IsNullOrEmpty(currentUserOffice))
+        {
+            var officeWP = FindTargetWaypointAdvanced(currentUserOffice);
+            pathStartOrigin = officeWP != null ? officeWP.position : GetRoutingStartPosition();
+            Debug.Log($"[PATH] Manual start point confirmed at Waypoint: {pathStartOrigin}");
+        }
+        else
+        {
+            pathStartOrigin = GetRoutingStartPosition();
+            Debug.Log($"[PATH] Auto-Detect start point confirmed at Camera/Entrance: {pathStartOrigin}");
+        }
+
+        Vector3 toGoal = targetDestination;
+
+        // Visual anchor (never manual office)
+        Vector3 visualPose = GetVisualAnchorPose();
 
         // Get all scene waypoints (skip prefabs)
         var all = Resources.FindObjectsOfTypeAll<NavigationWaypoint>()
-                 .Where(wp => wp != null && wp.gameObject.scene.IsValid())
-                 .ToList();
+            .Where(wp => wp != null && wp.gameObject.scene.IsValid())
+            .ToList();
 
         if (all == null || all.Count == 0)
         {
             Debug.LogWarning("[PATH] No waypoints in scene. Using direct fallback.");
-            currentPath.Add(fromStart);
-            currentPath.Add(toGoal);
+            currentPath = new List<Vector3> { visualPose, toGoal };
+            AnchorPathStartToLiveOnce();
+            RebuildPathMetrics();
+            ResetProgressForNewRoute();
             return;
         }
 
         // Find nearest graph nodes
-        var start = FindNearestWaypoint(all, fromStart);
+        var start = FindNearestWaypoint(all, pathStartOrigin);
         var goal = FindNearestWaypoint(all, toGoal);
 
         if (start == null || goal == null)
         {
             Debug.LogWarning("[PATH] Start or goal waypoint is null. Using direct fallback.");
-            currentPath.Add(fromStart);
-            currentPath.Add(toGoal);
+            currentPath = new List<Vector3> { visualPose, toGoal };
+            AnchorPathStartToLiveOnce();
+            RebuildPathMetrics();
+            ResetProgressForNewRoute();
             return;
         }
+
+        // --- Execute Pathfinding (BFS/A*/Multi-floor) ---
+        List<Vector3> calculatedPath = null;
+        bool pathFound = false;
 
         // 1) Try BFS (node list)
         var nodes = BFSWaypoints(start, goal);
         if (nodes != null && nodes.Count > 0)
         {
-            currentPath = BuildPathFromNodesWithStairs(nodes, fromStart, toGoal);
-            Debug.Log($"[PATH] BFS path ok. points={currentPath.Count}");
-            return;
+            calculatedPath = BuildPathFromNodesWithStairs(nodes, pathStartOrigin, toGoal);
+            pathFound = calculatedPath != null && calculatedPath.Count > 0;
+            if (pathFound) Debug.Log($"[PATH] BFS path ok. points={calculatedPath.Count}");
         }
 
-        // 2) Try A* (your enhanced path finder)
-        var aStarPath = FindComplexPath(fromStart, toGoal, all.ToArray());
-        if (aStarPath != null && aStarPath.Count >= 2)
+        // 2) Try A* (if BFS failed)
+        if (!pathFound)
         {
-            // Ensure we insert ramp points and preserve floors
-            aStarPath = InsertStairRampsInPath(aStarPath, 12);
-            SnapPathYByFloors(aStarPath);
-            currentPath = aStarPath;
-            Debug.Log($"[PATH] A* fallback ok. points={currentPath.Count}");
-            return;
+            var aStarPath = FindComplexPath(pathStartOrigin, toGoal, all.ToArray());
+            if (aStarPath != null && aStarPath.Count >= 2)
+            {
+                aStarPath = InsertStairRampsInPath(aStarPath, 12);
+                SnapPathYByFloors(aStarPath);
+                calculatedPath = aStarPath;
+                pathFound = true;
+                Debug.Log($"[PATH] A* fallback ok. points={calculatedPath.Count}");
+            }
         }
 
-        // 3) If different floors, try explicit multi-floor fallback (if you keep this)
-        if (Mathf.Abs(fromStart.y - toGoal.y) > floorMatchTolerance)
+        // 3) Try Multi-floor fallback (if needed and path still not found)
+        if (!pathFound && Mathf.Abs(pathStartOrigin.y - toGoal.y) > floorMatchTolerance)
         {
-            if (TryBuildMultiFloorPathFallback(all, fromStart, toGoal, out var mfPath) &&
+            if (TryBuildMultiFloorPathFallback(all, pathStartOrigin, toGoal, out var mfPath) &&
                 mfPath != null && mfPath.Count >= 2)
             {
-                currentPath = InsertStairRampsInPath(mfPath, 12);
-                SnapPathYByFloors(currentPath);
+                calculatedPath = InsertStairRampsInPath(mfPath, 12);
+                SnapPathYByFloors(calculatedPath);
+                pathFound = true;
                 Debug.Log("[PATH] Multi-floor fallback succeeded (via stairs).");
-                return;
             }
+        }
+
+        // --- Success path → anchor once, ensure non-trivial, finalize ---
+        if (pathFound && calculatedPath != null && calculatedPath.Count > 0)
+        {
+            // Start at the live camera (one-time)
+            if (Vector3.Distance(calculatedPath[0], visualPose) > 0.5f)
+            {
+                calculatedPath[0] = visualPose;
+                Debug.Log("[PATH FIX] Re-anchored path start to live camera pose (one-time).");
+            }
+
+            // Guarantee at least 2 points
+            if (calculatedPath.Count == 1)
+                calculatedPath.Add(toGoal);
+
+            // Ensure non-trivial length in XZ
+            float L = 0f;
+            for (int i = 1; i < calculatedPath.Count; i++)
+                L += Vector2.Distance(
+                    new Vector2(calculatedPath[i - 1].x, calculatedPath[i - 1].z),
+                    new Vector2(calculatedPath[i].x, calculatedPath[i].z));
+
+            if (L < 0.75f)
+            {
+                calculatedPath = new List<Vector3> { visualPose, toGoal };
+                Debug.LogWarning("[PATH] Path was trivial; forced 2-point path (live → goal).");
+            }
+
+            currentPath = calculatedPath;
+
+            // Finalize metrics and projector state
+            AnchorPathStartToLiveOnce();
+            RebuildPathMetrics();
+            ResetProgressForNewRoute();
+            return;
         }
 
         // 4) Final fallback (direct line)
         Debug.LogWarning("[PATH] All graph fallbacks failed. Using direct line.");
-        currentPath.Add(fromStart);
-        currentPath.Add(toGoal);
+        currentPath = new List<Vector3> { visualPose, toGoal };
+        AnchorPathStartToLiveOnce();
+        RebuildPathMetrics();
+        ResetProgressForNewRoute();
     }
 
     void DebugPathHeights()
@@ -2128,8 +2222,8 @@ for (int i = 0; i < currentPathNodes.Count - 1; i++)
         float y2 = GetGroundPosition((a + b) * 0.5f).y;
         float y3 = GetGroundPosition(b).y;
 
-// Median-of-3 to reject outliers from AR plane misses
-if (y1 > y2) Swap(ref y1, ref y2);
+        // Median-of-3 to reject outliers from AR plane misses
+        if (y1 > y2) Swap(ref y1, ref y2);
         if (y2 > y3) Swap(ref y2, ref y3);
         if (y1 > y2) Swap(ref y1, ref y2);
         return y2;
@@ -2874,6 +2968,159 @@ if (y1 > y2) Swap(ref y1, ref y2);
         return distance;
     }
 
+    private void RebuildPathMetrics()
+    {
+        _segLenXZ.Clear();
+        _cumLenXZ.Clear();
+
+        _progressMeters = 0f;
+        _progressValid = false;
+        _activeSeg = -1;
+
+        if (currentPath == null || currentPath.Count < 2)
+        {
+            _cumLenXZ.Add(0f);
+            return;
+        }
+
+        float sum = 0f;
+        for (int i = 0; i < currentPath.Count - 1; i++)
+        {
+            Vector3 a = currentPath[i];
+            Vector3 b = currentPath[i + 1];
+            float len = Vector2.Distance(new Vector2(a.x, a.z), new Vector2(b.x, b.z));
+            if (len < 1e-6f) len = 1e-6f; // prevent degenerate
+            _segLenXZ.Add(len);
+            _cumLenXZ.Add(sum);
+            sum += len;
+        }
+        _cumLenXZ.Add(sum); // sentinel: total length = _cumLenXZ[_segLenXZ.Count]
+    }
+
+    private void ProjectOntoSegmentWithGroundLift(int segIndex, Vector3 p, out Vector3 proj, out float d2)
+    {
+        proj = p; d2 = float.MaxValue;
+        if (currentPath == null || segIndex < 0 || segIndex >= currentPath.Count - 1) return;
+
+        Vector3 a = currentPath[segIndex];
+        Vector3 b = currentPath[segIndex + 1];
+
+        const float elevatedTol = 1.0f;
+        float ayGround = GetGroundPosition(new Vector3(a.x, 0f, a.z)).y;
+        float byGround = GetGroundPosition(new Vector3(b.x, 0f, b.z)).y;
+        bool aElevated = Mathf.Abs(a.y - ayGround) > elevatedTol;
+        bool bElevated = Mathf.Abs(b.y - byGround) > elevatedTol;
+
+        bool stairsSeg = IsStairsSegment(a, b);
+        bool use3D = stairsSeg || (aElevated && bElevated);
+
+        if (use3D)
+        {
+            Vector3 ab = b - a;
+            float abSqr = ab.sqrMagnitude;
+            if (abSqr < 1e-6f) { proj = a; d2 = (p - proj).sqrMagnitude; return; }
+
+            float t = Mathf.Clamp01(Vector3.Dot(p - a, ab) / abSqr);
+            Vector3 q = a + ab * t;
+            if (stairsSeg) q += Vector3.up * stairsExtraLift;
+
+            proj = q;
+            d2 = (p - proj).sqrMagnitude;
+        }
+        else
+        {
+            Vector3 aF = new Vector3(a.x, 0f, a.z);
+            Vector3 bF = new Vector3(b.x, 0f, b.z);
+            Vector3 pF = new Vector3(p.x, 0f, p.z);
+
+            Vector3 abF = bF - aF;
+            float abFSqr = abF.sqrMagnitude;
+            if (abFSqr < 1e-6f) { proj = GetGroundPosition(aF); d2 = (pF - aF).sqrMagnitude; return; }
+
+            float t = Mathf.Clamp01(Vector3.Dot(pF - aF, abF) / abFSqr);
+            Vector3 qF = aF + abF * t;
+
+            Vector3 q = new Vector3(qF.x, 0f, qF.z);
+            q = GetGroundPosition(q);
+
+            proj = q;
+            d2 = (pF - qF).sqrMagnitude;
+        }
+    }
+    private int GetStableProjectionMonotonic(Vector3 playerPos, out Vector3 proj)
+    {
+        proj = playerPos;
+        if (currentPath == null || currentPath.Count < 2 || _segLenXZ.Count != currentPath.Count - 1)
+            return -1;
+
+        // 1) Nearest projection in XZ
+        int bestIdx = -1; float bestD2 = float.MaxValue; float bestT = 0f;
+        Vector3 pF = new Vector3(playerPos.x, 0f, playerPos.z);
+
+        for (int i = 0; i < currentPath.Count - 1; i++)
+        {
+            Vector3 aF = new Vector3(currentPath[i].x, 0f, currentPath[i].z);
+            Vector3 bF = new Vector3(currentPath[i + 1].x, 0f, currentPath[i + 1].z);
+
+            Vector3 abF = bF - aF;
+            float abFSqr = abF.sqrMagnitude;
+            if (abFSqr < 1e-6f) continue;
+
+            float t = Mathf.Clamp01(Vector3.Dot(pF - aF, abF) / abFSqr);
+            Vector3 qF = aF + abF * t;
+            float d2 = (pF - qF).sqrMagnitude;
+
+            if (d2 < bestD2)
+            {
+                bestD2 = d2;
+                bestIdx = i;
+                bestT = t;
+            }
+        }
+        if (bestIdx < 0) { _activeSeg = -1; return -1; }
+
+        // 2) Candidate progress
+        float candProgress = _cumLenXZ[bestIdx] + bestT * _segLenXZ[bestIdx];
+
+        // 3) Monotonic clamp
+        if (_progressValid && candProgress + backstepHysteresis < _progressMeters)
+            candProgress = _progressMeters;
+
+        // 4) Map progress back to (seg, t)
+        int seg = 0;
+        while (seg < _segLenXZ.Count - 1 && candProgress > _cumLenXZ[seg] + _segLenXZ[seg]) seg++;
+
+        float segStart = _cumLenXZ[Mathf.Clamp(seg, 0, _cumLenXZ.Count - 1)];
+        float segLen = _segLenXZ[Mathf.Clamp(seg, 0, _segLenXZ.Count - 1)];
+        float tOnSeg = segLen > 1e-6f ? (candProgress - segStart) / segLen : 0f;
+        tOnSeg = Mathf.Clamp01(tOnSeg);
+
+        // 5) Corner skip
+        if (seg < currentPath.Count - 2 && cornerSkipMeters > 0f)
+        {
+            Vector2 q = new Vector2(
+                Mathf.Lerp(currentPath[seg].x, currentPath[seg + 1].x, tOnSeg),
+                Mathf.Lerp(currentPath[seg].z, currentPath[seg + 1].z, tOnSeg));
+
+            Vector2 c = new Vector2(currentPath[seg + 1].x, currentPath[seg + 1].z);
+            if (Vector2.Distance(q, c) < cornerSkipMeters)
+            {
+                seg = Mathf.Min(seg + 1, currentPath.Count - 2);
+                tOnSeg = 0f;
+            }
+        }
+
+        // 6) Final projection with ground/stairs lift
+        Vector3 tempProj; float _;
+        ProjectOntoSegmentWithGroundLift(seg, playerPos, out tempProj, out _);
+        proj = tempProj;
+
+        _progressMeters = _cumLenXZ[seg] + tOnSeg * _segLenXZ[seg];
+        _progressValid = true;
+        _activeSeg = seg;
+        return seg;
+    }
+
     private float GetSmartPenalty(NavigationWaypoint from, NavigationWaypoint to, NavigationWaypoint goal)
     {
         float penalty = 0f;
@@ -3206,8 +3453,8 @@ if (y1 > y2) Swap(ref y1, ref y2);
         }
 
 
-// Route line disabled: remove any existing line object
-if (routeLR)
+        // Route line disabled: remove any existing line object
+        if (routeLR)
         {
             if (Application.isPlaying) Destroy(routeLR.gameObject); else DestroyImmediate(routeLR.gameObject);
             routeLR = null;
@@ -3245,8 +3492,8 @@ if (routeLR)
     private void ShowNavigationVisuals(bool show)
     {
         EnsureNavVisuals();
-    
-if (arrowGO) arrowGO.SetActive(show);
+
+        if (arrowGO) arrowGO.SetActive(show);
 
         if (targetMarkerGO)
         {
@@ -3257,36 +3504,54 @@ if (arrowGO) arrowGO.SetActive(show);
     }
     private void RefreshRouteLineRenderer()
     {
-       
+
     }
+
 
     private void UpdateArrowAndHints()
     {
-        if (!playerCamera || currentPath == null || currentPath.Count < 2) return;
+        if (currentPath == null || currentPath.Count < 2)
+        {
+            if (arrowGO) arrowGO.SetActive(false);
+            return;
+        }
+
+        Vector3 player = GetVisualAnchorPose();
 
         Vector3 proj;
-        int seg = FindClosestSegmentAndProjection(playerCamera.transform.position, out proj);
-        if (seg >= 0)
-        {
-            if (arrowGO)
-            {
-                arrowGO.transform.position = proj;
-                Vector3 a = currentPath[seg];
-                Vector3 b = currentPath[seg + 1];
-                Vector3 dir = b - a; dir.y = 0f;
-                if (dir.sqrMagnitude > 1e-4f)
-                    arrowGO.transform.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
-            }
-            UpdateTurnHints();
-        }
-    }
+        int seg = GetStableProjectionMonotonic(player, out proj);
 
+        if (seg < 0)
+        {
+            if (_segLenXZ.Count != (currentPath?.Count ?? 0) - 1)
+                RebuildPathMetrics();
+
+            seg = GetStableProjectionMonotonic(player, out proj);
+
+            if (seg < 0)
+                seg = FindClosestSegmentAndProjection(player, out proj);
+        }
+
+        if (seg < 0) { if (arrowGO) arrowGO.SetActive(false); return; }
+
+        if (arrowGO && !arrowGO.activeSelf) arrowGO.SetActive(true);
+        if (arrowGO) arrowGO.transform.position = proj;
+
+        Vector3 a = currentPath[seg];
+        Vector3 b = currentPath[seg + 1];
+        Vector3 dir = b - a;
+        if (!IsStairsSegment(a, b)) dir.y = 0f;
+        if (dir.sqrMagnitude > 1e-4f && arrowGO)
+            arrowGO.transform.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
+
+        UpdateTurnHints();
+    }
     private float DistanceToGoalFrom(int segIndex, Vector3 fromPoint)
     {
         if (currentPath == null || currentPath.Count < 2) return 0f;
         float sum = 0f;
 
- 
+
         // remaining on current segment
         Vector3 a = currentPath[segIndex];
         Vector3 b = currentPath[segIndex + 1];
@@ -3299,7 +3564,7 @@ if (arrowGO) arrowGO.SetActive(show);
             sum += Vector3.Distance(currentPath[i], currentPath[i + 1]);
         return sum;
     }
-    
+
     void EnsureFloorProxy()
     {
         if (!worldRoot) return;
@@ -3337,7 +3602,7 @@ if (arrowGO) arrowGO.SetActive(show);
         if (layer >= 0)
             groundLayerMask |= (1 << layer);
     }
-    
+
     public void CreateGroundArrowsForPathFromSegment(int startSegment, Vector3? firstPosOverride = null)
     {
         EnsureArrowPool();
@@ -3831,7 +4096,7 @@ if (arrowGO) arrowGO.SetActive(show);
     {
         if (officeIndex == null || officeIndex.Count == 0)
             BuildOfficeIndex();
-    
+
         if (!OfficeIdToDisplay.TryGetValue(officeId, out var display))
         {
             Debug.LogError($"[WAYPOINT] Unknown officeId {officeId}");
@@ -3852,10 +4117,6 @@ if (arrowGO) arrowGO.SetActive(show);
         return chosen.transform.position;
     }
 
-    /// <summary>
-    /// Maps office ID to waypoint GameObject name
-    /// Matches your exact scene hierarchy waypoint names
-    /// </summary>
     string GetWaypointNameFromOfficeId(int officeId)
     {
         switch (officeId)
@@ -3888,7 +4149,6 @@ if (arrowGO) arrowGO.SetActive(show);
     {
         Debug.Log($"=== StartNavigationFromCurrentLocation → {officeName} ===");
 
-
         // 1) Resolve target office waypoint
         NavigationWaypoint goal = null;
         try
@@ -3905,9 +4165,9 @@ if (arrowGO) arrowGO.SetActive(show);
         {
             var allScan = GetAllRuntimeWaypoints();
             goal = allScan.FirstOrDefault(wp =>
-                   string.Equals(wp.officeName, officeName, System.StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(wp.waypointName, officeName, System.StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(wp.name, officeName, System.StringComparison.OrdinalIgnoreCase));
+                           string.Equals(wp.officeName, officeName, System.StringComparison.OrdinalIgnoreCase) ||
+                           string.Equals(wp.waypointName, officeName, System.StringComparison.OrdinalIgnoreCase) ||
+                           string.Equals(wp.name, officeName, System.StringComparison.OrdinalIgnoreCase));
         }
 
         if (!goal)
@@ -3920,20 +4180,55 @@ if (arrowGO) arrowGO.SetActive(show);
         ResetNavSessionBeforeNewRoute(goal);
         PushDestinationInfoToUI(goal);
 
-        // 3) Anchors
-        Vector3 fromStart = GetGroundPosition(GetRoutingStartPosition()); // ground
-        Vector3 toGoalWorld = goal.transform.position;                    // PRESERVE Y (2nd floor ok)
+        // 3) Pathfinding start (Manual Office or Live/Entrance)
+        Vector3 pathfindingStart;
+        if (useOfficeAsStart && !string.IsNullOrEmpty(currentUserOffice))
+        {
+            var officeWP = FindTargetWaypointAdvanced(currentUserOffice);
+            pathfindingStart = officeWP != null ? officeWP.position : GetRoutingStartPosition();
 
-        // Keep legacy targetDestination at true goal (not ground)
+            // === Minimal fix: Manual Start → snap WorldRoot to camera and start at camera ===
+            if (officeWP != null)
+            {
+                var camNow = GetVisualAnchorPose(); // live AR camera
+
+                var worldRootGO = GameObject.Find("WorldRoot"); // change name if different
+                if (worldRootGO != null)
+                {
+                    var delta = camNow - officeWP.position;
+                    worldRootGO.transform.position += delta;
+                    Debug.Log($"[ManualAlign] Shifted WorldRoot by {delta} so '{currentUserOffice}' aligns to camera.");
+                }
+                else
+                {
+                    Debug.LogWarning("[ManualAlign] WorldRoot not found. Ensure the name matches your scene object.");
+                }
+
+                // After alignment, start exactly at the camera (selected office is now underfoot)
+                pathfindingStart = camNow;
+            }
+            else
+            {
+                Debug.LogWarning($"[ManualStart] No waypoint found for '{currentUserOffice}'. Falling back to auto start.");
+            }
+            // ==============================================================
+        }
+        else
+        {
+            pathfindingStart = GetRoutingStartPosition();
+        }
+
+        // 4) Anchors
+        Vector3 liveCamPos = GetVisualAnchorPose();          // visual-only: always live camera
+        Vector3 toGoalWorld = goal.transform.position;
         targetDestination = toGoalWorld;
 
-        // Place marker now at real goal height
         PlaceTargetMarkerAt(toGoalWorld, preserveYIfElevated: true);
         Debug.Log($"[Marker] Initial place at {toGoalWorld} (y={toGoalWorld.y:F2})");
 
-        // 4) Graph nodes
+        // 5) Graph nodes (nearest to start and goal)
         var all = GetAllRuntimeWaypoints();
-        var startNode = FindNearestWaypoint(all.ToList(), fromStart);
+        var startNode = FindNearestWaypoint(all.ToList(), pathfindingStart);
         var goalNode = goal;
 
         if (!startNode || !goalNode)
@@ -3942,8 +4237,10 @@ if (arrowGO) arrowGO.SetActive(show);
             if (!forceWaypointRouting)
             {
                 currentPathNodes.Clear();
-                currentPath = new List<Vector3> { fromStart, toGoalWorld };
+                currentPath = new List<Vector3> { liveCamPos, toGoalWorld };
                 isNavigating = true;
+                RebuildPathMetrics();
+                ResetProgressForNewRoute();
             }
             else
             {
@@ -3952,17 +4249,19 @@ if (arrowGO) arrowGO.SetActive(show);
             return;
         }
 
-        // --- FIX: Handle Identical Start and Goal Waypoints ---
+        // 6) If both snap to the same node, make a simple visible path
         if (startNode == goalNode)
         {
             Debug.Log("[NAV] Start and goal waypoints are identical. Using 2-point fallback.");
             currentPathNodes.Clear();
-            currentPath = new List<Vector3> { fromStart, toGoalWorld };
+            currentPath = new List<Vector3> { liveCamPos, toGoalWorld };
             isNavigating = true;
-            return; // Exit successfully
+            RebuildPathMetrics();
+            ResetProgressForNewRoute();
+            return;
         }
 
-        // 5) Fix one-sided links, then BFS
+        // 7) Fix one-sided links, then BFS
         NavigationWaypoint.MakeLinksBidirectional(removeInvalid: true, deduplicate: true);
 
         var nodes = BFSWaypoints(startNode, goalNode);
@@ -3982,17 +4281,75 @@ if (arrowGO) arrowGO.SetActive(show);
             }
 
             currentPathNodes.Clear();
-            currentPath = new List<Vector3> { fromStart, toGoalWorld };
+            currentPath = new List<Vector3> { liveCamPos, toGoalWorld };
             isNavigating = true;
             Debug.LogWarning("Fallback: 2-point path used (BFS failed, forceWaypointRouting=false).");
+            RebuildPathMetrics();
+            ResetProgressForNewRoute();
             return;
         }
 
-        // 6) Build precise 3D path
-        BuildPathFromNodes(nodes, fromStart, toGoalWorld);
+        // 8) Build precise 3D path from nodes (populates currentPath)
+        BuildPathFromNodes(nodes, pathfindingStart, toGoalWorld);
+
+        // Safety: if build didn't set a valid path, fallback to 2-point
+        if (currentPath == null || currentPath.Count < 2)
+        {
+            currentPath = new List<Vector3> { liveCamPos, toGoalWorld };
+            isNavigating = true;
+            RebuildPathMetrics();
+            ResetProgressForNewRoute();
+            return;
+        }
+
+        // 9) One-time visual anchor: ensure path starts at the live camera
+        AnchorPathStartToLiveOnce();
+
+        // 10) Ensure path has visible length (avoid zero-length)
+        float totalLenXZ = 0f;
+        for (int i = 1; i < currentPath.Count; i++)
+            totalLenXZ += Vector2.Distance(
+                new Vector2(currentPath[i - 1].x, currentPath[i - 1].z),
+                new Vector2(currentPath[i].x, currentPath[i].z));
+
+        if (totalLenXZ < 0.75f)
+        {
+            currentPath = new List<Vector3> { liveCamPos, toGoalWorld };
+            Debug.LogWarning("[PATH] Path was trivial; forced 2-point path (live → goal).");
+        }
+
+        // 11) Finalize
+        isNavigating = true;
+        RebuildPathMetrics();       // after final currentPath
+        ResetProgressForNewRoute(); // reset projector progress for this route
     }
 
-    // Returns the Transform of the office waypoint by the name you show to users.
+    private Vector3 GetVisualAnchorPose()
+    {
+        if (arCamera) return arCamera.transform.position;
+        if (Camera.main) return Camera.main.transform.position;
+        return Vector3.zero;
+    }
+
+    // One-time visual re-anchor after building a route (no per-frame mutation)
+    private void AnchorPathStartToLiveOnce()
+    {
+        if (currentPath == null || currentPath.Count == 0) return;
+        Vector3 live = GetVisualAnchorPose();
+        if (Vector3.Distance(currentPath[0], live) > 0.5f)
+        {
+            currentPath[0] = live;
+            Debug.Log("[PATH FIX] Re-anchored path start to live camera (one-time).");
+        }
+    }
+
+    // Reset monotonic progress so the stable projector starts fresh
+    private void ResetProgressForNewRoute()
+    {
+        _progressValid = false;
+        _progressMeters = 0f;
+        _activeSeg = 0;
+    }
     public Transform ResolveOfficeTransformByDisplay(string displayName)
     {
         if (officeIndex == null || officeIndex.Count == 0) BuildOfficeIndexFromScene();
@@ -4449,6 +4806,12 @@ var mgr = serviceArrivalManager ? serviceArrivalManager
             currentUserOffice = null;
         }
 
+        _progressValid = false;
+        _progressMeters = 0f;
+        _activeSeg = -1;
+        _segLenXZ.Clear();
+        _cumLenXZ.Clear();
+
         Debug.Log("[NAV] Navigation state reset complete.");
     }
 
@@ -4472,7 +4835,61 @@ var mgr = serviceArrivalManager ? serviceArrivalManager
         ui.ShowOfficeInfoPopup(selectedDept);
     }
 
-    // ADDED: Simple turn-by-turn direction calculation
+    private Vector3 GetLivePoseNoOverride()
+    {
+        if (arCamera) return arCamera.transform.position;
+        if (Camera.main) return Camera.main.transform.position;
+        return Vector3.zero;
+    }
+
+    // Optional helper if you ever turn insertMergePoint = true
+    private static Vector3 ClosestPointOnSegmentXZ(Vector3 a, Vector3 b, Vector3 p)
+    {
+        Vector3 aF = new Vector3(a.x, 0f, a.z);
+        Vector3 bF = new Vector3(b.x, 0f, b.z);
+        Vector3 pF = new Vector3(p.x, 0f, p.z);
+
+        Vector3 ab = bF - aF;
+        float ab2 = ab.sqrMagnitude;
+        float t = ab2 < 1e-6f ? 0f : Mathf.Clamp01(Vector3.Dot(pF - aF, ab) / ab2);
+        Vector3 qF = aF + ab * t;
+
+        // Reasonable Y: blend between endpoints; or use GetGroundPosition(q) if needed
+        float y = Mathf.Lerp(a.y, b.y, t);
+        return new Vector3(qF.x, y, qF.z);
+    }
+
+    // Visual-only: keep the first vertex stuck to the live camera pose
+    private void PinFirstVertexToLivePose()
+    {
+        if (!anchorStartToLivePose) return;
+        if (!isNavigating) return;
+        if (currentPath == null || currentPath.Count == 0) return;
+
+        var cam = GetLivePoseNoOverride();
+
+        if (currentPath.Count == 1)
+        {
+            currentPath[0] = cam;
+            return;
+        }
+
+        if (insertMergePoint)
+        {
+            // Optional: nudge the second vertex so the first segment aims back onto the path
+            var a = currentPath[0];
+            var b = currentPath[1];
+            var q = ClosestPointOnSegmentXZ(a, b, cam);
+            currentPath[0] = cam;
+            // Keep it simple: only override if it’s meaningfully different
+            if (Vector3.Distance(q, b) > 0.15f) currentPath[1] = q;
+        }
+        else
+        {
+            currentPath[0] = cam;
+        }
+    }
+
     void UpdateDirections()
     {
         if (!isNavigating || currentPath.Count <= 1 || directionText == null) return;
@@ -4552,34 +4969,27 @@ var mgr = serviceArrivalManager ? serviceArrivalManager
 
     void Update()
     {
-        if (!enabled) enabled = true; 
+        if (!enabled) enabled = true;
         AnimateEnhancedTargetMarker();
 
-        // Not navigating? Nothing to update.
         if (!isNavigating) return;
         if (hasReachedDestination) return;
 
         UpdateFloorVisibility();
 
-        // Must have a usable path
         if (currentPath == null || currentPath.Count < 2)
         {
-            // Hide/idle arrow visuals if your implementation uses this
             UpdateArrowVisibility();
             return;
         }
 
-        // Drive your existing arrow system (no route line)
-        ProgressiveArrowsTick();            // maintain/spawn breadcrumb arrows along currentPath
-        AnimateArrowPath();                  // animate arrow movement
-        UpdateArrowBaseScalesIfEnabled();    // optional scaling
-        UpdateArrowVisibility();             // show/hide as needed
+        ProgressiveArrowsTick();
+        AnimateArrowPath();
+        UpdateArrowBaseScalesIfEnabled();
+        UpdateArrowVisibility();
 
-        // Guidance UI
-        UpdateDirections();                  // heading/next segment UI
-        UpdateTurnHints();                   // text hint: Turn left/right, Go straight
-
-        // Arrival check last so final hint shows before popup
+        UpdateDirections();
+        UpdateTurnHints();
         CheckArrivalAtDestination();
     }
 
@@ -5001,15 +5411,33 @@ var mgr = serviceArrivalManager ? serviceArrivalManager
         EnsureArrowPool();
         ClearPathArrowsIfNeeded();
         ClearFlowLine();
-        
+
         if (currentPath == null || currentPath.Count < 2) return;
 
-        const float splitY = 5f;           // floor threshold (match your other code)
-        const float flatArrowLift = 0.02f; // tiny lift for upper-floor flats
+        const float splitY = 5f;
+        const float flatArrowLift = 0.02f;
         float remaining = aheadMeters;
 
         int seg = Mathf.Clamp(startSeg, 0, currentPath.Count - 2);
         Vector3 cur = proj;
+
+        // --- NEW: skip backward stub near the corner ---
+        const float cornerSkipMeters = 0.5f; // tune 0.3–0.8m depending on your spacing
+        if (seg < currentPath.Count - 1)
+        {
+            // XZ distance to the end of the current segment (the corner)
+            Vector2 curXZ = new Vector2(cur.x, cur.z);
+            Vector3 corner3D = currentPath[seg + 1];
+            Vector2 cornerXZ = new Vector2(corner3D.x, corner3D.z);
+
+            if (Vector2.Distance(curXZ, cornerXZ) < cornerSkipMeters)
+            {
+                // Start directly on the next segment to avoid a tiny backward-looking run
+                seg = Mathf.Min(seg + 1, currentPath.Count - 2);
+                cur = currentPath[seg]; // start at the corner point for the new segment
+            }
+        }
+        // -----------------------------------------------
 
         // Local helpers
         static float Median3(float a, float b, float c)
@@ -5022,13 +5450,11 @@ var mgr = serviceArrivalManager ? serviceArrivalManager
 
         float StableGroundYForRun(Vector3 A, Vector3 B)
         {
-            // Sample start/mid/end once for the whole run
-            float y1 = GetGroundPosition(A).y;
-            float y2 = GetGroundPosition((A + B) * 0.5f).y;
-            float y3 = GetGroundPosition(B).y;
+            float y1 = GetGroundPosition(new Vector3(A.x, 0f, A.z)).y;
+            float y2 = GetGroundPosition(new Vector3((A.x + B.x) * 0.5f, 0f, (A.z + B.z) * 0.5f)).y;
+            float y3 = GetGroundPosition(new Vector3(B.x, 0f, B.z)).y;
             float candidate = Median3(y1, y2, y3);
 
-            // Sticky cache: reject big jumps, smooth small changes
             if (!_stickyGroundValid)
             {
                 _stickyGroundY = candidate;
@@ -5038,12 +5464,10 @@ var mgr = serviceArrivalManager ? serviceArrivalManager
             {
                 if (Mathf.Abs(candidate - _stickyGroundY) > stableGroundRejectJump)
                 {
-                    // treat as a glitch; keep previous sticky ground
                     candidate = _stickyGroundY;
                 }
                 else
                 {
-                    // accept and blend a bit
                     _stickyGroundY = Mathf.Lerp(_stickyGroundY, candidate, Mathf.Clamp01(stableGroundLerp));
                     candidate = _stickyGroundY;
                 }
@@ -5063,11 +5487,9 @@ var mgr = serviceArrivalManager ? serviceArrivalManager
             float step = Mathf.Max(0.05f, arrowSpacing);
             float drawLen = Mathf.Min(remaining, len);
 
-            // XZ forward for flats (use full 3D for stairs)
             Vector3 fwdXZ = ab; fwdXZ.y = 0f;
             Vector3 fwd = fwdXZ.sqrMagnitude > 1e-6f ? fwdXZ.normalized : ab.normalized;
 
-            // Compute one stable ground Y for this ground segment using sticky cache
             bool groundBand = !stairs && a.y < splitY && b.y < splitY;
             float segmentStableGroundY = 0f;
             if (groundBand)
@@ -5092,7 +5514,6 @@ var mgr = serviceArrivalManager ? serviceArrivalManager
                 }
                 else
                 {
-                    // upper-floor flat
                     sample = Vector3.Lerp(a, b, t);
                     sample.y = Mathf.Lerp(a.y, b.y, t) + flatArrowLift;
                     rot = Quaternion.LookRotation(fwd, Vector3.up);
@@ -5105,7 +5526,7 @@ var mgr = serviceArrivalManager ? serviceArrivalManager
             }
 
             remaining -= drawLen;
-            if (drawLen < len) break; // reveal window done within this segment
+            if (drawLen < len) break;
 
             cur = b;
             seg++;
@@ -5116,28 +5537,42 @@ var mgr = serviceArrivalManager ? serviceArrivalManager
 
     void ProgressiveArrowsTick()
     {
-        if (!isNavigating || !progressiveReveal || currentPath == null || currentPath.Count < 2) return;
+        if (!isNavigating || !progressiveReveal || currentPath == null || currentPath.Count < 2)
+            return;
+
+        Vector3 player = GetVisualAnchorPose();
 
         Vector3 proj;
-        int seg = FindClosestSegmentAndProjection(GetCurrentPosition(), out proj);
+        int seg = GetStableProjectionMonotonic(player, out proj);
+
+        if (seg < 0)
+        {
+            if (_segLenXZ.Count != (currentPath?.Count ?? 0) - 1)
+                RebuildPathMetrics();
+
+            seg = GetStableProjectionMonotonic(player, out proj);
+            if (seg < 0)
+                seg = FindClosestSegmentAndProjection(player, out proj);
+        }
         if (seg < 0) return;
 
         float mpu = Mathf.Max(0.0001f, metersPerUnit);
-        float movedMeters = Vector3.Distance(new Vector3(proj.x, 0, proj.z), new Vector3(_lastProjPos.x, 0, _lastProjPos.z)) * mpu;
+        float movedMeters = Vector3.Distance(new Vector3(proj.x, 0, proj.z),
+                                             new Vector3(_lastProjPos.x, 0, _lastProjPos.z)) * mpu;
 
-        if (seg != _lastProjSeg || movedMeters >= redrawMoveThresholdMeters)
+        if (_lastProjSeg != seg || movedMeters >= redrawMoveThresholdMeters)
         {
-            // Reset ground Y cache for this new reveal window
             _haveStableGroundY = false;
-
-            CreateProgressiveArrowsFromProjection(seg, proj, revealAheadMeters);
-            SetArrowsActive(true);
+            if (!hudOnly)
+            {
+                CreateProgressiveArrowsFromProjection(seg, proj, Mathf.Max(0.5f, revealAheadMeters));
+                SetArrowsActive(true);
+            }
             _lastProjSeg = seg;
             _lastProjPos = proj;
         }
     }
-    
-    
+
     int FindClosestSegmentAndProjection(Vector3 p, out Vector3 proj)
     {
         proj = p;
@@ -5202,6 +5637,8 @@ var mgr = serviceArrivalManager ? serviceArrivalManager
 
         return bestIdx;
     }
+    
+    
     int FindNearestPathIndex(Vector3 p)
     {
         if (currentPath == null || currentPath.Count == 0) return -1;
@@ -5405,8 +5842,8 @@ var mgr = serviceArrivalManager ? serviceArrivalManager
         // Find your nav visuals root once
         var navRootGO = GameObject.Find("NavigationVisuals");
         Transform navRoot = navRootGO ? navRootGO.transform : null;
-    
-const float splitY = 5f; // unify threshold
+
+        const float splitY = 5f; // unify threshold
 
         foreach (var r in renderers)
         {
@@ -5624,23 +6061,23 @@ const float splitY = 5f; // unify threshold
     }
 
     NavigationWaypoint GetNearestWaypoint()
-{
-    var all = GetAllRuntimeWaypoints();
-    NavigationWaypoint nearest = null;
-    float minDist = Mathf.Infinity;
-    Vector3 playerPos = GetCurrentPosition();
-
-    foreach (var wp in all)
     {
-        float d = Vector3.Distance(playerPos, wp.transform.position);
-        if (d < minDist)
+        var all = GetAllRuntimeWaypoints();
+        NavigationWaypoint nearest = null;
+        float minDist = Mathf.Infinity;
+        Vector3 playerPos = GetCurrentPosition();
+
+        foreach (var wp in all)
         {
-            minDist = d;
-            nearest = wp;
+            float d = Vector3.Distance(playerPos, wp.transform.position);
+            if (d < minDist)
+            {
+                minDist = d;
+                nearest = wp;
+            }
         }
+        return nearest;
     }
-    return nearest;
-}
 
     [ContextMenu("Debug WorldRoot Transform")]
     void DebugWorldRootTransform()
@@ -6447,6 +6884,17 @@ const float splitY = 5f; // unify threshold
         {
             Debug.LogError("❌ Could not find Manila Health Department waypoint!");
         }
+    }
+
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    private void LogRouteSnapshot(string tag, Vector3 pathStartOrigin, Vector3 goalPos, NavigationWaypoint startNode, NavigationWaypoint goalNode)
+    {
+        var cam = GetVisualAnchorPose();
+        float camToStart = Vector3.Distance(cam, pathStartOrigin);
+        float startToGoal = Vector3.Distance(pathStartOrigin, goalPos);
+        string s = startNode ? startNode.name : "null";
+        string g = goalNode ? goalNode.name : "null";
+        Debug.Log($"[ROUTE {tag}] cam={cam:F2}, start={pathStartOrigin:F2} (cam→start={camToStart:F2}m), goal={goalPos:F2} (start→goal={startToGoal:F2}m), startNode={s}, goalNode={g}, sameNode={(startNode && goalNode ? (startNode == goalNode) : false)}");
     }
 
     [ContextMenu("Debug Dropdown Mapping")]

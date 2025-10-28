@@ -56,7 +56,8 @@ public class ManilaServeUI : MonoBehaviour
 
     [Header("Manual Office Selection")]
     public TMP_Dropdown currentOfficeDropdown;   // Dropdown for manual selection
-    private string selectedCurrentOffice = "";   // Selected office name
+    [HideInInspector] public string CentralCurrentOffice = ""; // Holds the selected start office (Manual or Auto-Detected)
+    private string selectedCurrentOffice = "";   
 
     private bool useAutoDetection = true;        // Which mode is active
 
@@ -72,7 +73,8 @@ public class ManilaServeUI : MonoBehaviour
     public TextMeshProUGUI navigationStatusText;
 
     SmartNavigationSystem navigationSystem;
-    string selectedOffice = "";
+    private string selectedOffice = "";         
+    [HideInInspector] public string CentralTargetOffice = "";  // Holds the selected destination office
     bool isNavigationActive = false;
 
     private Dictionary<string, GameObject> officeLookup = new Dictionary<string, GameObject>();
@@ -979,10 +981,12 @@ public class ManilaServeUI : MonoBehaviour
         // Persist selection (if other UI depends on it)
         selectedOffice = selectedText;
 
-        // --- FIX 1: Manually set the destination dropdown caption ---
+        // --- FIX 1: Manually set the destination dropdown caption and update central state ---
+        CentralTargetOffice = selectedOffice; // Update central state for synchronization
         if (officeDropdown.captionText)
         {
-            officeDropdown.captionText.text = selectedOffice;
+            // Set the caption text to the clean, selected value
+            officeDropdown.captionText.text = StripRichText(selectedOffice).Trim();
         }
         // ------------------------------------------------------------
 
@@ -1008,6 +1012,7 @@ public class ManilaServeUI : MonoBehaviour
     {
         if (suppressCurrentSelection || !currentOfficeDropdown) return;
 
+        // Get the raw text of the selected option
         var raw = currentOfficeDropdown.options[index].text;
         var label = StripRichText(raw).Trim();
 
@@ -1024,23 +1029,25 @@ public class ManilaServeUI : MonoBehaviour
 
         // Accept selection
         lastValidCurrentIndex = index;
-        selectedCurrentOffice = label;
-        Debug.Log($"[CurrentOffice] Selected: {selectedCurrentOffice}");
+
+        // --- FIX 1: Write to central state and synchronize selectedCurrentOffice ---
+        CentralCurrentOffice = label;
+        selectedCurrentOffice = label; // Keep this legacy variable updated
+        // -------------------------------------------------------------------------
 
         if (navigationSystem)
         {
-            navigationSystem.currentUserOffice = selectedCurrentOffice;
+            navigationSystem.currentUserOffice = CentralCurrentOffice;
             navigationSystem.useOfficeAsStart = true;
         }
 
-        // --- FIX 2: Refresh the Destination Dropdown immediately ---
+        // Refresh the Destination Dropdown (Mutual Exclusion)
         PopulateOfficeDropdown();
-        // ------------------------------------------------------------
 
-        // --- FIX 3: Manually set the dropdown caption to show the selected text ---
+        // --- FIX 2: Manually set the dropdown caption to show the selected text ---
         if (currentOfficeDropdown.captionText)
         {
-            currentOfficeDropdown.captionText.text = selectedCurrentOffice;
+            currentOfficeDropdown.captionText.text = CentralCurrentOffice;
         }
         // --------------------------------------------------------------------------
 
@@ -2237,17 +2244,27 @@ public class ManilaServeUI : MonoBehaviour
         UpdateNavigationUI();
     }
 
+    // Inside ManilaServeUI class (Based on the final coroutine structure)
+
     IEnumerator StartManualRoute(string startOffice, string destOffice)
     {
+        // Clean session (don’t clear override)
         navigationSystem.StopNavigation(clearOfficeOverride: false);
 
+        // 1. Temporarily set the override ON for calculation
         var mappedStart = MapToWaypointName(startOffice);
         navigationSystem.currentUserOffice = mappedStart;
-
         navigationSystem.useOfficeAsStart = true;
 
+        // --- CRITICAL FIX: Ensure Synchronous Calculation and Immediate Reset ---
+
+        // 2. Calculate the route synchronously. Pathfinding uses the static Waypoint.
         navigationSystem.StartNavigationFromCurrentLocation(destOffice);
+
+        // 3. AGGRESSIVE RESET: The path is calculated. Forcefully clear the flags now.
         navigationSystem.useOfficeAsStart = false;
+        navigationSystem.currentUserOffice = ""; // Clear the specific Waypoint name from memory
+                                                 // -------------------------------------------------------------------------
 
         ShowSearchFeedback($"Navigating from {startOffice} to {destOffice}", Color.green);
 
@@ -2256,9 +2273,9 @@ public class ManilaServeUI : MonoBehaviour
         isNavigationActive = true;
         UpdateNavigationUI();
 
+        // Final yield return null must be present to complete the coroutine gracefully.
         yield return null;
     }
-
 
     string MapToWaypointName(string officeName)
     {
