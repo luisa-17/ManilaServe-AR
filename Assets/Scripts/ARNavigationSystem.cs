@@ -116,7 +116,11 @@ public class SmartNavigationSystem : MonoBehaviour
     [Range(0.3f, 3f)] public float turnPassDistance = 0.7f;
 
     [Header("Turn Hints UI")]
-    public GameObject turnPanel;                 // optional: panel to toggle visibility
+    public GameObject turnPanel;
+    public GameObject turnIconUturn;
+    public GameObject turnIconLeft;
+    public GameObject turnIconRight;
+    public GameObject turnIconStraight;
 
     [Header("Turn Hints Settings")]
     public bool useCompassHeading = true;        // use HeadingService on device; editor falls back to camera yaw
@@ -3690,15 +3694,15 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         hudOnly = false;                                   // enter world mode
 
         // Place/rotate the world (worldRoot will be a child of the AR anchor set by the AR script)
-        worldRoot.position = pos;                          // <- fixed: use pos (method parameter)
+        worldRoot.position = pos;                         
         float camYaw = arCamera ? arCamera.transform.eulerAngles.y : 0f;
         worldRoot.rotation = Quaternion.Euler(0f, camYaw, 0f);
 
         // Ensure contentAnchor is parented to the anchored world
         contentAnchor.SetParent(worldRoot, false);
 
-        // --- NEW: ensure PathRoot exists and parent it under contentAnchor so arrows follow the anchor ---
-        EnsurePathRoot(); // creates pathRoot if missing
+        // ensure PathRoot exists and parent it under contentAnchor so arrows follow the anchor ---
+        EnsurePathRoot(); 
         if (pathRoot != null)
         {
             pathRoot.SetParent(contentAnchor, false);
@@ -3712,7 +3716,6 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         EnsureFloorProxy();
         if (floorProxy)
         {
-            // Make sure the proxy remains childed to the worldRoot (so grounding stays correct)
             floorProxy.SetParent(worldRoot, false);
             floorProxy.localPosition = Vector3.zero;
 
@@ -3726,12 +3729,11 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         onComplete?.Invoke();
     }
 
-    // Add this anywhere in SmartNavigationSystem class
     public void PlaceWorld(Vector3 pos, Quaternion rot)
     {
-        // call the new API with no callback
         PlaceWorld(pos, rot, null);
     }
+
 
     List<NavigationWaypoint> AStarPathfinding(NavigationWaypoint start, NavigationWaypoint goal)
     {
@@ -5095,7 +5097,13 @@ var mgr = serviceArrivalManager ? serviceArrivalManager
         Debug.Log("=== Navigation started successfully ===");
     }
 
-
+    void SetAllTurnIconsInactive()
+    {
+        if (turnIconUturn) turnIconUturn.SetActive(false);
+        if (turnIconLeft) turnIconLeft.SetActive(false);
+        if (turnIconRight) turnIconRight.SetActive(false);
+        if (turnIconStraight) turnIconStraight.SetActive(false);
+    }
 
     // Return a usable user position (prefers lastPlayerPosition if available, otherwise camera)
     public Vector3 GetUserPosition()
@@ -5291,7 +5299,7 @@ var mgr = serviceArrivalManager ? serviceArrivalManager
                     : currentDestinationWaypoint.name);
         }
         if (headingToText)
-            headingToText.text = string.IsNullOrEmpty(destName) ? "" : $"<< Heading to {destName} >>";
+            headingToText.text = string.IsNullOrEmpty(destName) ? "" : $"Heading to {destName}";
 
         Vector3 camWorld = GetCurrentPosition();
         Vector3 camFlat = new Vector3(camWorld.x, 0f, camWorld.z);
@@ -5341,34 +5349,49 @@ var mgr = serviceArrivalManager ? serviceArrivalManager
         _angleSmoothedDeg = Mathf.LerpAngle(_angleSmoothedDeg, signedAngle, k);
         float absA = Mathf.Abs(_angleSmoothedDeg);
 
-        // Instruction (MODIFIED for better accuracy and granularity)
+        // --- ICON CONTROL: Reset all icons before determining the new instruction ---
+        SetAllTurnIconsInactive();
+        // --------------------------------------------------------------------------
+
+        // Instruction determination (using calculated angles)
         string instruction;
+        bool isLeft = _angleSmoothedDeg < 0;
+        bool isRight = _angleSmoothedDeg > 0;
+
         // 0-15 degrees (straightTolerance): Go straight
         if (absA <= straightTolerance)
         {
             instruction = hasTurns ? "Go straight" : "Proceed to destination";
+            if (turnIconStraight) turnIconStraight.SetActive(true); // Show straight icon
         }
         // 15-45 degrees (slightTolerance): Slight turn
         else if (absA <= slightTolerance)
         {
-            instruction = _angleSmoothedDeg > 0 ? "Slight right" : "Slight left";
+            instruction = isLeft ? "Slight left" : "Slight right";
+            // Often, slight left/right uses the main turn icons for simplicity
+            if (turnIconLeft && isLeft) turnIconLeft.SetActive(true);
+            if (turnIconRight && isRight) turnIconRight.SetActive(true);
         }
         // 45-90 degrees: Turn (clear instruction)
         else if (absA <= 90f)
         {
-            instruction = _angleSmoothedDeg > 0 ? "Turn right" : "Turn left";
+            instruction = isLeft ? "Turn left" : "Turn right";
+            if (turnIconLeft && isLeft) turnIconLeft.SetActive(true);
+            if (turnIconRight && isRight) turnIconRight.SetActive(true);
         }
         // 90-150 degrees: Sharp turn (enhanced granularity)
         else if (absA <= 150f)
         {
-            instruction = _angleSmoothedDeg > 0 ? "Turn sharp right" : "Turn sharp left";
+            instruction = isLeft ? "Turn sharp left" : "Turn sharp right";
+            if (turnIconLeft && isLeft) turnIconLeft.SetActive(true);
+            if (turnIconRight && isRight) turnIconRight.SetActive(true);
         }
         // Over 150 degrees: U-turn
         else
         {
             instruction = "Make a U-turn";
+            if (turnIconUturn) turnIconUturn.SetActive(true);
         }
-
         // ----- Distance (along path with calibration) -----
         int targetIndex = -1;
         if (currentPath != null && currentPath.Count > 0)

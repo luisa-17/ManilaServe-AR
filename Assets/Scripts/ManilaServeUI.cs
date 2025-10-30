@@ -57,7 +57,7 @@ public class ManilaServeUI : MonoBehaviour
     [Header("Manual Office Selection")]
     public TMP_Dropdown currentOfficeDropdown;   // Dropdown for manual selection
     [HideInInspector] public string CentralCurrentOffice = ""; // Holds the selected start office (Manual or Auto-Detected)
-    private string selectedCurrentOffice = "";   
+    private string selectedCurrentOffice = "";
 
     private bool useAutoDetection = true;        // Which mode is active
 
@@ -73,7 +73,7 @@ public class ManilaServeUI : MonoBehaviour
     public TextMeshProUGUI navigationStatusText;
 
     SmartNavigationSystem navigationSystem;
-    private string selectedOffice = "";         
+    private string selectedOffice = "";
     [HideInInspector] public string CentralTargetOffice = "";  // Holds the selected destination office
     bool isNavigationActive = false;
 

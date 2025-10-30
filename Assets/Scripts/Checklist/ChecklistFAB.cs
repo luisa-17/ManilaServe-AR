@@ -35,7 +35,6 @@ public class ChecklistFAB : MonoBehaviour
         AutoWire();
         HideImmediate();
         if (button) button.onClick.AddListener(OnClick);
-        ApplySafeArea();
     }
 
     void Start() => Show();
@@ -51,14 +50,6 @@ public class ChecklistFAB : MonoBehaviour
         rt = GetComponent<RectTransform>();
     }
 
-    void ApplySafeArea()
-    {
-        if (rt == null) return;
-        rt.anchorMin = new Vector2(1, 0);
-        rt.anchorMax = new Vector2(1, 0);
-        rt.pivot = new Vector2(1, 0);
-        rt.anchoredPosition = new Vector2(-safeAreaOffset.x, safeAreaOffset.y);
-    }
 
     public void Show() { StopAllCoroutines(); StartCoroutine(FadeTo(1f, showDuration)); }
     public void Hide() { StopAllCoroutines(); StartCoroutine(FadeTo(0f, hideDuration)); }
