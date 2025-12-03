@@ -148,9 +148,10 @@ public class ManilaServeUI : MonoBehaviour
     [Header("Office Info Popup")]
     public GameObject officeInfoPopup;
     public TextMeshProUGUI popupOfficeTitleText;
-    public TextMeshProUGUI popupRoomNumberText;  // Change from popupRoomInfo
-    public TextMeshProUGUI popupDirectoryText;    // Change from popupDirectoryInfo
-    public TextMeshProUGUI popupServicesText;     // Change from popupServicesInfo
+    public TextMeshProUGUI popupRoomNumberText;
+    public TextMeshProUGUI popupDirectoryText;
+    public TextMeshProUGUI popupPhoneText; 
+    public TextMeshProUGUI popupServicesText;
     public Button popupNavigateButton;
     public Button popupCloseButton;
 
@@ -604,7 +605,7 @@ public class ManilaServeUI : MonoBehaviour
 
         if (useSpecificOfficeToggle && useSpecificOfficeToggle.isOn)
         {
-            // 1. MANUAL MODE: Exclude the office selected in the 'Select Current Office' dropdown.
+            // MANUAL MODE: Exclude the office selected in the 'Select Current Office' dropdown
             officeToExclude = selectedCurrentOffice;
             if (string.IsNullOrEmpty(officeToExclude) && currentOfficeDropdown && currentOfficeDropdown.captionText)
             {
@@ -613,20 +614,17 @@ public class ManilaServeUI : MonoBehaviour
         }
         else // useCurrentLocationToggle is ON (Auto-Detect Mode)
         {
-            // 2. AUTO-DETECT MODE: Exclude the office detected by the system.
+            // AUTO-DETECT MODE: Exclude the office detected by the system
             if (autoDetectedLocationLabel && autoDetectedLocationLabel.gameObject.activeInHierarchy && !string.IsNullOrEmpty(autoDetectedLocationLabel.text))
             {
                 string label = StripRichText(autoDetectedLocationLabel.text);
 
                 if (label.StartsWith("📍 Near:"))
                 {
-                    // CRITICAL FIX: Use simple Replace and Trim to extract the name
                     officeToExclude = label.Replace("📍 Near:", "").Trim();
                 }
                 else if (label.Contains("Entrance"))
                 {
-                    // Handle Entrance exclusion as well (e.g., City Hall Entrance)
-                    // This assumes the name is after the separator '—'
                     int separatorIndex = label.IndexOf("—");
                     if (separatorIndex >= 0)
                     {
@@ -634,7 +632,7 @@ public class ManilaServeUI : MonoBehaviour
                     }
                     else
                     {
-                        officeToExclude = entranceDisplayName; // Use the fixed fallback name
+                        officeToExclude = entranceDisplayName;
                     }
                 }
             }
@@ -642,6 +640,7 @@ public class ManilaServeUI : MonoBehaviour
 
         // Normalize the exclusion name for robust matching
         string normalizedExclude = Normalize(officeToExclude);
+
         // -------------------------------------------------------------
 
         List<string> ground = new List<string>();
@@ -652,12 +651,11 @@ public class ManilaServeUI : MonoBehaviour
         {
             if (!string.IsNullOrEmpty(filter) && !Normalize(officeName).Contains(filter)) continue;
 
-            // --- FIX 2: Exclude the identified office from the destination list ---
+            // Exclude the identified office
             if (!string.IsNullOrEmpty(officeToExclude) && Normalize(officeName) == normalizedExclude)
             {
-                continue; // Skip this office
+                continue;
             }
-            // ----------------------------------------------------------------------
 
             string floor = GetOfficeFloorLabel(officeName);
             if (currentFloorOnly && floor != currentFloor) continue;
@@ -667,7 +665,7 @@ public class ManilaServeUI : MonoBehaviour
             else unknown.Add(officeName);
         }
 
-        // Build options
+        // Build dropdown options (no headers)
         officeDropdown.ClearOptions();
         nonSelectableIndices.Clear();
 
@@ -675,15 +673,9 @@ public class ManilaServeUI : MonoBehaviour
         options.Add(new TMP_Dropdown.OptionData("Select an Office"));
 
         int idx = 1;
-        void AddSection(string header, List<string> items)
+        void AddSection(List<string> items)
         {
             if (items.Count == 0) return;
-
-            // Centered header; mark as non-selectable
-            options.Add(new TMP_Dropdown.OptionData($"<align=center><b>— {header} —</b></align>"));
-            nonSelectableIndices.Add(idx);
-            idx++;
-
             foreach (var name in items)
             {
                 options.Add(new TMP_Dropdown.OptionData(name));
@@ -691,9 +683,9 @@ public class ManilaServeUI : MonoBehaviour
             }
         }
 
-        AddSection("Ground Floor", ground);
-        AddSection("Second Floor", second);
-        AddSection("Unknown Floor", unknown);
+        AddSection(ground);
+        AddSection(second);
+        AddSection(unknown);
 
         if (options.Count == 1)
         {
@@ -710,23 +702,24 @@ public class ManilaServeUI : MonoBehaviour
 
         // Enable only if there’s at least one real office
         officeDropdown.interactable = options.Count > 1 &&
-                                      !StripRichText(options.Last().text).StartsWith("No offices"); // Use Last() for safety
+                                      !StripRichText(options.Last().text).StartsWith("No offices");
 
-        // Wire handler (guard headers)
+        // Wire handler
         officeDropdown.onValueChanged.RemoveListener(OnOfficeDropdownChanged);
         officeDropdown.onValueChanged.AddListener(OnOfficeDropdownChanged);
 
-        // Style caption + template so runtime rows inherit correct font/size/colors
+        // Style dropdown
         CustomizeDropdownAppearance();
 
-        // Cache for search; use original names (not the filtered lists)
+        // Cache for search
         cachedOfficeNames = new List<string>(officeNames);
 
-        // Also refresh current office dropdown
+        // Refresh current office dropdown
         PopulateCurrentOfficeDropdown();
 
         Debug.Log($"=== PopulateOfficeDropdown COMPLETE: {ground.Count} ground, {second.Count} second, {unknown.Count} unknown ===");
     }
+
 
     private bool suppressSelection = false;
 
@@ -788,7 +781,7 @@ public class ManilaServeUI : MonoBehaviour
             else unknown.Add(n);
         }
 
-        // Build options
+        // Build options (no headers)
         currentOfficeDropdown.ClearOptions();
         currentHeaderIndices.Clear();
 
@@ -796,18 +789,19 @@ public class ManilaServeUI : MonoBehaviour
         options.Add(new TMP_Dropdown.OptionData("Select Current Office"));
 
         int idx = 1;
-        void AddSection(string header, List<string> list)
+        void AddSection(List<string> list)
         {
             if (list.Count == 0) return;
-            options.Add(new TMP_Dropdown.OptionData($"<align=center><b>— {header} —</b></align>"));
-            currentHeaderIndices.Add(idx); // mark header index
-            idx++;
-            foreach (var n in list) { options.Add(new TMP_Dropdown.OptionData(n)); idx++; }
+            foreach (var n in list)
+            {
+                options.Add(new TMP_Dropdown.OptionData(n));
+                idx++;
+            }
         }
 
-        AddSection("Ground Floor", ground);
-        AddSection("Second Floor", second);
-        AddSection("Unknown Floor", unknown);
+        AddSection(ground);
+        AddSection(second);
+        AddSection(unknown);
 
         if (options.Count == 1)
         {
@@ -834,6 +828,7 @@ public class ManilaServeUI : MonoBehaviour
         CustomizeDropdownAppearance();
     }
 
+
     List<TMP_Dropdown.OptionData> BuildOptionsByFloor(IEnumerable<string> names, HashSet<int> headerIndices, string prompt)
     {
         var options = new List<TMP_Dropdown.OptionData>();
@@ -842,6 +837,7 @@ public class ManilaServeUI : MonoBehaviour
         var ground = new List<string>();
         var second = new List<string>();
         var unknown = new List<string>();
+
         foreach (var n in names)
         {
             var f = GetOfficeFloorLabel(n); // your existing method
@@ -851,25 +847,30 @@ public class ManilaServeUI : MonoBehaviour
         }
 
         int idx = 1;
-        void AddSection(string header, List<string> list)
+        void AddSection(List<string> list)
         {
             if (list.Count == 0) return;
-            options.Add(new TMP_Dropdown.OptionData($"<align=center><b>— {header} —</b></align>"));
-            headerIndices.Add(idx); idx++;
-            foreach (var n in list) { options.Add(new TMP_Dropdown.OptionData(n)); idx++; }
+            foreach (var n in list)
+            {
+                options.Add(new TMP_Dropdown.OptionData(n));
+                idx++;
+            }
         }
 
-        AddSection("Ground Floor", ground);
-        AddSection("Second Floor", second);
-        AddSection("Unknown Floor", unknown);
+        // Add only the items, no headers
+        AddSection(ground);
+        AddSection(second);
+        AddSection(unknown);
 
         if (options.Count == 1)
         {
             options.Add(new TMP_Dropdown.OptionData("No offices found"));
             headerIndices.Add(1);
         }
+
         return options;
     }
+
 
     void SetupDropdown(TMP_Dropdown dd, List<TMP_Dropdown.OptionData> options, UnityAction<int> onChanged, out int lastValidIndex)
     {
@@ -2103,12 +2104,10 @@ public class ManilaServeUI : MonoBehaviour
         if (firebaseOffice != null)
         {
             Debug.Log($"✓ Using Firebase data for: {firebaseOffice.OfficeName}");
-
             if (popupOfficeTitleText) popupOfficeTitleText.text = firebaseOffice.OfficeName;
-
             if (popupRoomNumberText) popupRoomNumberText.text = $"Location: {firebaseOffice.Location}";
-
-            if (popupDirectoryText) popupDirectoryText.text = $"Head: {firebaseOffice.Head}\nPhone: {firebaseOffice.Phone}";
+            if (popupDirectoryText) popupDirectoryText.text = $"Head: {firebaseOffice.Head}";
+            if (popupPhoneText) popupPhoneText.text = $"Phone: {firebaseOffice.Phone}"; 
 
             if (popupServicesText)
             {
@@ -2126,12 +2125,11 @@ public class ManilaServeUI : MonoBehaviour
         else
         {
             Debug.LogWarning($"✗ No Firebase data found for: '{officeName}'");
-            // --- START FALLBACK FIX ---
             if (popupOfficeTitleText) popupOfficeTitleText.text = officeName;
             if (popupRoomNumberText) popupRoomNumberText.text = "Location: Not available";
-            if (popupDirectoryText) popupDirectoryText.text = "Contact info not available";
+            if (popupDirectoryText) popupDirectoryText.text = "Head: Not available";
+            if (popupPhoneText) popupPhoneText.text = "Phone: Not available";
             if (popupServicesText) popupServicesText.text = "Services: Not available";
-            // --- END FALLBACK FIX ---
         }
 
         // Setup buttons

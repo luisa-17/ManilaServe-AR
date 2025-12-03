@@ -1,0 +1,3644 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#8B5A2B" />
+    <title>ManilaServe Admin</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/images/manilaserve-logo.png">
+    
+    <!-- Poppins Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* ============================================
+           CSS CUSTOM PROPERTIES
+           ============================================ */
+        :root {
+            /* Brand Colors */
+            --brand-50: #FDF8F3;
+            --brand-100: #F5E6D8;
+            --brand-200: #E8CDB5;
+            --brand-300: #D4A574;
+            --brand-400: #C4915A;
+            --brand-500: #8B5A2B;
+            --brand-600: #704A23;
+            --brand-700: #5C3D1D;
+
+            /* Status Colors */
+            --success-500: #22C55E;
+            --success-600: #16A34A;
+            --warning-500: #F59E0B;
+            --warning-600: #D97706;
+            --danger-500: #EF4444;
+            --danger-600: #DC2626;
+            --info-500: #3B82F6;
+            --info-600: #2563EB;
+
+            /* Dark Theme (Default) */
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #141414;
+            --bg-tertiary: #1c1c1c;
+            --bg-elevated: #262626;
+            
+            --text-primary: #fafafa;
+            --text-secondary: #a3a3a3;
+            --text-muted: #737373;
+            --text-disabled: #525252;
+            
+            --border-primary: #262626;
+            --border-secondary: #404040;
+            
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.4);
+            --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.5);
+
+            /* Spacing */
+            --space-1: 4px;
+            --space-2: 8px;
+            --space-3: 12px;
+            --space-4: 16px;
+            --space-5: 20px;
+            --space-6: 24px;
+            --space-8: 32px;
+            --space-10: 40px;
+            --space-12: 48px;
+
+            /* Border Radius */
+            --radius-sm: 4px;
+            --radius-md: 6px;
+            --radius-lg: 8px;
+            --radius-xl: 12px;
+            --radius-2xl: 16px;
+            --radius-full: 9999px;
+
+            /* Typography */
+            --font-sans: 'Poppins', system-ui, -apple-system, sans-serif;
+            --font-mono: 'SF Mono', 'Fira Code', monospace;
+        }
+
+        /* Light Theme */
+        [data-theme="light"] {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #fafafa;
+            --bg-elevated: #ffffff;
+            
+            --text-primary: #171717;
+            --text-secondary: #525252;
+            --text-muted: #737373;
+            --text-disabled: #a3a3a3;
+            
+            --border-primary: #e5e5e5;
+            --border-secondary: #d4d4d4;
+            
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
+            --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.1);
+        }
+
+        /* ============================================
+           RESET & BASE
+           ============================================ */
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            font-size: 16px;
+            -webkit-text-size-adjust: 100%;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--text-primary);
+            background: var(--bg-primary);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .hidden { display: none !important; }
+
+        /* ============================================
+           LOGIN SCREEN
+           ============================================ */
+        .login-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: var(--space-4);
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+        }
+
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-2xl);
+            padding: var(--space-8);
+            box-shadow: var(--shadow-xl);
+        }
+
+        @media (max-width: 480px) {
+            .login-card {
+                padding: var(--space-6);
+                margin: var(--space-4);
+            }
+        }
+
+        .login-logo {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto var(--space-4);
+            background: linear-gradient(135deg, var(--brand-500), var(--brand-400));
+            border-radius: var(--radius-xl);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-logo i {
+            color: white;
+            width: 32px;
+            height: 32px;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: var(--space-8);
+        }
+
+        .login-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: var(--space-1);
+        }
+
+        .login-subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        /* ============================================
+           FORM ELEMENTS
+           ============================================ */
+        .form-group {
+            margin-bottom: var(--space-5);
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: var(--space-2);
+        }
+
+        .form-input {
+            width: 100%;
+            height: 44px;
+            padding: 0 var(--space-4);
+            font-family: inherit;
+            font-size: 14px;
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-lg);
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            border-color: var(--brand-500);
+            box-shadow: 0 0 0 3px rgba(139, 90, 43, 0.15);
+        }
+
+        .form-input[readonly] {
+            background: var(--bg-elevated);
+            color: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        .form-input::placeholder {
+            color: var(--text-disabled);
+        }
+
+        /* ============================================
+           BUTTONS
+           ============================================ */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-2);
+            height: 40px;
+            padding: 0 var(--space-4);
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-lg);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: var(--bg-elevated);
+            border-color: var(--border-secondary);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn i {
+            width: 16px;
+            height: 16px;
+        }
+
+        .btn-primary {
+            color: white;
+            background: linear-gradient(135deg, var(--brand-500), var(--brand-600));
+            border-color: var(--brand-600);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: linear-gradient(135deg, var(--brand-600), var(--brand-700));
+        }
+
+        .btn-danger {
+            color: white;
+            background: var(--danger-500);
+            border-color: var(--danger-600);
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: var(--danger-600);
+        }
+
+        .btn-info {
+            color: white;
+            background: var(--info-500);
+            border-color: var(--info-600);
+        }
+
+        .btn-info:hover:not(:disabled) {
+            background: var(--info-600);
+        }
+
+        .btn-sm {
+            height: 32px;
+            padding: 0 var(--space-3);
+            font-size: 12px;
+        }
+
+        .btn-sm i {
+            width: 14px;
+            height: 14px;
+        }
+
+        .btn-lg {
+            height: 48px;
+            padding: 0 var(--space-6);
+            font-size: 15px;
+        }
+
+        .btn-icon {
+            width: 40px;
+            padding: 0;
+        }
+
+        .btn-icon.btn-sm {
+            width: 32px;
+        }
+
+        .btn-block {
+            width: 100%;
+        }
+
+        /* ============================================
+           ALERTS
+           ============================================ */
+        .alert {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            padding: var(--space-3) var(--space-4);
+            border-radius: var(--radius-lg);
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: var(--space-4);
+        }
+
+        .alert i {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+
+        .alert-error {
+            color: #fca5a5;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .alert-success {
+            color: #86efac;
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+
+        [data-theme="light"] .alert-error {
+            color: #dc2626;
+        }
+
+        [data-theme="light"] .alert-success {
+            color: #16a34a;
+        }
+
+        /* ============================================
+           APP LAYOUT
+           ============================================ */
+        .app-container {
+            display: none;
+        }
+
+        .app-wrapper {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: var(--space-6);
+        }
+
+        @media (max-width: 768px) {
+            .app-wrapper {
+                padding: var(--space-4);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .app-wrapper {
+                padding: var(--space-3);
+            }
+        }
+
+        /* ============================================
+           HEADER
+           ============================================ */
+        .header {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-xl);
+            padding: var(--space-4) var(--space-6);
+            margin-bottom: var(--space-6);
+            box-shadow: var(--shadow-sm);
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                padding: var(--space-4);
+                margin-bottom: var(--space-4);
+            }
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-4);
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+        }
+
+        .header-logo {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--brand-500), var(--brand-400));
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .header-logo i {
+            color: white;
+            width: 20px;
+            height: 20px;
+        }
+
+        .header-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .header-subtitle {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        @media (max-width: 480px) {
+            .header-subtitle {
+                display: none;
+            }
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+
+        /* Connection Status */
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            height: 32px;
+            padding: 0 var(--space-3);
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: var(--radius-full);
+        }
+
+        .status-badge .status-text {
+            display: inline;
+        }
+
+        @media (max-width: 640px) {
+            .status-badge .status-text {
+                display: none;
+            }
+            .status-badge {
+                padding: 0 var(--space-2);
+                width: 32px;
+                justify-content: center;
+            }
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            flex-shrink: 0;
+        }
+
+        .status-connected {
+            color: var(--success-500);
+            background: rgba(34, 197, 94, 0.1);
+        }
+
+        .status-connected .status-dot {
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .status-disconnected {
+            color: var(--danger-500);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .status-loading {
+            color: var(--warning-500);
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-lg);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .theme-toggle:hover {
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+        }
+
+        .theme-toggle i {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* ============================================
+           NAVIGATION
+           ============================================ */
+        .nav-tabs {
+            display: flex;
+            gap: var(--space-1);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-xl);
+            padding: var(--space-1);
+            margin-bottom: var(--space-6);
+        }
+
+        @media (max-width: 768px) {
+            .nav-tabs {
+                margin-bottom: var(--space-4);
+            }
+        }
+
+        .nav-tab {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-2);
+            height: 44px;
+            padding: 0 var(--space-4);
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-muted);
+            background: transparent;
+            border: none;
+            border-radius: var(--radius-lg);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .nav-tab i {
+            width: 18px;
+            height: 18px;
+        }
+
+        .nav-tab:hover {
+            color: var(--text-secondary);
+            background: var(--bg-tertiary);
+        }
+
+        .nav-tab.active {
+            color: white;
+            background: linear-gradient(135deg, var(--brand-500), var(--brand-600));
+            box-shadow: var(--shadow-sm);
+        }
+
+        @media (max-width: 640px) {
+            .nav-tab {
+                padding: 0 var(--space-2);
+            }
+            .nav-tab span {
+                display: none;
+            }
+        }
+
+        /* ============================================
+           SECTIONS
+           ============================================ */
+        .section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-xl);
+            padding: var(--space-6);
+            margin-bottom: var(--space-6);
+            box-shadow: var(--shadow-sm);
+        }
+
+        @media (max-width: 768px) {
+            .section {
+                padding: var(--space-4);
+                margin-bottom: var(--space-4);
+            }
+        }
+
+        .section-header {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-4);
+            margin-bottom: var(--space-6);
+        }
+
+        @media (min-width: 768px) {
+            .section-header {
+                flex-direction: row;
+                align-items: flex-start;
+                justify-content: space-between;
+            }
+        }
+
+        .section-title-group {
+            flex: 1;
+        }
+
+        .section-eyebrow {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--brand-400);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: var(--space-1);
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .section-description {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: var(--space-1);
+        }
+
+        .section-actions {
+            display: flex;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+        }
+
+        /* ============================================
+           STATS GRID
+           ============================================ */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--space-4);
+            margin-bottom: var(--space-6);
+        }
+
+        @media (max-width: 1024px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+                gap: var(--space-3);
+            }
+        }
+
+        .stat-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-xl);
+            padding: var(--space-5);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 4px;
+            height: 100%;
+            background: linear-gradient(180deg, var(--brand-400), var(--brand-600));
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .stat-card.pulse {
+            animation: card-pulse 0.5s ease;
+        }
+
+        @keyframes card-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--bg-elevated);
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: var(--space-3);
+            color: var(--brand-400);
+        }
+
+        .stat-icon i {
+            width: 20px;
+            height: 20px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1;
+            margin-bottom: var(--space-1);
+        }
+
+        @media (max-width: 768px) {
+            .stat-value {
+                font-size: 24px;
+            }
+        }
+
+        .stat-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stat-change {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: var(--space-2);
+            padding: 2px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+        }
+
+        .stat-change i {
+            width: 12px;
+            height: 12px;
+        }
+
+        .stat-change.positive {
+            color: var(--success-500);
+            background: rgba(34, 197, 94, 0.15);
+        }
+
+        .stat-change.negative {
+            color: var(--danger-500);
+            background: rgba(239, 68, 68, 0.15);
+        }
+
+        .stat-change.neutral {
+            color: var(--warning-500);
+            background: rgba(245, 158, 11, 0.15);
+        }
+
+        .stat-office-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--brand-300);
+            line-height: 1.3;
+            margin-bottom: var(--space-1);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            min-height: 40px;
+        }
+
+        /* ============================================
+           TOOLBAR & SEARCH
+           ============================================ */
+        .toolbar {
+            display: flex;
+            gap: var(--space-3);
+            margin-bottom: var(--space-5);
+            flex-wrap: wrap;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 200px;
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            height: 44px;
+            padding: 0 44px;
+            font-family: inherit;
+            font-size: 14px;
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-xl);
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .search-input:focus {
+            border-color: var(--brand-500);
+            box-shadow: 0 0 0 3px rgba(139, 90, 43, 0.15);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: var(--space-4);
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-disabled);
+            pointer-events: none;
+        }
+
+        .search-icon i {
+            width: 18px;
+            height: 18px;
+        }
+
+        .search-clear {
+            position: absolute;
+            right: var(--space-2);
+            top: 50%;
+            transform: translateY(-50%);
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: none;
+            border-radius: var(--radius-md);
+            color: var(--text-disabled);
+            cursor: pointer;
+        }
+
+        .search-clear:hover {
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+        }
+
+        .search-clear i {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* ============================================
+           FILTERS
+           ============================================ */
+        .filters-bar {
+            display: flex;
+            gap: var(--space-2);
+            margin-bottom: var(--space-5);
+            overflow-x: auto;
+            padding-bottom: var(--space-2);
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .filters-bar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .filter-btn {
+            flex-shrink: 0;
+            height: 36px;
+            padding: 0 var(--space-4);
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-full);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .filter-btn:hover {
+            background: var(--bg-elevated);
+            border-color: var(--border-secondary);
+        }
+
+        .filter-btn.active {
+            color: white;
+            background: var(--brand-500);
+            border-color: var(--brand-600);
+        }
+
+        /* ============================================
+           CHARTS LAYOUT
+           ============================================ */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--space-5);
+            margin-bottom: var(--space-6);
+        }
+
+        @media (max-width: 1024px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .chart-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-xl);
+            padding: var(--space-5);
+        }
+
+        @media (max-width: 768px) {
+            .chart-card {
+                padding: var(--space-4);
+            }
+        }
+
+        .chart-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: var(--space-4);
+            margin-bottom: var(--space-5);
+            flex-wrap: wrap;
+        }
+
+        .chart-title {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .chart-title i {
+            width: 20px;
+            height: 20px;
+            color: var(--brand-400);
+        }
+
+        .chart-subtitle {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .chart-legend {
+            display: flex;
+            gap: var(--space-4);
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .chart-body {
+            min-height: 280px;
+        }
+
+        @media (max-width: 768px) {
+            .chart-body {
+                min-height: 220px;
+            }
+        }
+
+        .chart-canvas-wrapper {
+            position: relative;
+            height: 280px;
+        }
+
+        @media (max-width: 768px) {
+            .chart-canvas-wrapper {
+                height: 220px;
+            }
+        }
+
+        /* Bar Chart */
+        .bar-chart {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+        }
+
+        .bar-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+        }
+
+        .bar-rank {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-muted);
+            background: var(--bg-elevated);
+            border-radius: var(--radius-md);
+            flex-shrink: 0;
+        }
+
+        .bar-label {
+            width: 140px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex-shrink: 0;
+        }
+
+        @media (max-width: 768px) {
+            .bar-label {
+                width: 100px;
+                font-size: 12px;
+            }
+        }
+
+        .bar-track {
+            flex: 1;
+            height: 28px;
+            background: var(--bg-elevated);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            min-width: 36px;
+            background: linear-gradient(90deg, var(--brand-500), var(--brand-400));
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: var(--space-2);
+            transition: width 0.5s ease;
+        }
+
+        .bar-value {
+            font-size: 11px;
+            font-weight: 700;
+            color: white;
+        }
+
+        /* ============================================
+           INSIGHTS GRID
+           ============================================ */
+        .insights-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--space-4);
+            margin-bottom: var(--space-6);
+        }
+
+        @media (max-width: 768px) {
+            .insights-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: var(--space-3);
+            }
+        }
+
+        .insight-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-lg);
+            padding: var(--space-4);
+            text-align: center;
+        }
+
+        .insight-card.highlight {
+            background: linear-gradient(135deg, rgba(139, 90, 43, 0.15), rgba(212, 165, 116, 0.08));
+            border-color: rgba(212, 165, 116, 0.3);
+        }
+
+        .insight-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+
+        .insight-card.highlight .insight-value {
+            color: var(--brand-300);
+        }
+
+        .insight-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* ============================================
+           OFFICE PEAKS
+           ============================================ */
+        .peaks-section {
+            margin-bottom: var(--space-6);
+        }
+
+        .peaks-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            margin-bottom: var(--space-4);
+        }
+
+        .peaks-title {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .peaks-title i {
+            width: 20px;
+            height: 20px;
+            color: var(--brand-400);
+        }
+
+        .peaks-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--space-4);
+        }
+
+        @media (max-width: 1024px) {
+            .peaks-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .peaks-grid {
+                grid-template-columns: 1fr;
+                gap: var(--space-3);
+            }
+        }
+
+        .peak-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-lg);
+            padding: var(--space-4);
+        }
+
+        .peak-card-header {
+            display: flex;
+            align-items: flex-start;
+            gap: var(--space-3);
+            margin-bottom: var(--space-3);
+        }
+
+        .peak-card-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--brand-500), var(--brand-400));
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .peak-card-icon i {
+            width: 18px;
+            height: 18px;
+        }
+
+        .peak-card-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .peak-card-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+            line-height: 1.3;
+            margin-bottom: 2px;
+        }
+
+        .peak-card-visits {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .peak-times {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-2);
+        }
+
+        .peak-time-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-2) var(--space-3);
+            background: var(--bg-elevated);
+            border-radius: var(--radius-md);
+        }
+
+        .peak-time-item.primary {
+            background: linear-gradient(135deg, rgba(139, 90, 43, 0.2), rgba(212, 165, 116, 0.1));
+            border: 1px solid rgba(212, 165, 116, 0.3);
+        }
+
+        .peak-time-slot {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .peak-time-slot i {
+            width: 14px;
+            height: 14px;
+            color: var(--brand-400);
+        }
+
+        .peak-time-count {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--brand-400);
+            background: rgba(212, 165, 116, 0.15);
+            padding: 2px 8px;
+            border-radius: var(--radius-sm);
+        }
+
+        .peak-time-item.primary .peak-time-count {
+            background: var(--brand-500);
+            color: white;
+        }
+
+        /* ============================================
+           TABLE
+           ============================================ */
+        .table-section {
+            margin-top: var(--space-6);
+        }
+
+        .table-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            margin-bottom: var(--space-4);
+        }
+
+        .table-title {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .table-title i {
+            width: 20px;
+            height: 20px;
+            color: var(--brand-400);
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-xl);
+        }
+
+        .data-table {
+            width: 100%;
+            min-width: 500px;
+            border-collapse: collapse;
+        }
+
+        .data-table thead {
+            background: var(--bg-tertiary);
+        }
+
+        .data-table th {
+            padding: var(--space-3) var(--space-4);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-align: left;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border-primary);
+        }
+
+        .data-table td {
+            padding: var(--space-3) var(--space-4);
+            font-size: 13px;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border-primary);
+        }
+
+        .data-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .data-table tbody tr:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .data-table tbody tr.new-row {
+            animation: row-highlight 1.5s ease;
+        }
+
+        @keyframes row-highlight {
+            0%, 100% { background: transparent; }
+            50% { background: rgba(212, 165, 116, 0.15); }
+        }
+
+        .cell-time {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .time-main {
+            font-weight: 500;
+        }
+
+        .time-ago {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .cell-office {
+            font-weight: 500;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .cell-user {
+            color: var(--text-secondary);
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: var(--radius-full);
+        }
+
+        .status-live {
+            color: var(--success-500);
+            background: rgba(34, 197, 94, 0.15);
+        }
+
+        .status-live::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            background: currentColor;
+            border-radius: 50%;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .status-recent {
+            color: var(--warning-500);
+            background: rgba(245, 158, 11, 0.15);
+        }
+
+        .status-past {
+            color: var(--text-muted);
+            background: var(--bg-tertiary);
+        }
+
+        /* ============================================
+           OFFICE LIST
+           ============================================ */
+        .office-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-4);
+        }
+
+        .office-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        .office-card:hover {
+            border-color: var(--border-secondary);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .office-header {
+            display: flex;
+            align-items: flex-start;
+            gap: var(--space-3);
+            padding: var(--space-4);
+        }
+
+        @media (max-width: 640px) {
+            .office-header {
+                flex-direction: column;
+                gap: var(--space-3);
+            }
+        }
+
+        .office-toggle {
+            display: flex;
+            align-items: flex-start;
+            gap: var(--space-3);
+            flex: 1;
+            min-width: 0;
+            padding: 0;
+            font-family: inherit;
+            text-align: left;
+            color: inherit;
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+
+        .office-chevron {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-elevated);
+            border-radius: var(--radius-md);
+            color: var(--text-muted);
+            flex-shrink: 0;
+            transition: all 0.2s ease;
+        }
+
+        .office-chevron i {
+            width: 16px;
+            height: 16px;
+            transition: transform 0.2s ease;
+        }
+
+        .office-chevron.open i {
+            transform: rotate(180deg);
+        }
+
+        .office-toggle:hover .office-chevron {
+            background: var(--border-secondary);
+            color: var(--text-primary);
+        }
+
+        .office-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .office-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+            line-height: 1.3;
+            margin-bottom: var(--space-1);
+        }
+
+        .office-meta {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+        }
+
+        .office-id {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--text-disabled);
+            background: var(--bg-elevated);
+            padding: 2px 8px;
+            border-radius: var(--radius-sm);
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            height: 22px;
+            padding: 0 10px;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: var(--radius-full);
+        }
+
+        .badge-primary {
+            color: white;
+            background: linear-gradient(135deg, var(--brand-500), var(--brand-600));
+        }
+
+        .badge-accent {
+            color: var(--brand-400);
+            background: rgba(212, 165, 116, 0.15);
+        }
+
+        .office-actions {
+            display: flex;
+            gap: var(--space-2);
+            flex-shrink: 0;
+        }
+
+        @media (max-width: 640px) {
+            .office-actions {
+                width: 100%;
+                justify-content: flex-end;
+            }
+        }
+
+        .office-content {
+            display: grid;
+            grid-template-rows: 0fr;
+            transition: grid-template-rows 0.3s ease;
+        }
+
+        .office-content.open {
+            grid-template-rows: 1fr;
+        }
+
+        .office-content-inner {
+            overflow: hidden;
+        }
+
+        .office-details {
+            padding: 0 var(--space-4) var(--space-4);
+        }
+
+        .office-info-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--space-3);
+            padding: var(--space-4);
+            background: var(--bg-elevated);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--space-4);
+        }
+
+        @media (max-width: 768px) {
+            .office-info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .info-item {
+            display: flex;
+            align-items: flex-start;
+            gap: var(--space-3);
+        }
+
+        .info-icon {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            color: var(--brand-400);
+            flex-shrink: 0;
+        }
+
+        .info-icon i {
+            width: 16px;
+            height: 16px;
+        }
+
+        .info-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .info-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-disabled);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 2px;
+        }
+
+        .info-value {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-primary);
+            word-break: break-word;
+        }
+
+        /* Services */
+        .services-section {
+            margin-top: var(--space-4);
+        }
+
+        .services-header {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: var(--space-3);
+        }
+
+        .services-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+        }
+
+        .service-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-lg);
+            padding: var(--space-4);
+        }
+
+        .service-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: var(--space-3);
+        }
+
+        .service-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .service-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+
+        .service-id {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--text-disabled);
+        }
+
+        .service-actions {
+            display: flex;
+            gap: var(--space-2);
+            flex-shrink: 0;
+        }
+
+        .requirements-section {
+            margin-top: var(--space-4);
+            padding-top: var(--space-4);
+            border-top: 1px solid var(--border-primary);
+        }
+
+        .requirements-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-disabled);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: var(--space-3);
+        }
+
+        .requirements-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-2);
+        }
+
+        .requirement-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-3);
+            padding: var(--space-3);
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+        }
+
+        .requirement-name {
+            flex: 1;
+            font-size: 13px;
+            color: var(--text-primary);
+        }
+
+        .requirement-badges {
+            display: flex;
+            gap: var(--space-2);
+            flex-shrink: 0;
+        }
+
+        .priority-badge {
+            padding: 2px 8px;
+            font-size: 10px;
+            font-weight: 700;
+            color: white;
+            background: var(--brand-500);
+            border-radius: var(--radius-sm);
+        }
+
+        .fee-badge {
+            padding: 2px 8px;
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--bg-primary);
+            background: var(--brand-300);
+            border-radius: var(--radius-sm);
+        }
+
+        /* ============================================
+           EMPTY STATE
+           ============================================ */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: var(--space-12) var(--space-6);
+            text-align: center;
+        }
+
+        .empty-icon {
+            width: 72px;
+            height: 72px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-2xl);
+            margin-bottom: var(--space-4);
+            color: var(--text-muted);
+        }
+
+        .empty-icon i {
+            width: 36px;
+            height: 36px;
+        }
+
+        .empty-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: var(--space-2);
+        }
+
+        .empty-description {
+            font-size: 14px;
+            color: var(--text-muted);
+            max-width: 300px;
+        }
+
+        /* ============================================
+           MODALS
+           ============================================ */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: var(--space-4);
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(4px);
+        }
+
+        .modal {
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-2xl);
+            overflow: hidden;
+            animation: modal-enter 0.2s ease;
+        }
+
+        @keyframes modal-enter {
+            from {
+                opacity: 0;
+                transform: scale(0.95) translateY(-10px);
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-5);
+            border-bottom: 1px solid var(--border-primary);
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .modal-close {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-lg);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+        }
+
+        .modal-close i {
+            width: 18px;
+            height: 18px;
+        }
+
+        .modal-body {
+            padding: var(--space-5);
+            overflow-y: auto;
+            max-height: calc(90vh - 140px);
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: var(--space-3);
+            padding: 0 var(--space-5) var(--space-5);
+        }
+
+        /* Requirement Builder */
+        .requirement-builder {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-lg);
+            padding: var(--space-4);
+            margin-bottom: var(--space-3);
+        }
+
+        .requirement-fields {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: var(--space-3);
+        }
+
+        @media (min-width: 480px) {
+            .requirement-fields {
+                grid-template-columns: 2fr 1fr 1fr;
+            }
+        }
+
+        .requirement-remove {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: var(--space-3);
+        }
+
+        /* ============================================
+           SPINNER
+           ============================================ */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .spinner-lg {
+            width: 28px;
+            height: 28px;
+            border-width: 3px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- LOGIN -->
+    <div id="loginContainer" class="login-container">
+        <div class="login-card">
+            <div class="login-logo">
+                <i data-lucide="landmark"></i>
+            </div>
+            <div class="login-header">
+                <h1 class="login-title">ManilaServe</h1>
+                <p class="login-subtitle">Administration Panel</p>
+            </div>
+
+            <div id="loginError" class="alert alert-error hidden">
+                <i data-lucide="alert-circle"></i>
+                <span>Invalid credentials. Please try again.</span>
+            </div>
+
+            <form id="loginForm">
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" id="username" class="form-input" required placeholder="admin@manilaserve.ph" autocomplete="username" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" id="password" class="form-input" required placeholder="Enter password" autocomplete="current-password" />
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg btn-block" id="loginBtn">
+                    <i data-lucide="log-in"></i>
+                    <span>Sign In</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="appContainer" class="app-container">
+        <div class="app-wrapper">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-content">
+                    <div class="header-brand">
+                        <div class="header-logo">
+                            <i data-lucide="landmark"></i>
+                        </div>
+                        <div>
+                            <h1 class="header-title">ManilaServe</h1>
+                            <p class="header-subtitle">Administration Panel</p>
+                        </div>
+                    </div>
+                    <div class="header-actions">
+                        <div class="status-badge status-loading" id="connectionStatus">
+                            <span class="spinner"></span>
+                            <span class="status-text">Connecting</span>
+                        </div>
+                        <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+                            <i data-lucide="moon" id="themeIconDark"></i>
+                            <i data-lucide="sun" id="themeIconLight" class="hidden"></i>
+                        </button>
+                        <button class="btn btn-sm" onclick="logout()">
+                            <i data-lucide="log-out"></i>
+                            <span class="status-text">Logout</span>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Status Message -->
+            <div id="statusMessage" class="hidden"></div>
+
+            <!-- Navigation -->
+            <nav class="nav-tabs">
+                <button class="nav-tab active" onclick="showSection('dashboard', this)">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </button>
+                <button class="nav-tab" onclick="showSection('offices', this)">
+                    <i data-lucide="building-2"></i>
+                    <span>Offices</span>
+                </button>
+                <button class="nav-tab" onclick="showSection('visitation', this)">
+                    <i data-lucide="map-pin"></i>
+                    <span>Visitation</span>
+                </button>
+            </nav>
+
+            <!-- Dashboard -->
+            <section id="dashboardSection" class="section">
+                <div class="section-header">
+                    <div class="section-title-group">
+                        <p class="section-eyebrow">Overview</p>
+                        <h2 class="section-title">Dashboard</h2>
+                        <p class="section-description">Monitor your city services at a glance</p>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon"><i data-lucide="building-2"></i></div>
+                        <div class="stat-value" id="totalOffices">0</div>
+                        <div class="stat-label">Total Offices</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i data-lucide="briefcase"></i></div>
+                        <div class="stat-value" id="totalServices">0</div>
+                        <div class="stat-label">Services</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i data-lucide="clipboard-list"></i></div>
+                        <div class="stat-value" id="totalRequirements">0</div>
+                        <div class="stat-label">Requirements</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i data-lucide="clock"></i></div>
+                        <div class="stat-value" id="lastUpdate">—</div>
+                        <div class="stat-label">Last Updated</div>
+                    </div>
+                </div>
+
+                <div class="empty-state" id="dashboardEmpty">
+                    <div class="empty-icon"><i data-lucide="database"></i></div>
+                    <h3 class="empty-title">Welcome to ManilaServe</h3>
+                    <p class="empty-description">Your city services data will appear here once loaded.</p>
+                </div>
+            </section>
+
+            <!-- Offices -->
+            <section id="officesSection" class="section hidden">
+                <div class="section-header">
+                    <div class="section-title-group">
+                        <p class="section-eyebrow">Management</p>
+                        <h2 class="section-title">Offices & Services</h2>
+                        <p class="section-description">Manage city hall offices and their services</p>
+                    </div>
+                    <div class="section-actions">
+                        <button class="btn btn-sm" onclick="expandAllOffices()">
+                            <i data-lucide="chevrons-down"></i>
+                            <span>Expand</span>
+                        </button>
+                        <button class="btn btn-sm" onclick="collapseAllOffices()">
+                            <i data-lucide="chevrons-up"></i>
+                            <span>Collapse</span>
+                        </button>
+                        <button class="btn btn-primary btn-sm" onclick="showAddOfficeModal()">
+                            <i data-lucide="plus"></i>
+                            <span>Add Office</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="toolbar">
+                    <div class="search-box">
+                        <span class="search-icon"><i data-lucide="search"></i></span>
+                        <input id="officeSearch" class="search-input" type="search" placeholder="Search offices, services..." />
+                        <button class="search-clear" id="clearSearchBtn"><i data-lucide="x"></i></button>
+                    </div>
+                </div>
+
+                <div id="officesList" class="office-list">
+                    <div class="empty-state">
+                        <div class="empty-icon"><span class="spinner spinner-lg"></span></div>
+                        <h3 class="empty-title">Loading offices...</h3>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Visitation -->
+            <section id="visitationSection" class="section hidden">
+                <div class="section-header">
+                    <div class="section-title-group">
+                        <p class="section-eyebrow">Real-time Analytics</p>
+                        <h2 class="section-title">Visitation & Peak Hours</h2>
+                        <p class="section-description">Monitor arrivals and identify peak traffic periods</p>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card" id="totalVisitsCard">
+                        <div class="stat-icon"><i data-lucide="users"></i></div>
+                        <div class="stat-value" id="totalVisits">0</div>
+                        <div class="stat-label">Total Visits</div>
+                        <div class="stat-change positive" id="visitsChange">
+                            <i data-lucide="trending-up"></i>
+                            <span>+0 from yesterday</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i data-lucide="activity"></i></div>
+                        <div class="stat-value" id="activeVisits">0</div>
+                        <div class="stat-label">Active (5 min)</div>
+                    </div>
+                    <div class="stat-card" id="topOfficeCard">
+                        <div class="stat-icon"><i data-lucide="trophy"></i></div>
+                        <div class="stat-office-name" id="topOffice">—</div>
+                        <div class="stat-label">Most Visited</div>
+                        <div class="stat-change neutral" id="topOfficeCount">0 visits</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i data-lucide="clock"></i></div>
+                        <div class="stat-value" id="peakHourDisplay">—</div>
+                        <div class="stat-label">Peak Hour</div>
+                    </div>
+                </div>
+
+                <div class="filters-bar">
+                    <button class="filter-btn active" onclick="filterVisits('today', this)">Today</button>
+                    <button class="filter-btn" onclick="filterVisits('week', this)">This Week</button>
+                    <button class="filter-btn" onclick="filterVisits('month', this)">This Month</button>
+                    <button class="filter-btn" onclick="filterVisits('all', this)">All Time</button>
+                </div>
+
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <div>
+                                <h3 class="chart-title"><i data-lucide="bar-chart-3"></i> Most Visited</h3>
+                                <p class="chart-subtitle">Ranked by total visits</p>
+                            </div>
+                        </div>
+                        <div class="chart-body">
+                            <div class="bar-chart" id="topOfficesChart">
+                                <div class="empty-state" style="padding: var(--space-8);"><p class="empty-description">Loading...</p></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <div>
+                                <h3 class="chart-title"><i data-lucide="line-chart"></i> Peak Hours</h3>
+                                <p class="chart-subtitle">Hourly distribution</p>
+                            </div>
+                            <div class="chart-legend">
+                                <div class="legend-item">
+                                    <span class="legend-dot" style="background: var(--brand-400);"></span>
+                                    <span>Visits</span>
+                                </div>
+                                <div class="legend-item">
+                                    <span class="legend-dot" style="background: var(--success-500);"></span>
+                                    <span>Peak</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chart-body">
+                            <div class="chart-canvas-wrapper">
+                                <canvas id="peakHoursChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="insights-grid">
+                    <div class="insight-card highlight">
+                        <div class="insight-value" id="busiestHour">—</div>
+                        <div class="insight-label">Busiest Hour</div>
+                    </div>
+                    <div class="insight-card">
+                        <div class="insight-value" id="quietestHour">—</div>
+                        <div class="insight-label">Quietest Hour</div>
+                    </div>
+                    <div class="insight-card">
+                        <div class="insight-value" id="avgHourlyVisits">0</div>
+                        <div class="insight-label">Avg/Hour</div>
+                    </div>
+                    <div class="insight-card">
+                        <div class="insight-value" id="uniqueOffices">0</div>
+                        <div class="insight-label">Unique Offices</div>
+                    </div>
+                </div>
+
+                <div class="peaks-section">
+                    <div class="peaks-header">
+                        <h3 class="peaks-title"><i data-lucide="clock-4"></i> Peak Hours by Office</h3>
+                    </div>
+                    <div class="peaks-grid" id="officePeaksGrid">
+                        <div class="empty-state" style="grid-column: 1/-1; padding: var(--space-8);"><p class="empty-description">Peak data will appear here...</p></div>
+                    </div>
+                </div>
+
+                <div class="table-section">
+                    <div class="table-header">
+                        <h3 class="table-title"><i data-lucide="list"></i> Recent Arrivals</h3>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Department</th>
+                                    <th>User</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="visitsTableBody">
+                                <tr><td colspan="4"><div class="empty-state" style="padding: var(--space-8);"><p class="empty-description">Waiting for visits...</p></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Office Modal -->
+    <div id="officeModal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h4 class="modal-title" id="officeModalTitle">Add Office</h4>
+                <button class="modal-close" onclick="closeOfficeModal()"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="officeForm">
+                    <div class="form-group">
+                        <label class="form-label">Office ID</label>
+                        <input type="text" id="officeId" class="form-input" readonly />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Office Name</label>
+                        <input type="text" id="officeName" class="form-input" required placeholder="e.g., Manila Health Department" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Location</label>
+                        <input type="text" id="officeLocation" class="form-input" required placeholder="e.g., Ground Floor, City Hall" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Department Head</label>
+                        <input type="text" id="officeHead" class="form-input" required placeholder="e.g., Dr. Juan Dela Cruz" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Contact Number</label>
+                        <input type="text" id="officePhone" class="form-input" required placeholder="e.g., (02) 5310-5270" />
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-primary" style="flex:1;"><i data-lucide="save"></i> Save</button>
+                        <button type="button" class="btn" onclick="closeOfficeModal()">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Service Modal -->
+    <div id="serviceModal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h4 class="modal-title" id="serviceModalTitle">Add Service</h4>
+                <button class="modal-close" onclick="closeServiceModal()"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="serviceForm">
+                    <div class="form-group">
+                        <label class="form-label">Service ID</label>
+                        <input type="text" id="serviceId" class="form-input" readonly />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Service Name</label>
+                        <input type="text" id="serviceName" class="form-input" required placeholder="e.g., Birth Certificate Request" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Requirements</label>
+                        <div id="requirementsList"></div>
+                        <button type="button" class="btn btn-sm" onclick="addRequirement()" style="margin-top: var(--space-2);">
+                            <i data-lucide="plus"></i> Add Requirement
+                        </button>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-primary" style="flex:1;"><i data-lucide="save"></i> Save</button>
+                        <button type="button" class="btn" onclick="closeServiceModal()">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+    <script>
+        // ============================================
+        // CONFIGURATION
+        // ============================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyC_twJfN0o6UNLXPITAFpJm_Wkl4Kf4mWg",
+            authDomain: "manilaserve-f3ed8.firebaseapp.com",
+            databaseURL: "https://manilaserve-f3ed8-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "manilaserve-f3ed8",
+        storageBucket: "manilaserve-f3ed8.firebasestorage.app",
+            messagingSenderId: "396234367219",
+            appId: "1:396234367219:web:e5bc1919b8552eb4fed786"
+        };
+
+        const ADMIN_CREDENTIALS = {
+            username: "admin@manilaserve.ph",
+            password: "admin1234"
+        };
+
+        // ============================================
+        // GLOBAL STATE
+        // ============================================
+        let database = null;
+        let currentData = [];
+        let currentSection = "dashboard";
+        let editingOfficeIndex = -1;
+        let editingServiceIndex = -1;
+        let currentOfficeIndex = -1;
+
+        const expandedOffices = new Set();
+        let searchTerm = "";
+        let searchDebounceTimer = null;
+
+        // Visitation - FIXED: Using Map to prevent duplicates
+        let visitsMap = new Map(); // Key: visit key, Value: visit object
+        let currentFilter = 'today';
+        let visitsListener = null;
+        let visitsInitialized = false;
+        let peakHoursChartInstance = null;
+
+        // ============================================
+        // ICONS
+        // ============================================
+        function initIcons() {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+
+        // ============================================
+        // THEME
+        // ============================================
+        const THEME_KEY = "manilaserve_theme";
+
+        function applyTheme(theme) {
+            document.documentElement.setAttribute("data-theme", theme);
+            localStorage.setItem(THEME_KEY, theme);
+            
+            const darkIcon = document.getElementById("themeIconDark");
+            const lightIcon = document.getElementById("themeIconLight");
+            
+            if (theme === 'dark') {
+                darkIcon?.classList.remove('hidden');
+                lightIcon?.classList.add('hidden');
+            } else {
+                darkIcon?.classList.add('hidden');
+                lightIcon?.classList.remove('hidden');
+            }
+
+            if (peakHoursChartInstance) {
+                updateChartTheme();
+            }
+        }
+
+        function initTheme() {
+            applyTheme(localStorage.getItem(THEME_KEY) || "dark");
+        }
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute("data-theme") || "dark";
+            applyTheme(current === "dark" ? "light" : "dark");
+        }
+
+        function updateChartTheme() {
+            const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+            const textColor = isDark ? '#737373' : '#525252';
+            const gridColor = isDark ? 'rgba(64, 64, 64, 0.3)' : 'rgba(229, 229, 229, 0.8)';
+
+            if (peakHoursChartInstance) {
+                peakHoursChartInstance.options.scales.x.ticks.color = textColor;
+                peakHoursChartInstance.options.scales.y.ticks.color = textColor;
+                peakHoursChartInstance.options.scales.x.grid.color = gridColor;
+                peakHoursChartInstance.options.scales.y.grid.color = gridColor;
+                peakHoursChartInstance.update('none');
+            }
+        }
+
+        // ============================================
+        // UTILITIES
+        // ============================================
+        function generateId(prefix) {
+            return `${prefix}-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+        }
+
+        function normalize(str) {
+            return (str || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        }
+
+        function truncate(str, len) {
+            if (!str) return '';
+            return str.length > len ? str.substring(0, len) + '...' : str;
+        }
+
+        function formatNumber(n) {
+            return new Intl.NumberFormat().format(n);
+        }
+
+        function formatHour(h) {
+            if (h === 0) return '12 AM';
+            if (h === 12) return '12 PM';
+            return h < 12 ? `${h} AM` : `${h - 12} PM`;
+        }
+
+        function formatHourRange(h) {
+            return `${formatHour(h)} - ${formatHour((h + 1) % 24)}`;
+        }
+
+        // ============================================
+        // AUTHENTICATION
+        // ============================================
+        async function getAdminFromDB() {
+            try {
+                if (!database) return null;
+                const snap = await database.ref('admin').once('value');
+                const val = snap.val();
+                return val?.username && val?.password ? val : null;
+            } catch (e) {
+                console.error('Admin fetch error:', e);
+                return null;
+            }
+        }
+
+        document.getElementById("loginForm").addEventListener("submit", async function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById("username").value.trim();
+            const password = document.getElementById("password").value.trim();
+            const btn = document.getElementById("loginBtn");
+            
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Signing in...';
+
+            try {
+                const dbAdmin = await getAdminFromDB();
+                const valid = dbAdmin 
+                    ? (username === dbAdmin.username && password === dbAdmin.password)
+                    : (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password);
+
+                if (valid) {
+                    sessionStorage.setItem("manilaAdminLoggedIn", "true");
+                    showMainApp();
+                } else {
+                    document.getElementById("loginError").classList.remove("hidden");
+                    resetLoginBtn();
+                }
+            } catch (err) {
+                console.error('Login error:', err);
+                document.getElementById("loginError").classList.remove("hidden");
+                resetLoginBtn();
+            }
+        });
+
+        function resetLoginBtn() {
+            const btn = document.getElementById("loginBtn");
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="log-in"></i><span>Sign In</span>';
+            initIcons();
+        }
+
+        function showMainApp() {
+            document.getElementById("loginContainer").style.display = "none";
+            document.getElementById("appContainer").style.display = "block";
+            initFirebase();
+            initIcons();
+        }
+
+        function showLoginScreen() {
+            document.getElementById('loginForm').reset();
+            document.getElementById('loginError').classList.add('hidden');
+            resetLoginBtn();
+            document.getElementById('loginContainer').style.display = 'flex';
+            document.getElementById('appContainer').style.display = 'none';
+            updateConnectionStatus('disconnected', 'Disconnected');
+        }
+
+        function logout() {
+            if (!confirm('Are you sure you want to logout?')) return;
+            
+            sessionStorage.removeItem('manilaAdminLoggedIn');
+            
+            // Clean up listeners
+            if (visitsListener && database) {
+                database.ref('visits').off('child_added', visitsListener);
+                visitsListener = null;
+            }
+            
+            // Reset state
+            visitsMap.clear();
+            visitsInitialized = false;
+            
+            if (peakHoursChartInstance) {
+                peakHoursChartInstance.destroy();
+                peakHoursChartInstance = null;
+            }
+            
+            showLoginScreen();
+        }
+
+        // ============================================
+        // FIREBASE
+        // ============================================
+        function initFirebase() {
+            try {
+                updateConnectionStatus("loading", "Connecting");
+                
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+                database = firebase.database();
+
+                loadData().then(() => {
+                    updateConnectionStatus("connected", "Connected");
+                    showStatus("Connected to Firebase!", "success");
+                    updateDashboard();
+                });
+
+                startVisitTracking();
+            } catch (error) {
+                console.error('Firebase init error:', error);
+                updateConnectionStatus("disconnected", "Failed");
+                showStatus("Connection failed: " + error.message, "error");
+            }
+        }
+
+        function updateConnectionStatus(status, text) {
+            const el = document.getElementById("connectionStatus");
+            el.className = `status-badge status-${status}`;
+            
+            if (status === "loading") {
+                el.innerHTML = `<span class="spinner"></span><span class="status-text">${text}</span>`;
+            } else {
+                el.innerHTML = `<span class="status-dot"></span><span class="status-text">${text}</span>`;
+            }
+        }
+
+        async function loadData() {
+            if (!database) return;
+            
+            try {
+                const snap = await database.ref("offices").once("value");
+                const data = snap.val();
+                currentData = Array.isArray(data) ? data : [];
+                renderContent();
+                updateStats();
+            } catch (error) {
+                console.error('Load error:', error);
+                showStatus("Failed to load data", "error");
+            }
+        }
+
+        async function saveData() {
+            if (!database) {
+                showStatus("Not connected to database", "error");
+                return;
+            }
+            
+            try {
+                await database.ref("offices").set(currentData);
+                showStatus("Saved successfully!", "success");
+                updateStats();
+                localStorage.setItem("lastUpdate", new Date().toISOString());
+            } catch (error) {
+                console.error('Save error:', error);
+                showStatus("Failed to save: " + error.message, "error");
+            }
+        }
+
+        // ============================================
+        // UI HELPERS
+        // ============================================
+        function showStatus(msg, type) {
+            const el = document.getElementById("statusMessage");
+            const icon = type === 'success' ? 'check-circle' : 'alert-circle';
+            el.innerHTML = `<div class="alert alert-${type}"><i data-lucide="${icon}"></i><span>${msg}</span></div>`;
+            el.classList.remove("hidden");
+            initIcons();
+            setTimeout(() => el.classList.add("hidden"), 4000);
+        }
+
+        function showSection(name, btn) {
+            document.querySelectorAll(".section").forEach(s => s.classList.add("hidden"));
+            document.getElementById(name + "Section")?.classList.remove("hidden");
+            document.querySelectorAll(".nav-tab").forEach(t => t.classList.remove("active"));
+            btn?.classList.add("active");
+            currentSection = name;
+            renderContent();
+        }
+
+        function renderContent() {
+            if (currentSection === "dashboard") updateDashboard();
+            else if (currentSection === "offices") renderOffices();
+            else if (currentSection === "visitation") updateVisitation();
+            initIcons();
+        }
+
+        // ============================================
+        // DASHBOARD
+        // ============================================
+        function updateDashboard() {
+            updateStats();
+            document.getElementById("dashboardEmpty").style.display = currentData.length ? "none" : "flex";
+        }
+
+        function updateStats() {
+            let services = 0, requirements = 0;
+            currentData.forEach(o => {
+                if (o.Services) {
+                    services += o.Services.length;
+                    o.Services.forEach(s => {
+                        if (s.Requirements) requirements += s.Requirements.length;
+                    });
+                }
+            });
+
+            document.getElementById("totalOffices").textContent = formatNumber(currentData.length);
+            document.getElementById("totalServices").textContent = formatNumber(services);
+            document.getElementById("totalRequirements").textContent = formatNumber(requirements);
+
+            const last = localStorage.getItem("lastUpdate");
+            if (last) {
+                const d = new Date(last);
+                const today = new Date();
+                const isToday = d.toDateString() === today.toDateString();
+                document.getElementById("lastUpdate").textContent = isToday 
+                    ? d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+                    : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            }
+        }
+
+        // ============================================
+        // OFFICES
+        // ============================================
+        function filterData(term) {
+            const t = normalize(term);
+            if (!t) {
+                return currentData.map((o, i) => ({
+                    office: o, 
+                    officeIndex: i,
+                    services: (o.Services || []).map((s, j) => ({ service: s, serviceIndex: j })),
+                    totalServices: (o.Services || []).length
+                }));
+            }
+
+            const result = [];
+            currentData.forEach((o, i) => {
+                const oText = [o.OfficeName, o.OfficeId, o.Location, o.Head, o.Phone].join(" ");
+                const oMatch = normalize(oText).includes(t);
+
+                let sMatches = [];
+                (o.Services || []).forEach((s, j) => {
+                    const reqText = (s.Requirements || []).map(r => r.Name).join(" ");
+                    const sText = `${s.ServiceName} ${s.ServiceId} ${reqText}`;
+                    if (normalize(sText).includes(t)) {
+                        sMatches.push({ service: s, serviceIndex: j });
+                    }
+                });
+
+                if (oMatch || sMatches.length) {
+                    if (oMatch && !sMatches.length) {
+                        sMatches = (o.Services || []).map((s, j) => ({ service: s, serviceIndex: j }));
+                    }
+                    result.push({ 
+                        office: o, 
+                        officeIndex: i, 
+                        services: sMatches, 
+                        totalServices: (o.Services || []).length 
+                    });
+                }
+            });
+            return result;
+        }
+
+        function toggleOffice(idx) {
+            const o = currentData[idx];
+            if (!o) return;
+            
+            const content = document.getElementById(`officeContent-${idx}`);
+            const chevron = document.getElementById(`chevron-${idx}`);
+            
+            if (!content) return;
+            
+            const isOpen = content.classList.toggle("open");
+            chevron?.classList.toggle("open", isOpen);
+            
+            if (isOpen) {
+                expandedOffices.add(o.OfficeId);
+            } else {
+                expandedOffices.delete(o.OfficeId);
+            }
+        }
+
+        function expandAllOffices() {
+            filterData(searchTerm).forEach(x => expandedOffices.add(x.office.OfficeId));
+            renderOffices();
+        }
+
+        function collapseAllOffices() {
+            expandedOffices.clear();
+            renderOffices();
+        }
+
+        function renderOffices() {
+            const container = document.getElementById("officesList");
+            const filtered = filterData(searchTerm);
+
+            if (!filtered.length) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon"><i data-lucide="search-x"></i></div>
+                        <h3 class="empty-title">No results found</h3>
+                        <p class="empty-description">Try adjusting your search terms.</p>
+                    </div>
+                `;
+                initIcons();
+                return;
+            }
+
+            container.innerHTML = filtered.map(({ office: o, officeIndex: idx, services, totalServices }) => {
+                const isOpen = expandedOffices.has(o.OfficeId);
+                const count = searchTerm ? services.length : totalServices;
+
+                return `
+                    <div class="office-card">
+                        <div class="office-header">
+                            <button class="office-toggle" onclick="toggleOffice(${idx})">
+                                <span class="office-chevron ${isOpen ? 'open' : ''}" id="chevron-${idx}">
+                                    <i data-lucide="chevron-down"></i>
+                                </span>
+                                <div class="office-info">
+                                    <div class="office-name">${o.OfficeName}</div>
+                                    <div class="office-meta">
+                                        <span class="office-id">${o.OfficeId}</span>
+                                        <span class="badge badge-primary">${count} service${count !== 1 ? 's' : ''}</span>
+                                        ${searchTerm ? '<span class="badge badge-accent">Match</span>' : ''}
+                                    </div>
+                                </div>
+                            </button>
+                            <div class="office-actions">
+                                <button class="btn btn-primary btn-icon btn-sm" onclick="addService(${idx})" title="Add Service">
+                                    <i data-lucide="plus"></i>
+                                </button>
+                                <button class="btn btn-info btn-icon btn-sm" onclick="editOffice(${idx})" title="Edit">
+                                    <i data-lucide="pencil"></i>
+                                </button>
+                                <button class="btn btn-danger btn-icon btn-sm" onclick="deleteOffice(${idx})" title="Delete">
+                                    <i data-lucide="trash-2"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="office-content ${isOpen ? 'open' : ''}" id="officeContent-${idx}">
+                            <div class="office-content-inner">
+                                <div class="office-details">
+                                    <div class="office-info-grid">
+                                        <div class="info-item">
+                                            <div class="info-icon"><i data-lucide="map-pin"></i></div>
+                                            <div class="info-content">
+                                                <div class="info-label">Location</div>
+                                                <div class="info-value">${o.Location}</div>
+                                            </div>
+                                        </div>
+                                        <div class="info-item">
+                                            <div class="info-icon"><i data-lucide="user"></i></div>
+                                            <div class="info-content">
+                                                <div class="info-label">Department Head</div>
+                                                <div class="info-value">${o.Head}</div>
+                                            </div>
+                                        </div>
+                                        <div class="info-item">
+                                            <div class="info-icon"><i data-lucide="phone"></i></div>
+                                            <div class="info-content">
+                                                <div class="info-label">Contact</div>
+                                                <div class="info-value">${o.Phone}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    ${services.length ? `
+                                        <div class="services-section">
+                                            <div class="services-header">Services (${services.length})</div>
+                                            <div class="services-list">
+                                                ${services.map(({ service: s, serviceIndex: sIdx }) => `
+                                                    <div class="service-card">
+                                                        <div class="service-header">
+                                                            <div class="service-info">
+                                                                <div class="service-name">${s.ServiceName}</div>
+                                                                <div class="service-id">${s.ServiceId}</div>
+                                                            </div>
+                                                            <div class="service-actions">
+                                                                <button class="btn btn-info btn-icon btn-sm" onclick="editService(${idx}, ${sIdx})" title="Edit">
+                                                                    <i data-lucide="pencil"></i>
+                                                                </button>
+                                                                <button class="btn btn-danger btn-icon btn-sm" onclick="deleteService(${idx}, ${sIdx})" title="Delete">
+                                                                    <i data-lucide="trash-2"></i>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        ${s.Requirements?.length ? `
+                                                            <div class="requirements-section">
+                                                                <div class="requirements-title">Requirements</div>
+                                                                <div class="requirements-list">
+                                                                    ${s.Requirements.map(r => `
+                                                                        <div class="requirement-item">
+                                                                            <span class="requirement-name">${r.Name}</span>
+                                                                            <div class="requirement-badges">
+                                                                                ${r.Fee ? `<span class="fee-badge">₱${r.Fee}</span>` : ''}
+                                                                                <span class="priority-badge">P${r.Priority}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    `).join('')}
+                                                                </div>
+                                                            </div>
+                                                        ` : ''}
+                                                    </div>
+                                                `).join('')}
+                                            </div>
+                                        </div>
+                                    ` : '<p style="color: var(--text-muted); font-size: 13px; padding: var(--space-4);">No services available</p>'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            initIcons();
+        }
+
+        // ============================================
+        // OFFICE CRUD
+        // ============================================
+        function showAddOfficeModal() {
+            editingOfficeIndex = -1;
+            document.getElementById("officeModalTitle").textContent = "Add New Office";
+            document.getElementById("officeForm").reset();
+            document.getElementById("officeId").value = generateId("OFC");
+            document.getElementById("officeModal").classList.remove("hidden");
+            initIcons();
+        }
+
+        function editOffice(idx) {
+            editingOfficeIndex = idx;
+            const o = currentData[idx];
+            document.getElementById("officeModalTitle").textContent = "Edit Office";
+            document.getElementById("officeId").value = o.OfficeId;
+            document.getElementById("officeName").value = o.OfficeName;
+            document.getElementById("officeLocation").value = o.Location;
+            document.getElementById("officeHead").value = o.Head;
+            document.getElementById("officePhone").value = o.Phone;
+            document.getElementById("officeModal").classList.remove("hidden");
+            initIcons();
+        }
+
+        function closeOfficeModal() {
+            document.getElementById("officeModal").classList.add("hidden");
+        }
+
+        function deleteOffice(idx) {
+            const o = currentData[idx];
+            if (!confirm(`Delete "${o.OfficeName}" and all its services?`)) return;
+            expandedOffices.delete(o.OfficeId);
+            currentData.splice(idx, 1);
+            saveData();
+            renderContent();
+            showStatus("Office deleted", "success");
+        }
+
+        document.getElementById("officeForm").addEventListener("submit", function(e) {
+            e.preventDefault();
+            
+            const data = {
+                OfficeId: document.getElementById("officeId").value.trim(),
+                OfficeName: document.getElementById("officeName").value.trim(),
+                Location: document.getElementById("officeLocation").value.trim(),
+                Head: document.getElementById("officeHead").value.trim(),
+                Phone: document.getElementById("officePhone").value.trim(),
+                Services: []
+            };
+
+            if (editingOfficeIndex >= 0) {
+                data.Services = currentData[editingOfficeIndex].Services || [];
+                currentData[editingOfficeIndex] = data;
+                showStatus("Office updated", "success");
+            } else {
+                currentData.push(data);
+                expandedOffices.add(data.OfficeId);
+                showStatus("Office added", "success");
+            }
+
+            saveData();
+            renderContent();
+            closeOfficeModal();
+        });
+
+        // ============================================
+        // SERVICE CRUD
+        // ============================================
+        function addService(officeIdx) {
+            currentOfficeIndex = officeIdx;
+            editingServiceIndex = -1;
+            document.getElementById("serviceModalTitle").textContent = "Add New Service";
+            document.getElementById("serviceForm").reset();
+            document.getElementById("serviceId").value = generateId("SVC");
+            document.getElementById("requirementsList").innerHTML = "";
+            addRequirement();
+            document.getElementById("serviceModal").classList.remove("hidden");
+            initIcons();
+        }
+
+        function editService(officeIdx, serviceIdx) {
+            currentOfficeIndex = officeIdx;
+            editingServiceIndex = serviceIdx;
+            const s = currentData[officeIdx].Services[serviceIdx];
+            
+            document.getElementById("serviceModalTitle").textContent = "Edit Service";
+            document.getElementById("serviceId").value = s.ServiceId;
+            document.getElementById("serviceName").value = s.ServiceName;
+            document.getElementById("requirementsList").innerHTML = "";
+            
+            if (s.Requirements?.length) {
+                s.Requirements.forEach(r => addRequirement(r.Name, r.Priority, r.Fee || 0));
+            } else {
+                addRequirement();
+            }
+            
+            document.getElementById("serviceModal").classList.remove("hidden");
+            initIcons();
+        }
+
+        function closeServiceModal() {
+            document.getElementById("serviceModal").classList.add("hidden");
+        }
+
+        function deleteService(officeIdx, serviceIdx) {
+            const s = currentData[officeIdx].Services[serviceIdx];
+            if (!confirm(`Delete "${s.ServiceName}" service?`)) return;
+            currentData[officeIdx].Services.splice(serviceIdx, 1);
+            saveData();
+            renderContent();
+            showStatus("Service deleted", "success");
+        }
+
+        function addRequirement(name = "", priority = 1, fee = 0) {
+            const list = document.getElementById("requirementsList");
+            const div = document.createElement("div");
+            div.className = "requirement-builder";
+            div.innerHTML = `
+                <div class="requirement-fields">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label">Name</label>
+                        <input type="text" class="form-input req-name" value="${name}" placeholder="e.g., Valid ID" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label">Priority</label>
+                        <input type="number" class="form-input req-priority" value="${priority}" min="1" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label">Fee (₱)</label>
+                        <input type="number" class="form-input req-fee" value="${fee}" min="0" step="0.01">
+                    </div>
+                </div>
+                <div class="requirement-remove">
+                    <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.requirement-builder').remove()">
+                        <i data-lucide="trash-2"></i> Remove
+                    </button>
+                </div>
+            `;
+            list.appendChild(div);
+            initIcons();
+        }
+
+        document.getElementById("serviceForm").addEventListener("submit", function(e) {
+            e.preventDefault();
+            
+            const requirements = [];
+            document.querySelectorAll(".requirement-builder").forEach(div => {
+                const name = div.querySelector(".req-name").value.trim();
+                const priority = parseInt(div.querySelector(".req-priority").value) || 1;
+                const fee = parseFloat(div.querySelector(".req-fee").value) || 0;
+                
+                if (name) {
+                    const req = { Name: name, Priority: priority };
+                    if (fee > 0) req.Fee = fee;
+                    requirements.push(req);
+                }
+            });
+
+            if (!requirements.length) {
+                showStatus("Add at least one requirement", "error");
+                return;
+            }
+
+            const data = {
+                ServiceId: document.getElementById("serviceId").value.trim(),
+                ServiceName: document.getElementById("serviceName").value.trim(),
+                Requirements: requirements.sort((a, b) => a.Priority - b.Priority)
+            };
+
+            if (!currentData[currentOfficeIndex].Services) {
+                currentData[currentOfficeIndex].Services = [];
+            }
+
+            if (editingServiceIndex >= 0) {
+                currentData[currentOfficeIndex].Services[editingServiceIndex] = data;
+                showStatus("Service updated", "success");
+            } else {
+                currentData[currentOfficeIndex].Services.push(data);
+                showStatus("Service added", "success");
+            }
+
+            saveData();
+            renderContent();
+            closeServiceModal();
+        });
+
+        // ============================================
+        // VISITATION TRACKING - FIXED DUPLICATE ISSUE
+        // ============================================
+        function startVisitTracking() {
+            if (!database) return;
+            
+            // Clear previous data
+            visitsMap.clear();
+            visitsInitialized = false;
+
+            console.log('[VISITS] Starting visit tracking...');
+
+            // First load all existing visits
+            database.ref('visits').once('value')
+                .then(snapshot => {
+                    console.log('[VISITS] Loading existing visits...');
+                    
+                    snapshot.forEach(child => {
+                        const key = child.key;
+                        const visit = child.val();
+                        
+                        // Only add if not already in map (prevents duplicates)
+                        if (!visitsMap.has(key)) {
+                            visitsMap.set(key, {
+                                ...visit,
+                                key: key
+                            });
+                        }
+                    });
+
+                    console.log(`[VISITS] Loaded ${visitsMap.size} unique visits`);
+                    visitsInitialized = true;
+                    
+                    // Update UI
+                    updateVisitation();
+
+                    // Now listen for NEW visits only
+                    startRealtimeListener();
+                })
+                .catch(error => {
+                    console.error('[VISITS] Error loading visits:', error);
+                });
+        }
+
+        function startRealtimeListener() {
+            // Remove any existing listener
+            if (visitsListener) {
+                database.ref('visits').off('child_added', visitsListener);
+            }
+
+            console.log('[VISITS] Starting realtime listener...');
+
+            // Listen for new visits
+            visitsListener = database.ref('visits').on('child_added', snapshot => {
+                const key = snapshot.key;
+                
+                // Skip if already processed or not initialized
+                if (!visitsInitialized || visitsMap.has(key)) {
+                    return;
+                }
+
+                const visit = snapshot.val();
+                console.log('[VISITS] New visit detected:', key, visit.officeName);
+
+                // Add to map
+                visitsMap.set(key, {
+                    ...visit,
+                    key: key
+                });
+
+                // Animate stats card
+                const card = document.getElementById('totalVisitsCard');
+                if (card) {
+                    card.classList.add('pulse');
+                    setTimeout(() => card.classList.remove('pulse'), 500);
+                }
+
+                // Update UI if on visitation tab
+                if (currentSection === 'visitation') {
+                    updateVisitation();
+                    addNewVisitRow(key);
+                }
+
+                // Play notification
+                playNotificationSound();
+            });
+        }
+
+        function getVisitsArray() {
+            // Convert map to sorted array (newest first)
+            return Array.from(visitsMap.values())
+                .sort((a, b) => b.timestamp - a.timestamp);
+        }
+
+        function filterVisitsByTime(visits, range) {
+            const now = Date.now();
+            const day = 24 * 60 * 60 * 1000;
+            
+            const cutoffs = {
+                'today': now - day,
+                'week': now - (7 * day),
+                'month': now - (30 * day),
+                'all': 0
+            };
+
+            const cutoff = cutoffs[range] || cutoffs['today'];
+            return visits.filter(v => v.timestamp >= cutoff);
+        }
+
+        function filterVisits(range, btn) {
+            if (typeof range === 'string') {
+                currentFilter = range;
+            }
+            
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn?.classList.add('active');
+            
+            updateVisitation();
+        }
+
+        function updateVisitation() {
+            const allVisits = getVisitsArray();
+            const filtered = filterVisitsByTime(allVisits, currentFilter);
+            const now = Date.now();
+            const day = 24 * 60 * 60 * 1000;
+
+            // Total visits
+            document.getElementById('totalVisits').textContent = formatNumber(filtered.length);
+
+            // Calculate change from yesterday
+            const todayVisits = allVisits.filter(v => v.timestamp >= now - day).length;
+            const yesterdayVisits = allVisits.filter(v => 
+                v.timestamp >= now - (2 * day) && v.timestamp < now - day
+            ).length;
+            const diff = todayVisits - yesterdayVisits;
+
+            const changeEl = document.getElementById('visitsChange');
+            changeEl.innerHTML = `
+                <i data-lucide="${diff >= 0 ? 'trending-up' : 'trending-down'}"></i>
+                <span>${diff >= 0 ? '+' : ''}${diff} from yesterday</span>
+            `;
+            changeEl.className = `stat-change ${diff >= 0 ? 'positive' : 'negative'}`;
+
+            // Active visits (last 5 minutes)
+            const fiveMinAgo = now - (5 * 60 * 1000);
+            const activeCount = filtered.filter(v => v.timestamp > fiveMinAgo).length;
+            document.getElementById('activeVisits').textContent = activeCount;
+
+            // Office counts - FIXED: Proper counting without duplicates
+            const officeCounts = {};
+            filtered.forEach(v => {
+                const name = v.officeName || 'Unknown Office';
+                officeCounts[name] = (officeCounts[name] || 0) + 1;
+            });
+
+            // Top office
+            const sortedOffices = Object.entries(officeCounts).sort((a, b) => b[1] - a[1]);
+            if (sortedOffices.length > 0) {
+                document.getElementById('topOffice').textContent = sortedOffices[0][0];
+                document.getElementById('topOfficeCount').textContent = `${sortedOffices[0][1]} visits`;
+            } else {
+                document.getElementById('topOffice').textContent = '—';
+                document.getElementById('topOfficeCount').textContent = '0 visits';
+            }
+
+            // Unique offices
+            document.getElementById('uniqueOffices').textContent = Object.keys(officeCounts).length;
+
+            // Peak hours calculation
+            const hourlyData = Array(24).fill(0);
+            filtered.forEach(v => {
+                const hour = new Date(v.timestamp).getHours();
+                hourlyData[hour]++;
+            });
+
+            const maxVisits = Math.max(...hourlyData);
+            const minVisits = Math.min(...hourlyData.filter(h => h > 0)) || 0;
+            const peakHour = hourlyData.indexOf(maxVisits);
+            const quietHour = hourlyData.findIndex(h => h === minVisits && h > 0);
+            const avgHourly = Math.round(hourlyData.reduce((a, b) => a + b, 0) / 24);
+
+            document.getElementById('peakHourDisplay').textContent = maxVisits > 0 ? formatHour(peakHour) : '—';
+            document.getElementById('busiestHour').textContent = maxVisits > 0 ? formatHourRange(peakHour) : '—';
+            document.getElementById('quietestHour').textContent = minVisits > 0 ? formatHourRange(quietHour) : '—';
+            document.getElementById('avgHourlyVisits').textContent = avgHourly;
+
+            // Update charts
+            updateBarChart(officeCounts);
+            updateLineChart(hourlyData);
+            updateOfficePeaks(filtered);
+            updateVisitsTable(filtered);
+
+            initIcons();
+        }
+
+        function updateBarChart(officeCounts) {
+            const container = document.getElementById('topOfficesChart');
+            const sorted = Object.entries(officeCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 8);
+
+            if (!sorted.length) {
+                container.innerHTML = `
+                    <div class="empty-state" style="padding: var(--space-8);">
+                        <p class="empty-description">No visit data available yet.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const maxCount = sorted[0][1];
+
+            container.innerHTML = sorted.map(([name, count], idx) => {
+                const pct = (count / maxCount) * 100;
+                return `
+                    <div class="bar-item">
+                        <span class="bar-rank">${idx + 1}</span>
+                        <span class="bar-label" title="${name}">${truncate(name, 16)}</span>
+                        <div class="bar-track">
+                            <div class="bar-fill" style="width: ${pct}%">
+                                <span class="bar-value">${count}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateLineChart(hourlyData) {
+            const ctx = document.getElementById('peakHoursChart');
+            if (!ctx) return;
+
+            const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+            const textColor = isDark ? '#737373' : '#525252';
+            const gridColor = isDark ? 'rgba(64, 64, 64, 0.3)' : 'rgba(229, 229, 229, 0.8)';
+
+            // Find peak hours (top 3)
+            const sortedHours = hourlyData
+                .map((count, hour) => ({ hour, count }))
+                .sort((a, b) => b.count - a.count);
+            const peakHourIndices = sortedHours.slice(0, 3).map(h => h.hour);
+
+            const pointColors = hourlyData.map((_, i) => 
+                peakHourIndices.includes(i) ? '#22C55E' : '#D4A574'
+            );
+
+            const labels = Array.from({ length: 24 }, (_, i) => formatHour(i));
+
+            if (peakHoursChartInstance) {
+                peakHoursChartInstance.destroy();
+            }
+
+            peakHoursChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [{
+                        data: hourlyData,
+                        borderColor: '#D4A574',
+                        backgroundColor: 'rgba(212, 165, 116, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointHoverRadius: 7,
+                        pointBackgroundColor: pointColors,
+                        pointBorderColor: pointColors,
+                        pointBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: isDark ? '#262626' : '#ffffff',
+                            titleColor: isDark ? '#fafafa' : '#171717',
+                            bodyColor: isDark ? '#a3a3a3' : '#525252',
+                            borderColor: isDark ? '#404040' : '#e5e5e5',
+                            borderWidth: 1,
+                            padding: 12,
+                            cornerRadius: 8,
+                            displayColors: false,
+                            callbacks: {
+                                title: ctx => formatHourRange(ctx[0].dataIndex),
+                                label: ctx => {
+                                    const isPeak = peakHourIndices.includes(ctx.dataIndex);
+                                    return `${ctx.parsed.y} visits${isPeak ? ' (Peak)' : ''}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: gridColor, drawBorder: false },
+                            ticks: {
+                                color: textColor,
+                                font: { family: "'Poppins'", size: 10 },
+                                maxRotation: 45,
+                                callback: (val, idx) => idx % 3 === 0 ? labels[idx] : ''
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: gridColor, drawBorder: false },
+                            ticks: {
+                                color: textColor,
+                                font: { family: "'Poppins'", size: 11 },
+                                stepSize: 1,
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateOfficePeaks(visits) {
+            const container = document.getElementById('officePeaksGrid');
+
+            // Group by office
+            const officeData = {};
+            visits.forEach(v => {
+                const name = v.officeName || 'Unknown Office';
+                if (!officeData[name]) {
+                    officeData[name] = { visits: 0, hourly: Array(24).fill(0) };
+                }
+                officeData[name].visits++;
+                officeData[name].hourly[new Date(v.timestamp).getHours()]++;
+            });
+
+            // Sort and take top 6
+            const sorted = Object.entries(officeData)
+                .sort((a, b) => b[1].visits - a[1].visits)
+                .slice(0, 6);
+
+            if (!sorted.length) {
+                container.innerHTML = `
+                    <div class="empty-state" style="grid-column: 1/-1; padding: var(--space-8);">
+                        <p class="empty-description">Peak hours data will appear when visits are recorded.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = sorted.map(([name, data]) => {
+                const peakHours = data.hourly
+                    .map((count, hour) => ({ hour, count }))
+                    .filter(h => h.count > 0)
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, 3);
+
+                return `
+                    <div class="peak-card">
+                        <div class="peak-card-header">
+                            <div class="peak-card-icon"><i data-lucide="building-2"></i></div>
+                            <div class="peak-card-info">
+                                <div class="peak-card-name">${truncate(name, 28)}</div>
+                                <div class="peak-card-visits">${data.visits} total visits</div>
+                            </div>
+                        </div>
+                        <div class="peak-times">
+                            ${peakHours.length ? peakHours.map((p, i) => `
+                                <div class="peak-time-item ${i === 0 ? 'primary' : ''}">
+                                    <span class="peak-time-slot">
+                                        <i data-lucide="clock"></i>
+                                        ${formatHourRange(p.hour)}
+                                    </span>
+                                    <span class="peak-time-count">${p.count}</span>
+                                </div>
+                            `).join('') : '<p style="color: var(--text-muted); font-size: 12px;">No data</p>'}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            initIcons();
+        }
+
+        function updateVisitsTable(visits) {
+            const tbody = document.getElementById('visitsTableBody');
+
+            if (!visits.length) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4">
+                            <div class="empty-state" style="padding: var(--space-8);">
+                                <p class="empty-description">No visits recorded yet.</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            // Show most recent 50 visits
+            const recentVisits = visits.slice(0, 50);
+
+            tbody.innerHTML = recentVisits.map(v => createVisitRow(v)).join('');
+        }
+
+        function createVisitRow(visit) {
+            const status = getVisitStatus(visit.timestamp);
+            const timeAgo = getTimeAgo(visit.timestamp);
+            const timeStr = new Date(visit.timestamp).toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            return `
+                <tr data-key="${visit.key}">
+                    <td>
+                        <div class="cell-time">
+                            <span class="time-main">${timeStr}</span>
+                            <span class="time-ago">${timeAgo}</span>
+                        </div>
+                    </td>
+                    <td class="cell-office">${visit.officeName || 'Unknown'}</td>
+                    <td class="cell-user">${visit.userId || 'Anonymous'}</td>
+                    <td><span class="status-pill ${status.cls}">${status.text}</span></td>
+                </tr>
+            `;
+        }
+
+        function addNewVisitRow(key) {
+            const visit = visitsMap.get(key);
+            if (!visit) return;
+
+            const tbody = document.getElementById('visitsTableBody');
+            
+            // Check if row already exists
+            if (tbody.querySelector(`tr[data-key="${key}"]`)) return;
+            
+            // Remove empty state if present
+            const emptyRow = tbody.querySelector('td[colspan]');
+            if (emptyRow) {
+                emptyRow.closest('tr').remove();
+            }
+
+            // Create new row
+            const row = document.createElement('tr');
+            row.className = 'new-row';
+            row.setAttribute('data-key', key);
+            row.innerHTML = createVisitRow(visit).replace(/<tr[^>]*>|<\/tr>/g, '');
+
+            // Insert at top
+            tbody.insertBefore(row, tbody.firstChild);
+
+            // Keep only 50 rows
+            while (tbody.children.length > 50) {
+                tbody.removeChild(tbody.lastChild);
+            }
+        }
+
+        function getVisitStatus(timestamp) {
+            const diff = Date.now() - timestamp;
+            
+            if (diff < 5 * 60 * 1000) {
+                return { cls: 'status-live', text: 'Live' };
+            } else if (diff < 60 * 60 * 1000) {
+                return { cls: 'status-recent', text: 'Recent' };
+            }
+            return { cls: 'status-past', text: 'Past' };
+        }
+
+        function getTimeAgo(timestamp) {
+            const seconds = Math.floor((Date.now() - timestamp) / 1000);
+            
+            if (seconds < 60) return 'Just now';
+            if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+            if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+            return `${Math.floor(seconds / 86400)}d ago`;
+        }
+
+        function playNotificationSound() {
+            try {
+                const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjSO1fLMey4FJHzP8OKTRwoWYrjq66NcFApMqOPyvmwkBjiS1/LLei8FM4LL8OCPQgkWYrjp66NXEwpJpeLyt28jCDaN1vLKfS4GM4TM8NyPRgkXY7jp66ZZFA==');
+                audio.volume = 0.3;
+                audio.play().catch(() => {});
+            } catch (e) {}
+        }
+
+        // ============================================
+        // SEARCH
+        // ============================================
+        document.getElementById("officeSearch").addEventListener("input", function(e) {
+            searchTerm = e.target.value;
+            clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(renderOffices, 200);
+        });
+
+        document.getElementById("clearSearchBtn").addEventListener("click", function() {
+            document.getElementById("officeSearch").value = "";
+            searchTerm = "";
+            renderOffices();
+        });
+
+        // ============================================
+        // KEYBOARD SHORTCUTS
+        // ============================================
+        document.addEventListener("keydown", function(e) {
+            // Ctrl/Cmd + S to save
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+                e.preventDefault();
+                if (!document.getElementById("officeModal").classList.contains("hidden")) {
+                    document.getElementById("officeForm").requestSubmit();
+                } else if (!document.getElementById("serviceModal").classList.contains("hidden")) {
+                    document.getElementById("serviceForm").requestSubmit();
+                }
+            }
+            
+            // Escape to close modals
+            if (e.key === "Escape") {
+                closeOfficeModal();
+                closeServiceModal();
+            }
+        });
+
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        function initApp() {
+            initTheme();
+            initIcons();
+
+            // Initialize Firebase for auth check
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+            database = firebase.database();
+
+            // Check if already logged in
+            if (sessionStorage.getItem("manilaAdminLoggedIn")) {
+                showMainApp();
+            } else {
+                showLoginScreen();
+            }
+        }
+
+        // Auto-fill credentials for demo
+        document.getElementById("username").value = "admin@manilaserve.ph";
+        document.getElementById("password").value = "admin1234";
+
+        // Start app
+        window.addEventListener("load", initApp);
+
+        // Session timeout (30 minutes)
+        setTimeout(() => {
+            if (sessionStorage.getItem("manilaAdminLoggedIn")) {
+                alert("Session expired. Please login again.");
+                logout();
+            }
+        }, 30 * 60 * 1000);
+
+        console.log("🏛️ ManilaServe Admin Panel Ready");
+    </script>
+</body>
+</html>

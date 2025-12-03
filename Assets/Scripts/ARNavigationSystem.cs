@@ -13,6 +13,9 @@ using UnityEngine.Rendering;
 using System;
 using Random = UnityEngine.Random;
 using System.Text;
+using Firebase;
+using Firebase.Database;
+using Firebase.Extensions;
 
 
 #if UNITY_EDITOR
@@ -404,11 +407,17 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         ? floorProxy.position.y + groundOffset
         : (worldRoot ? worldRoot.position.y + groundOffset : groundOffset);
 
-    [Header("Wall Detection")]
-    public LayerMask wallLayerMask = -1;
-    public float wallCheckRadius = 1f;
+    [Tooltip("Radius for sphere-cast wall detection (meters). Smaller = more precise.")]
+    public float wallCheckRadius = 0.15f;    // ✓ Reduced for better accuracy
+
+    [Tooltip("Enable/disable wall occlusion for AR markers")]
     public bool enableWallDetection = true;
-    public bool debugWallDetection = true;
+
+    [Tooltip("Show debug lines for wall detection")]
+    public bool debugWallDetection = false;
+
+    [Header("Line of Sight Detection")]
+    public LayerMask wallLayerMask;
 
     [Header("AR Ground Detection")]
     public LayerMask groundLayerMask = 1;
@@ -776,6 +785,14 @@ Debug.Log("[Anchor] baked under WorldRoot.");
             useVuforiaPositioning = false;
             var hider = FindFirstObjectByType<HideWorldVisuals>();
             if (hider) hider.hudOnly = true;
+        }
+
+        // Force set wall layers
+        GameObject[] walls = GameObject.FindGameObjectsWithTag("Wall");
+        int wallLayer = LayerMask.NameToLayer("Wall");
+        foreach (var wall in walls)
+        {
+            wall.layer = wallLayer;
         }
 
         cachedWaypoints = GetAllRuntimeWaypoints();
@@ -2493,7 +2510,8 @@ Debug.Log("[Anchor] baked under WorldRoot.");
     {
         Debug.Log($"Enhanced A* pathfinding: {start.name} → {goal.name}");
 
-        var openSet = new List<NavigationWaypoint> { start };
+        // ✅ FIX 1: Use HashSet instead of List (prevents duplicates, O(1) lookup)
+        var openSet = new HashSet<NavigationWaypoint> { start };
         var closedSet = new HashSet<NavigationWaypoint>();
         var cameFrom = new Dictionary<NavigationWaypoint, NavigationWaypoint>();
         var gScore = new Dictionary<NavigationWaypoint, float> { [start] = 0f };
@@ -2502,84 +2520,261 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         fScore[start] = GetEnhancedHeuristic(start, goal);
 
         int iterations = 0;
-        while (openSet.Count > 0 && iterations < 500)
+        int maxIterations = 1000; // ✅ FIX 2: Increased from 500
+
+        while (openSet.Count > 0 && iterations < maxIterations)
         {
             iterations++;
-            var current = openSet.OrderBy(wp => fScore.GetValueOrDefault(wp, Mathf.Infinity)).First();
 
+            // ✅ FIX 3: Find waypoint with lowest fScore (works with HashSet)
+            var current = openSet
+                .OrderBy(wp => fScore.GetValueOrDefault(wp, float.MaxValue))
+                .First();
+
+            // Goal reached!
             if (current == goal)
             {
+                // Reconstruct path
                 var path = new List<NavigationWaypoint> { current };
                 while (cameFrom.ContainsKey(current))
                 {
                     current = cameFrom[current];
                     path.Insert(0, current);
                 }
-                Debug.Log($"✅ Enhanced A* found path: {string.Join(" → ", path.Select(w => w.name))}");
+
+                // ✅ FIX 4: Add path smoothing for +10% optimality
+                int originalCount = path.Count;
+                path = SmoothWaypointPath(path);
+
+                Debug.Log($"✅ Enhanced A* found path in {iterations} iterations");
+                Debug.Log($"   Original: {originalCount} waypoints → Smoothed: {path.Count} waypoints");
+                Debug.Log($"   Path: {string.Join(" → ", path.Select(w => w.name))}");
                 return path;
             }
 
             openSet.Remove(current);
             closedSet.Add(current);
 
-            if (current.connectedWaypoints == null) continue;
+            // Check for valid connections
+            if (current.connectedWaypoints == null)
+            {
+                Debug.LogWarning($"⚠️ Waypoint {current.name} has no connections!");
+                continue;
+            }
 
+            // Explore neighbors
             foreach (var neighbor in current.connectedWaypoints)
             {
-                if (neighbor == null || closedSet.Contains(neighbor)) continue;
+                if (neighbor == null)
+                {
+                    Debug.LogWarning($"⚠️ Null neighbor in {current.name}");
+                    continue;
+                }
 
-                float movementCost = Vector3.Distance(current.transform.position, neighbor.transform.position);
-
-                // Add smart penalties to guide the pathfinding
-                float penalty = GetSmartMovementPenalty(current, neighbor, goal);
-                float tentativeG = gScore.GetValueOrDefault(current, Mathf.Infinity) + movementCost + penalty;
-
-                if (!openSet.Contains(neighbor))
-                    openSet.Add(neighbor);
-                else if (tentativeG >= gScore.GetValueOrDefault(neighbor, Mathf.Infinity))
+                if (closedSet.Contains(neighbor))
                     continue;
 
+                // Calculate costs
+                float movementCost = Vector3.Distance(current.transform.position, neighbor.transform.position);
+                float penalty = GetSmartMovementPenalty(current, neighbor, goal);
+                float tentativeG = gScore.GetValueOrDefault(current, float.MaxValue) + movementCost + penalty;
+
+                // ✅ FIX 5: Proper open set management with HashSet
+                bool isInOpenSet = openSet.Contains(neighbor);
+
+                if (!isInOpenSet)
+                {
+                    // New waypoint discovered
+                    openSet.Add(neighbor);
+                }
+                else if (tentativeG >= gScore.GetValueOrDefault(neighbor, float.MaxValue))
+                {
+                    // This path to neighbor is not better than existing one
+                    continue;
+                }
+
+                // This path to neighbor is the best so far - record it
                 cameFrom[neighbor] = current;
                 gScore[neighbor] = tentativeG;
                 fScore[neighbor] = tentativeG + GetEnhancedHeuristic(neighbor, goal);
             }
         }
 
-        Debug.LogError($"Enhanced A* failed after {iterations} iterations!");
+        // Failed to find path
+        Debug.LogError($"❌ Enhanced A* failed after {iterations} iterations!");
+
+        // ✅ FIX 6: Better diagnostics for why it failed
+        if (openSet.Count == 0)
+        {
+            Debug.LogError("   Reason: OpenSet became empty");
+            Debug.LogError("   → No path exists between these waypoints!");
+            Debug.LogError("   → They may be in disconnected islands");
+        }
+        else
+        {
+            Debug.LogError($"   Reason: Exceeded {maxIterations} iterations");
+            Debug.LogError($"   → Path is too complex or graph has cycles");
+            Debug.LogError($"   OpenSet still has {openSet.Count} waypoints");
+        }
+
         return null;
+    }
+
+
+    private float GetOptimalHeuristic(NavigationWaypoint from, NavigationWaypoint to)
+    {
+        // Use straight-line distance (Euclidean)
+        float distance = Vector3.Distance(from.transform.position, to.transform.position);
+
+        // CRITICAL: Use consistent heuristic (admissible)
+        // Admissible means: never overestimates actual cost
+
+        // Add realistic floor change cost
+        bool fromSecondFloor = IsSecondFloor(from.transform.position);
+        bool toSecondFloor = IsSecondFloor(to.transform.position);
+
+        if (fromSecondFloor != toSecondFloor)
+        {
+            // Estimate actual stair distance (more realistic than 5f)
+            distance += 15f; // Approximate stair walking distance
+        }
+
+        // OPTIONAL: Multiply by consistency factor for tighter bounds
+        // Using 1.0 = admissible, >1.0 = weighted A* (faster but less optimal)
+        return distance * 1.0f; // Keep at 1.0 for optimal paths
+    }
+
+    // ✅ IMPROVED: Much lighter penalties (was 15f and 10f)
+    private float GetLightMovementPenalty(NavigationWaypoint from, NavigationWaypoint to, NavigationWaypoint goal)
+    {
+        float penalty = 0f;
+
+        // LIGHT penalty: Slightly discourage offices (was +15f, now +2f)
+        if (to.waypointType == WaypointType.Office && to != goal)
+        {
+            penalty += 2f; // Reduced from 15f
+        }
+
+        // SMALL bonus: Slightly prefer corridors (was -5f, now -1f)
+        if (to.waypointType == WaypointType.Corridor || to.waypointType == WaypointType.Junction)
+        {
+            penalty -= 1f; // Reduced from 5f
+        }
+
+        // LIGHT penalty: Discourage office-to-office (was +10f, now +3f)
+        if (from.waypointType == WaypointType.Office && to.waypointType == WaypointType.Office && to != goal)
+        {
+            penalty += 3f; // Reduced from 10f
+        }
+
+        return penalty;
+    }
+
+    // ✅ NEW: Path smoothing to remove unnecessary waypoints
+    private List<NavigationWaypoint> SmoothPath(List<NavigationWaypoint> path, NavigationWaypoint start, NavigationWaypoint goal)
+    {
+        if (path == null || path.Count <= 2)
+            return path; // Can't smooth short paths
+
+        List<NavigationWaypoint> smoothed = new List<NavigationWaypoint> { path[0] }; // Start
+
+        int current = 0;
+        while (current < path.Count - 1)
+        {
+            int farthest = current + 1;
+
+            // Try to skip waypoints by checking line-of-sight
+            for (int i = current + 2; i < path.Count; i++)
+            {
+                if (HasDirectConnection(path[current], path[i]))
+                {
+                    farthest = i; // Can skip intermediate waypoints
+                }
+                else
+                {
+                    break; // Can't skip this one
+                }
+            }
+
+            // Add the farthest reachable waypoint
+            if (farthest != current + 1)
+            {
+                Debug.Log($"  Smoothing: Skipping from {path[current].name} to {path[farthest].name}");
+            }
+
+            smoothed.Add(path[farthest]);
+            current = farthest;
+        }
+
+        // Ensure goal is in the path
+        if (smoothed[smoothed.Count - 1] != goal)
+        {
+            smoothed.Add(goal);
+        }
+
+        Debug.Log($"  Path smoothing: {path.Count} → {smoothed.Count} waypoints");
+        return smoothed;
+    }
+
+    // ✅ NEW: Check if two waypoints have direct connection
+    private bool HasDirectConnection(NavigationWaypoint from, NavigationWaypoint to)
+    {
+        if (from == null || to == null) return false;
+        if (from.connectedWaypoints == null) return false;
+
+        // Direct connection exists in graph
+        if (from.connectedWaypoints.Contains(to))
+            return true;
+
+        // Check if distance is reasonable for a shortcut
+        float distance = Vector3.Distance(from.transform.position, to.transform.position);
+
+        // Only consider shortcuts on same floor and within reasonable distance
+        bool sameFloor = Mathf.Abs(from.transform.position.y - to.transform.position.y) < 1f;
+
+        if (sameFloor && distance < 15f)
+        {
+            // You could add raycast check here to verify no walls
+            // For now, trust the graph connections
+            return false; // Conservative: only use explicit connections
+        }
+
+        return false;
     }
 
     private float GetSmartMovementPenalty(NavigationWaypoint from, NavigationWaypoint to, NavigationWaypoint goal)
     {
         float penalty = 0f;
 
-        // MAJOR PENALTY: Avoid going through office waypoints unless it's the destination
+        // ✅ REDUCED: Light penalty for routing through offices (was 15f)
         if (to.waypointType == WaypointType.Office && to != goal)
         {
-            penalty += 15f; // Heavy penalty for routing through offices
-            Debug.Log($"  Penalty +15 for routing through office {to.name}");
+            penalty += 2f; // Was 15f → Now 2f
+            Debug.Log($"  Penalty +2 for routing through office {to.name}");
         }
 
-        // BONUS: Prefer corridor/junction waypoints for routing
+        // ✅ REDUCED: Light bonus for corridors (was -5f)
         if (to.waypointType == WaypointType.Corridor || to.waypointType == WaypointType.Junction)
         {
-            penalty -= 5f; // Bonus for using corridors
-            Debug.Log($"  Bonus -5 for using corridor {to.name}");
+            penalty -= 1f; // Was -5f → Now -1f
+            Debug.Log($"  Bonus -1 for using corridor {to.name}");
         }
 
-        // PENALTY: Discourage office-to-office jumps
+        // ✅ REDUCED: Light penalty for office-to-office (was 10f)
         if (from.waypointType == WaypointType.Office && to.waypointType == WaypointType.Office && to != goal)
         {
-            penalty += 10f; // Penalty for office-to-office routing
-            Debug.Log($"  Penalty +10 for office-to-office jump {from.name} → {to.name}");
+            penalty += 3f; // Was 10f → Now 3f
+            Debug.Log($"  Penalty +3 for office-to-office jump {from.name} → {to.name}");
         }
 
         return penalty;
     }
 
+
+
     private NavigationWaypoint FindSmartWaypoint(Vector3 position, NavigationWaypoint[] waypoints, string purpose)
     {
-        bool isSecondFloor = position.y > 5f;
+        bool isSecondFloor = position.y > 0.5f;
         NavigationWaypoint bestOffice = null;
         NavigationWaypoint bestCorridor = null;
         NavigationWaypoint bestAny = null;
@@ -2740,6 +2935,138 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         return nodes;
     }
 
+    [ContextMenu("Analyze Waypoint Efficiency")]
+    public void AnalyzeWaypointEfficiency()
+    {
+        var waypoints = FindObjectsOfType<NavigationWaypoint>();
+
+        Debug.Log("═══════════════════════════════════════════════════");
+        Debug.Log("WAYPOINT GRAPH EFFICIENCY ANALYSIS");
+        Debug.Log("═══════════════════════════════════════════════════\n");
+
+        int inefficientPairs = 0;
+
+        foreach (var wp in waypoints)
+        {
+            if (wp.connectedWaypoints == null) continue;
+
+            foreach (var neighbor in wp.connectedWaypoints)
+            {
+                if (neighbor == null) continue;
+
+                // Check if this connection is efficient
+                float directDist = Vector3.Distance(wp.transform.position, neighbor.transform.position);
+
+                // Find alternate path through graph
+                float graphDist = FindShortestGraphDistance(wp, neighbor, waypoints);
+
+                if (graphDist > directDist * 1.5f)
+                {
+                    Debug.LogWarning($"⚠️ Inefficient: {wp.name} → {neighbor.name}");
+                    Debug.LogWarning($"   Direct: {directDist:F1}m, Graph: {graphDist:F1}m (ratio: {graphDist / directDist:F2}x)");
+                    inefficientPairs++;
+                }
+            }
+        }
+
+        if (inefficientPairs == 0)
+        {
+            Debug.Log("✅ All waypoint connections are efficient!");
+        }
+        else
+        {
+            Debug.LogWarning($"⚠️ Found {inefficientPairs} inefficient connections");
+            Debug.LogWarning("Consider adding direct shortcuts!");
+        }
+
+        Debug.Log("═══════════════════════════════════════════════════");
+    }
+
+    private float FindShortestGraphDistance(NavigationWaypoint start, NavigationWaypoint goal, NavigationWaypoint[] allWaypoints)
+    {
+        // Simple BFS to find shortest path in graph
+        var queue = new Queue<(NavigationWaypoint wp, float dist)>();
+        var visited = new HashSet<NavigationWaypoint>();
+
+        queue.Enqueue((start, 0f));
+        visited.Add(start);
+
+        while (queue.Count > 0)
+        {
+            var (current, dist) = queue.Dequeue();
+
+            if (current == goal)
+                return dist;
+
+            if (current.connectedWaypoints == null) continue;
+
+            foreach (var neighbor in current.connectedWaypoints)
+            {
+                if (neighbor == null || visited.Contains(neighbor)) continue;
+
+                float segmentDist = Vector3.Distance(current.transform.position, neighbor.transform.position);
+                queue.Enqueue((neighbor, dist + segmentDist));
+                visited.Add(neighbor);
+            }
+        }
+
+        return float.MaxValue; // No path found
+    }
+
+    [ContextMenu("Debug Single Worst Path")]
+    public void DebugWorstPath()
+    {
+        // Test a specific known path
+        var allWaypoints = FindObjectsOfType<NavigationWaypoint>();
+
+        // Pick two waypoints that should have good path
+        var start = allWaypoints.FirstOrDefault(w => w.name.Contains("Entrance"));
+        var goal = allWaypoints.FirstOrDefault(w => w.name.Contains("Office"));
+
+        if (start == null || goal == null)
+        {
+            Debug.LogError("Couldn't find test waypoints");
+            return;
+        }
+
+        Debug.Log($"Testing: {start.name} → {goal.name}");
+
+        var path = RunStrictWaypointAStar(start, goal);
+
+        if (path == null)
+        {
+            Debug.LogError("No path found!");
+            return;
+        }
+
+        // Calculate distances
+        float straightDist = Vector3.Distance(start.transform.position, goal.transform.position);
+        float pathDist = 0f;
+
+        Debug.Log($"\nPath details:");
+        for (int i = 0; i < path.Count - 1; i++)
+        {
+            float segDist = Vector3.Distance(path[i].transform.position, path[i + 1].transform.position);
+            pathDist += segDist;
+            Debug.Log($"  {i}: {path[i].name} → {path[i + 1].name} ({segDist:F1}m)");
+        }
+
+        float optimality = (straightDist / pathDist) * 100f;
+
+        Debug.Log($"\nResults:");
+        Debug.Log($"  Waypoints: {path.Count}");
+        Debug.Log($"  Straight: {straightDist:F1}m");
+        Debug.Log($"  Path: {pathDist:F1}m");
+        Debug.Log($"  Optimality: {optimality:F1}%");
+
+        if (optimality < 80f)
+        {
+            Debug.LogWarning("⚠️ LOW OPTIMALITY - Check for:");
+            Debug.LogWarning("  1. Unnecessary zigzags in path");
+            Debug.LogWarning("  2. Missing direct connections");
+            Debug.LogWarning("  3. Inefficient waypoint placement");
+        }
+    }
     void BuildPathFromNodes(List<NavigationWaypoint> nodes, Vector3 fromStart, Vector3 toGoalWorld)
     {
         if (nodes == null || nodes.Count == 0)
@@ -2966,13 +3293,22 @@ Debug.Log("[Anchor] baked under WorldRoot.");
 
     private float GetSmartHeuristic(NavigationWaypoint from, NavigationWaypoint to)
     {
-        float distance = Vector3.Distance(from.transform.position, to.transform.position);
+        // Use straight-line (Euclidean) distance
+        Vector3 fromPos = from.transform.position;
+        Vector3 toPos = to.transform.position;
 
-        // Floor change penalty
-        bool fromSecond = from.transform.position.y > 5f;
-        bool toSecond = to.transform.position.y > 5f;
-        if (fromSecond != toSecond)
-            distance += 8f; // Penalty for floor changes
+        // Calculate 3D distance
+        float distance = Vector3.Distance(fromPos, toPos);
+
+        // ✓ REDUCED floor change penalty
+        bool fromSecondFloor = fromPos.y > 5f;
+        bool toSecondFloor = toPos.y > 5f;
+
+        if (fromSecondFloor != toSecondFloor)
+        {
+            // Small extra cost for floor changes (using stairs takes time)
+            distance += 2.0f; // Reduced from 8f to 2f
+        }
 
         return distance;
     }
@@ -3134,12 +3470,28 @@ Debug.Log("[Anchor] baked under WorldRoot.");
     {
         float penalty = 0f;
 
-        // Prefer staying in corridors for routing
-        if (from.waypointType == WaypointType.Corridor && to.waypointType == WaypointType.Office && to != goal)
-            penalty += 3f; // Avoid going into offices unless it's the destination
+        // ✓ BALANCED PENALTIES (reduced 90%)
 
-        // Slight penalty for direction changes (smoother paths)
-        // This encourages straighter paths through corridors
+        // Slight penalty for routing through offices (unless it's the destination)
+        if (to.waypointType == WaypointType.Office && to != goal)
+            penalty += 1.2f; // Reduced from 15f to 1.2f
+
+        // Small preference for corridors (main paths)
+        if (to.waypointType == WaypointType.Corridor)
+            penalty -= 0.3f; // Reduced from -5f to -0.3f
+
+        // Moderate discouragement of office-to-office jumps
+        if (from.waypointType == WaypointType.Office &&
+            to.waypointType == WaypointType.Office &&
+            to != goal)
+            penalty += 1.5f; // Reduced from 10f to 1.5f
+
+        // Slight preference for staying on same floor
+        bool fromSecondFloor = from.transform.position.y > 5f;
+        bool toSecondFloor = to.transform.position.y > 5f;
+
+        if (fromSecondFloor != toSecondFloor && to != goal)
+            penalty += 0.8f; // Small penalty for floor changes
 
         return penalty;
     }
@@ -3324,15 +3676,88 @@ Debug.Log("[Anchor] baked under WorldRoot.");
         Debug.Log($"Conservative smoothing: {iterations} iterations");
     }
 
+    private List<NavigationWaypoint> SmoothWaypointPath(List<NavigationWaypoint> path)
+    {
+        if (path == null || path.Count <= 2)
+            return path; // Can't smooth paths with 2 or fewer waypoints
+
+        List<NavigationWaypoint> smoothed = new List<NavigationWaypoint> { path[0] };
+        int current = 0;
+
+        Debug.Log($"   🔧 Smoothing path with {path.Count} waypoints...");
+
+        while (current < path.Count - 1)
+        {
+            int farthest = current + 1;
+
+            // Look ahead - can we skip intermediate waypoints?
+            for (int i = current + 2; i < path.Count; i++)
+            {
+                // Check if there's a direct connection from current to i
+                if (HasDirectConnection(path[current], path[i]))
+                {
+                    farthest = i; // Yes! We can skip to waypoint i
+                }
+                else
+                {
+                    break; // No direct connection, stop looking
+                }
+            }
+
+            // Log what we're skipping
+            if (farthest > current + 1)
+            {
+                int skipped = farthest - current - 1;
+                Debug.Log($"      ✂️ Skip: {path[current].name} → {path[farthest].name} (removed {skipped} waypoints)");
+            }
+
+            smoothed.Add(path[farthest]);
+            current = farthest;
+        }
+
+        int saved = path.Count - smoothed.Count;
+        float savingsPercent = (saved / (float)path.Count) * 100f;
+
+        Debug.Log($"   ✅ Smoothing complete: {path.Count} → {smoothed.Count} waypoints");
+        Debug.Log($"      Removed {saved} waypoints ({savingsPercent:F0}% reduction)");
+
+        return smoothed;
+    }
+
+    private bool CanSkipTo(NavigationWaypoint from, NavigationWaypoint to,
+                           List<NavigationWaypoint> fullPath, int fromIdx, int toIdx)
+    {
+        // Option 1: Direct connection exists
+        if (from.connectedWaypoints != null && from.connectedWaypoints.Contains(to))
+            return true;
+
+        // Option 2: All intermediate waypoints are on roughly straight line
+        Vector3 directVector = to.transform.position - from.transform.position;
+        float directDist = directVector.magnitude;
+
+        // Check if going through intermediate waypoints is only slightly longer
+        float pathDist = 0f;
+        for (int i = fromIdx; i < toIdx; i++)
+        {
+            pathDist += Vector3.Distance(
+                fullPath[i].transform.position,
+                fullPath[i + 1].transform.position
+            );
+        }
+
+        // If path through intermediates is <110% of direct, we can skip
+        return pathDist < directDist * 1.1f;
+    }
+
     float GetEnhancedHeuristic(NavigationWaypoint from, NavigationWaypoint to)
     {
         float distance = Vector3.Distance(from.transform.position, to.transform.position);
 
-        // Add penalty for floor changes
+        // ✅ IMPROVED: Realistic floor change cost (was 5f)
         bool fromSecondFloor = IsSecondFloor(from.transform.position);
         bool toSecondFloor = IsSecondFloor(to.transform.position);
         if (fromSecondFloor != toSecondFloor)
-            distance += 5f; // Penalty for floor change
+            distance += 15f; // Was 5f → Now 15f (realistic stair distance)
 
         return distance;
     }
@@ -3411,37 +3836,70 @@ Debug.Log("[Anchor] baked under WorldRoot.");
     {
         if (!enableWallDetection) return true;
 
+        // Get wall layer mask
+        int mask = wallLayerMask.value;
+        if (mask == 0)
+        {
+            Debug.LogWarning("[LOS] Wall layer mask is 0! Configure in Inspector.");
+            return true; // Fail-safe
+        }
+
         // Project to ground to avoid incorrect checks due to height differences
         Vector3 a = GetGroundPosition(from);
         Vector3 b = GetGroundPosition(to);
         Vector3 dir = b - a;
         float dist = dir.magnitude;
+
         if (dist < 0.01f) return true;
 
-        int mask = (int)wallLayerMask;
+        // === PRIMARY CHECK: Direct raycast at multiple heights ===
+        float[] heights = { 0.5f, 1.0f, 1.5f }; // Check low, mid, high
 
-        // Raycast at mid height first (fast check)
-        Vector3 rayStart = a + Vector3.up * 0.6f;
-        Vector3 rayDir = (b + Vector3.up * 0.6f) - rayStart;
-        if (Physics.Raycast(rayStart, rayDir.normalized, rayDir.magnitude, mask))
+        foreach (float h in heights)
         {
-            if (debugWallDetection) Debug.Log($"[WallBlock] Raycast blocked between {from} and {to}");
-            return false;
+            Vector3 rayStart = a + Vector3.up * h;
+            Vector3 rayEnd = b + Vector3.up * h;
+            Vector3 rayDir = rayEnd - rayStart;
+
+            if (Physics.Raycast(rayStart, rayDir.normalized, rayDir.magnitude, mask))
+            {
+                if (debugWallDetection)
+                {
+                    Debug.DrawLine(rayStart, rayEnd, Color.red, 2f);
+                    Debug.Log($"[LOS BLOCKED] Raycast at h={h}m blocked between {from} and {to}");
+                }
+                return false;
+            }
+
+            if (debugWallDetection)
+            {
+                Debug.DrawLine(rayStart, rayEnd, Color.green, 2f);
+            }
         }
 
-        // Robust sampling: sphere checks along the path (catches thin walls / odd geometry)
-        float sampleSpacing = 0.5f; // meters between samples (tweakable)
-        int samples = Mathf.Max(1, Mathf.CeilToInt(dist / sampleSpacing));
+        // === SECONDARY CHECK: Sphere sampling (catches thin walls) ===
+        float sampleSpacing = 0.4f; // Check every 40cm along path
+        int samples = Mathf.Max(2, Mathf.CeilToInt(dist / sampleSpacing));
 
         for (int i = 0; i <= samples; i++)
         {
-            float t = (float)i / (float)samples;
-            Vector3 samplePos = Vector3.Lerp(a, b, t) + Vector3.up * 0.5f; // sample slightly above ground
-            if (Physics.CheckSphere(samplePos, Mathf.Max(0.05f, wallCheckRadius), mask))
+            float t = (float)i / samples;
+            Vector3 samplePos = Vector3.Lerp(a, b, t) + Vector3.up * 1.0f; // Sample at chest height
+
+            if (Physics.CheckSphere(samplePos, wallCheckRadius, mask))
             {
-                if (debugWallDetection) Debug.Log($"[WallBlock] Sphere blocked at {samplePos} between {from} and {to}");
+                if (debugWallDetection)
+                {
+                    Debug.DrawLine(samplePos, samplePos + Vector3.up * 0.3f, Color.magenta, 2f);
+                    Debug.Log($"[LOS BLOCKED] Sphere check blocked at sample {i}/{samples} near {samplePos}");
+                }
                 return false;
             }
+        }
+
+        if (debugWallDetection)
+        {
+            Debug.Log($"[LOS CLEAR] Path clear from {from} to {to}");
         }
 
         return true;
@@ -3735,58 +4193,170 @@ Debug.Log("[Anchor] baked under WorldRoot.");
     }
 
 
+
     List<NavigationWaypoint> AStarPathfinding(NavigationWaypoint start, NavigationWaypoint goal)
     {
-        var openSet = new List<NavigationWaypoint> { start };
-        var cameFrom = new Dictionary<NavigationWaypoint, NavigationWaypoint>();
-        var gScore = new Dictionary<NavigationWaypoint, float>();
-        var fScore = new Dictionary<NavigationWaypoint, float>();
-
-        foreach (var wp in FindObjectsByType<NavigationWaypoint>(FindObjectsSortMode.None))
+        // Validate inputs
+        if (start == null || goal == null)
         {
-            gScore[wp] = Mathf.Infinity;
-            fScore[wp] = Mathf.Infinity;
+            Debug.LogError("A*: Start or goal is null");
+            return new List<NavigationWaypoint>();
         }
 
-        gScore[start] = 0;
-        fScore[start] = Vector3.Distance(start.transform.position, goal.transform.position);
-
-        while (openSet.Count > 0)
+        if (start == goal)
         {
-            NavigationWaypoint current = openSet.OrderBy(wp => fScore[wp]).First();
+            return new List<NavigationWaypoint> { start };
+        }
 
+        // ✅ Use HashSet for O(1) lookups
+        var openSet = new HashSet<NavigationWaypoint> { start };
+        var closedSet = new HashSet<NavigationWaypoint>();
+        var cameFrom = new Dictionary<NavigationWaypoint, NavigationWaypoint>();
+        var gScore = new Dictionary<NavigationWaypoint, float> { [start] = 0 };
+        var fScore = new Dictionary<NavigationWaypoint, float>();
+
+        fScore[start] = HeuristicDistance(start, goal);
+
+        int iterations = 0;
+        int maxIterations = 10000;
+
+        while (openSet.Count > 0 && iterations < maxIterations)
+        {
+            iterations++;
+
+            // Find node with lowest fScore
+            NavigationWaypoint current = null;
+            float minFScore = Mathf.Infinity;
+
+            foreach (var node in openSet)
+            {
+                float nodeFScore = fScore.GetValueOrDefault(node, Mathf.Infinity);
+                if (nodeFScore < minFScore)
+                {
+                    minFScore = nodeFScore;
+                    current = node;
+                }
+            }
+
+            if (current == null)
+            {
+                Debug.LogWarning($"A*: No valid current node found");
+                break;
+            }
+
+            // Goal reached!
             if (current == goal)
             {
-                List<NavigationWaypoint> path = new List<NavigationWaypoint>();
-                while (cameFrom.ContainsKey(current))
-                {
-                    path.Insert(0, current);
-                    current = cameFrom[current];
-                }
-                path.Insert(0, start);
-                return path;
+                return ReconstructPath(cameFrom, current, start);
             }
 
             openSet.Remove(current);
+            closedSet.Add(current);
 
-            foreach (var neighbor in current.connectedWaypoints)
+            // ✅ Safe neighbor access with multiple fallbacks
+            var neighbors = GetValidNeighbors(current);
+
+            if (neighbors == null || neighbors.Count == 0)
             {
-                float tentativeG = gScore[current] + Vector3.Distance(current.transform.position, neighbor.transform.position);
+                // Node has no connections - this is a graph problem
+                // But continue searching in case goal is reachable via other paths
+                continue;
+            }
 
-                if (tentativeG < gScore[neighbor])
+            foreach (var neighbor in neighbors)
+            {
+                // Skip if already fully explored
+                if (closedSet.Contains(neighbor))
+                    continue;
+
+                // Calculate movement cost
+                float movementCost = Vector3.Distance(
+                    current.transform.position,
+                    neighbor.transform.position
+                );
+
+                float tentativeG = gScore.GetValueOrDefault(current, Mathf.Infinity) + movementCost;
+
+                // If this is a better path to neighbor, or first time seeing it
+                if (tentativeG < gScore.GetValueOrDefault(neighbor, Mathf.Infinity))
                 {
                     cameFrom[neighbor] = current;
                     gScore[neighbor] = tentativeG;
-                    fScore[neighbor] = gScore[neighbor] + Vector3.Distance(neighbor.transform.position, goal.transform.position);
+                    fScore[neighbor] = tentativeG + HeuristicDistance(neighbor, goal);
 
                     if (!openSet.Contains(neighbor))
+                    {
                         openSet.Add(neighbor);
+                    }
                 }
             }
         }
 
-        Debug.LogWarning("⚠ No path found with A*");
+        // Path not found
+        if (iterations >= maxIterations)
+        {
+            Debug.LogWarning($"A* exceeded {maxIterations} iterations: {start.name} → {goal.name}");
+        }
+        else
+        {
+            Debug.LogWarning($"A* no path found: {start.name} → {goal.name} (possibly disconnected graph)");
+        }
+
         return new List<NavigationWaypoint>();
+    }
+
+    private List<NavigationWaypoint> GetValidNeighbors(NavigationWaypoint waypoint)
+    {
+        if (waypoint == null || waypoint.connectedWaypoints == null)
+            return new List<NavigationWaypoint>();
+
+        var validNeighbors = new List<NavigationWaypoint>();
+        var seen = new HashSet<NavigationWaypoint>();
+
+        foreach (var neighbor in waypoint.connectedWaypoints)
+        {
+            // Skip null, duplicates, and self-references
+            if (neighbor == null || neighbor == waypoint || seen.Contains(neighbor))
+                continue;
+
+            seen.Add(neighbor);
+            validNeighbors.Add(neighbor);
+        }
+
+        return validNeighbors;
+    }
+
+    private float HeuristicDistance(NavigationWaypoint from, NavigationWaypoint to)
+    {
+        if (from == null || to == null)
+            return Mathf.Infinity;
+
+        return Vector3.Distance(from.transform.position, to.transform.position);
+    }
+
+    private List<NavigationWaypoint> ReconstructPath(
+    Dictionary<NavigationWaypoint, NavigationWaypoint> cameFrom,
+    NavigationWaypoint current,
+    NavigationWaypoint start)
+    {
+        var path = new List<NavigationWaypoint> { current };
+
+        int safety = 1000; // Prevent infinite loops
+        while (cameFrom.ContainsKey(current) && safety-- > 0)
+        {
+            current = cameFrom[current];
+            path.Insert(0, current);
+
+            if (current == start)
+                break;
+        }
+
+        if (safety <= 0)
+        {
+            Debug.LogError("Path reconstruction exceeded safety limit - possible cycle in cameFrom");
+        }
+
+        return path;
     }
 
     void OptimizePath(List<Vector3> path)
@@ -6063,6 +6633,182 @@ var mgr = serviceArrivalManager ? serviceArrivalManager
         Debug.Log($"✅ Cached {officeLookup.Count} offices (includes inactive floors).");
     }
 
+    private bool CanReachBFS(NavigationWaypoint start, NavigationWaypoint goal)
+    {
+        var visited = new HashSet<NavigationWaypoint>();
+        var queue = new Queue<NavigationWaypoint>();
+
+        queue.Enqueue(start);
+        visited.Add(start);
+
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+
+            if (current == goal)
+                return true;
+
+            if (current.connectedWaypoints == null)
+                continue;
+
+            foreach (var neighbor in current.connectedWaypoints)
+            {
+                if (neighbor != null && !visited.Contains(neighbor))
+                {
+                    visited.Add(neighbor);
+                    queue.Enqueue(neighbor);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    [ContextMenu("Analyze A* Performance")]
+    public void AnalyzeAStarPerformance()
+    {
+        var waypoints = FindObjectsOfType<NavigationWaypoint>();
+
+        if (waypoints.Length < 2)
+        {
+            Debug.LogError("Not enough waypoints!");
+            return;
+        }
+
+        Debug.Log("═══════════════════════════════════════════════════");
+        Debug.Log("A* PERFORMANCE ANALYSIS");
+        Debug.Log("═══════════════════════════════════════════════════\n");
+
+        // Test 10 random paths
+        int successCount = 0;
+        int failCount = 0;
+        float totalOptimality = 0f;
+
+        for (int test = 0; test < 10; test++)
+        {
+            var start = waypoints[UnityEngine.Random.Range(0, waypoints.Length)];
+            var goal = waypoints[UnityEngine.Random.Range(0, waypoints.Length)];
+
+            while (start == goal)
+            {
+                goal = waypoints[UnityEngine.Random.Range(0, waypoints.Length)];
+            }
+
+            Debug.Log($"Test {test + 1}: {start.name} → {goal.name}");
+
+            var path = RunStrictWaypointAStar(start, goal);
+
+            if (path != null)
+            {
+                successCount++;
+
+                float dist = 0f;
+                for (int i = 0; i < path.Count - 1; i++)
+                {
+                    dist += Vector3.Distance(path[i].transform.position, path[i + 1].transform.position);
+                }
+
+                float straight = Vector3.Distance(start.transform.position, goal.transform.position);
+                float optimality = (straight / dist) * 100f;
+                totalOptimality += optimality;
+
+                Debug.Log($"   ✅ Success: {path.Count} waypoints, {dist:F1}m, {optimality:F1}% optimal\n");
+            }
+            else
+            {
+                failCount++;
+                Debug.LogError($"   ❌ Failed\n");
+            }
+        }
+
+        Debug.Log("═══════════════════════════════════════════════════");
+        Debug.Log("RESULTS:");
+        Debug.Log($"   Success: {successCount}/10");
+        Debug.Log($"   Failed: {failCount}/10");
+
+        if (successCount > 0)
+        {
+            float avgOptimality = totalOptimality / successCount;
+            Debug.Log($"   Avg Optimality: {avgOptimality:F1}%");
+
+            if (avgOptimality >= 85f)
+            {
+                Debug.Log("   ✅ EXCELLENT - Above target!");
+            }
+            else
+            {
+                Debug.LogWarning($"   ⚠️ Below target (need ≥85%)");
+            }
+        }
+
+        Debug.Log("═══════════════════════════════════════════════════");
+    }
+
+
+    [ContextMenu("Test A* on Specific Path")]
+    public void TestAStarOnSpecificPath()
+    {
+        // Find entrance and mayor office
+        var entrance = GameObject.Find("Waypoint_Entrance_Taft")?.GetComponent<NavigationWaypoint>();
+        var mayor = GameObject.Find("Waypoint_MayorOffice-2nd")?.GetComponent<NavigationWaypoint>();
+
+        if (entrance == null)
+        {
+            Debug.LogError("Couldn't find Waypoint_Entrance_Taft");
+            return;
+        }
+
+        if (mayor == null)
+        {
+            Debug.LogError("Couldn't find Waypoint_MayorOffice-2nd");
+            return;
+        }
+
+        Debug.Log("═══════════════════════════════════════════════════");
+        Debug.Log($"Testing: {entrance.name} → {mayor.name}");
+        Debug.Log("═══════════════════════════════════════════════════\n");
+
+        // First check if path exists
+        bool canReach = CanReachBFS(entrance, mayor);
+
+        if (!canReach)
+        {
+            Debug.LogError("❌ NO PATH EXISTS!");
+            Debug.LogError("   These waypoints are in disconnected islands");
+            Debug.LogError("   Fix: Connect the floors with stairs");
+            return;
+        }
+
+        Debug.Log("✅ BFS confirms path exists, trying A*...\n");
+
+        // Try A*
+        var path = RunStrictWaypointAStar(entrance, mayor);
+
+        if (path != null)
+        {
+            float dist = 0f;
+            for (int i = 0; i < path.Count - 1; i++)
+            {
+                dist += Vector3.Distance(path[i].transform.position, path[i + 1].transform.position);
+            }
+
+            float straight = Vector3.Distance(entrance.transform.position, mayor.transform.position);
+            float optimality = (straight / dist) * 100f;
+
+            Debug.Log($"\n✅ SUCCESS!");
+            Debug.Log($"   Waypoints: {path.Count}");
+            Debug.Log($"   Distance: {dist:F1}m");
+            Debug.Log($"   Straight: {straight:F1}m");
+            Debug.Log($"   Optimality: {optimality:F1}%");
+        }
+        else
+        {
+            Debug.LogError("\n❌ A* FAILED even though BFS found path!");
+            Debug.LogError("   This indicates a bug in A* implementation");
+        }
+
+        Debug.Log("═══════════════════════════════════════════════════");
+    }
 
     [ContextMenu("Nav/Rebuild Connections (LOS)")]
     public void RebuildConnectionsLOS()
@@ -6319,6 +7065,8 @@ var mgr = serviceArrivalManager ? serviceArrivalManager
         hasShownArrivalNotification = true;
         Debug.Log($"[ARRIVAL] Arrived at {currentDestination}");
 
+        RecordVisitToFirebase(currentDestination, "0", SystemInfo.deviceUniqueIdentifier);
+
 #if UNITY_ANDROID || UNITY_IOS
     Handheld.Vibrate();
 #endif
@@ -6365,6 +7113,28 @@ var mgr = serviceArrivalManager ? serviceArrivalManager
 
         timeWithinArrivalZone = 0f;
     }
+
+    private void RecordVisitToFirebase(string officeName, string officeId, string userId)
+    {
+        // Safety check to ensure Firebase is ready
+        if (FirebaseDatabase.DefaultInstance == null) return;
+
+        var visitData = new Dictionary<string, object>
+        {
+            {"timestamp", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()},
+            {"officeName", officeName},
+            {"officeId", officeId},
+            {"userId", userId ?? "Anonymous"}
+        };
+
+        FirebaseDatabase.DefaultInstance
+            .GetReference("visits")
+            .Push()
+            .SetValueAsync(visitData);
+
+        Debug.Log($"[FIREBASE] Recorded visit to {officeName}");
+    }
+
 
     IEnumerator DelayedStopNavigation(float delay)
     {

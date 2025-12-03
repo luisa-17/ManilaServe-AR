@@ -1,4 +1,4 @@
-using System;
+ï»¿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -163,7 +163,7 @@ public class GeminiClient : IDisposable
     {
         if (string.IsNullOrWhiteSpace(key)) return false;
         if (key.StartsWith("YOUR_", StringComparison.OrdinalIgnoreCase)) return false;
-        // AI Studio keys typically start with AIza and are ~39–45 chars
+        // AI Studio keys typically start with AIza and are ~39ï¿½45 chars
         return key.StartsWith("AIza") && key.Length >= 30;
     }
 

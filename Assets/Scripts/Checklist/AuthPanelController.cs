@@ -7,30 +7,30 @@ using UnityEngine.UI;
 public class AuthPanelController : MonoBehaviour
 {
     [Header("Login Mode")]
-    public GameObject loginModeRoot;                
-    public Button switchSignupModeButton;            
-    public TMP_InputField loginEmailInput;           
-    public TMP_InputField loginPasswordInput;        
-    public Button loginButton;                       
+    public GameObject loginModeRoot;
+    public Button switchSignupModeButton;
+    public TMP_InputField loginEmailInput;
+    public TMP_InputField loginPasswordInput;
+    public Button loginButton;
 
     [Header("Signup Mode")]
-    public GameObject signupModeRoot;                
-    public Button switchLoginModeButton;             
-    public TMP_InputField signupEmailInput;          
-    public TMP_InputField signupPasswordInput;       
-    public TMP_InputField signupConfirmInput;        
-    public Button signupButton;                      
+    public GameObject signupModeRoot;
+    public Button switchLoginModeButton;
+    public TMP_InputField signupEmailInput;
+    public TMP_InputField signupPasswordInput;
+    public TMP_InputField signupConfirmInput;
+    public Button signupButton;
 
     [Header("Common Actions")]
-    public Button guestButton;                       
-    public Button closeButton;                       
-    public TextMeshProUGUI errorText;                
+    public Button guestButton;
+    public Button closeButton;
+    public TextMeshProUGUI errorText;
 
     [Header("Rules")]
     public int minPasswordLength = 6;
     public bool validateEmailFormat = true;
 
-    public System.Action<bool> OnClosed; 
+    public System.Action<bool> OnClosed;
 
     CanvasGroup canvasGroup;
     enum Mode { Login, Signup }
@@ -142,7 +142,7 @@ public class AuthPanelController : MonoBehaviour
 
         if (!SignupValid())
         {
-            ValidateForms(); // ?? ensure button interactivity syncs back
+            ValidateForms();
             return;
         }
 
@@ -164,7 +164,7 @@ public class AuthPanelController : MonoBehaviour
         {
             SetError(msg);
 
-            // ?? Make sure the UI is usable again even after error
+            // Make sure the UI is usable again even after error
             canvasGroup.interactable = true;
             canvasGroup.blocksRaycasts = true;
             ValidateForms();
@@ -185,38 +185,53 @@ public class AuthPanelController : MonoBehaviour
 
     bool LoginValid()
     {
-        if (!loginEmailInput || !loginPasswordInput) { SetError("Missing login inputs"); return false; }
+        if (!loginEmailInput || !loginPasswordInput)
+        {
+            SetError("Login form is not properly configured");
+            return false;
+        }
+
         if (string.IsNullOrWhiteSpace(loginEmailInput.text) || (validateEmailFormat && !loginEmailInput.text.Contains("@")))
         {
-            SetError("Enter a valid email");
+            SetError("Please enter a valid email address");
             return false;
         }
+
         if (string.IsNullOrEmpty(loginPasswordInput.text) || loginPasswordInput.text.Length < minPasswordLength)
         {
-            SetError($"Password must be at least {minPasswordLength} characters");
+            SetError($"Password must be at least {minPasswordLength} characters long");
             return false;
         }
+
         return true;
     }
 
     bool SignupValid()
     {
-        if (!signupEmailInput || !signupPasswordInput || !signupConfirmInput) { SetError("Missing signup inputs"); return false; }
+        if (!signupEmailInput || !signupPasswordInput || !signupConfirmInput)
+        {
+            SetError("Sign up form is not properly configured");
+            return false;
+        }
+
         if (string.IsNullOrWhiteSpace(signupEmailInput.text) || (validateEmailFormat && !signupEmailInput.text.Contains("@")))
         {
-            SetError("Enter a valid email");
+            SetError("Please enter a valid email address");
             return false;
         }
+
         if (string.IsNullOrEmpty(signupPasswordInput.text) || signupPasswordInput.text.Length < minPasswordLength)
         {
-            SetError($"Password must be at least {minPasswordLength} characters");
+            SetError($"Password must be at least {minPasswordLength} characters long");
             return false;
         }
+
         if (signupConfirmInput.text != signupPasswordInput.text)
         {
-            SetError("Passwords do not match");
+            SetError("Password confirmation does not match");
             return false;
         }
+
         return true;
     }
 
@@ -235,12 +250,8 @@ public class AuthPanelController : MonoBehaviour
     {
         gameObject.SetActive(false);
         OnClosed?.Invoke(success);
-
-     
-
         Destroy(gameObject);
     }
-
 
     // Add to AuthPanelController
     public void OpenLoginMode() { SwitchMode(Mode.Login); }
@@ -248,7 +259,6 @@ public class AuthPanelController : MonoBehaviour
 
     void Update()
     {
-        
-    }
 
+    }
 }

@@ -94,9 +94,7 @@ public class ChecklistManager : MonoBehaviour
         return new List<ChecklistItem>();
     }
 
-    // ============================================================================
-    // Update Requirement Status
-    // ============================================================================
+
     public void ToggleRequirement(string userId, int itemIndex, int requirementIndex)
     {
         if (!userChecklists.ContainsKey(userId)) return;
@@ -119,9 +117,8 @@ public class ChecklistManager : MonoBehaviour
         // Notify listeners
         OnChecklistUpdated?.Invoke(userId);
     }
-    // ============================================================================
-    // Remove Item from Checklist
-    // ============================================================================
+    
+
     public void RemoveChecklistItem(string userId, int itemIndex)
     {
         if (!userChecklists.ContainsKey(userId)) return;
