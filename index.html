@@ -3,19 +3,20 @@
 
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#8B5A2B" />
     <title>ManilaServe Admin</title>
     <link rel="icon" type="image/png" sizes="32x32" href="assets/images/manilaserve-logo.png">
-    
+
     <!-- Poppins Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-    
+
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -33,35 +34,50 @@
             --brand-500: #8B5A2B;
             --brand-600: #704A23;
             --brand-700: #5C3D1D;
+            --brand-800: #4A3118;
+            --brand-900: #3D2814;
 
             /* Status Colors */
+            --success-400: #4ADE80;
             --success-500: #22C55E;
             --success-600: #16A34A;
+            --warning-400: #FBBF24;
             --warning-500: #F59E0B;
             --warning-600: #D97706;
+            --danger-400: #F87171;
             --danger-500: #EF4444;
             --danger-600: #DC2626;
+            --info-400: #60A5FA;
             --info-500: #3B82F6;
             --info-600: #2563EB;
 
             /* Dark Theme (Default) */
             --bg-primary: #0a0a0a;
-            --bg-secondary: #141414;
-            --bg-tertiary: #1c1c1c;
-            --bg-elevated: #262626;
-            
+            --bg-secondary: #111111;
+            --bg-tertiary: #1a1a1a;
+            --bg-elevated: #242424;
+            --bg-hover: #2a2a2a;
+
             --text-primary: #fafafa;
             --text-secondary: #a3a3a3;
             --text-muted: #737373;
             --text-disabled: #525252;
-            
+
             --border-primary: #262626;
             --border-secondary: #404040;
-            
-            --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
-            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4);
-            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.4);
-            --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.5);
+            --border-focus: var(--brand-500);
+
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
+            --shadow-glow: 0 0 20px rgba(139, 90, 43, 0.3);
+
+            /* Icon Colors for Dark Mode */
+            --icon-primary: var(--brand-400);
+            --icon-secondary: var(--text-secondary);
+            --icon-muted: var(--text-muted);
+            --icon-on-brand: #ffffff;
 
             /* Spacing */
             --space-1: 4px;
@@ -80,38 +96,68 @@
             --radius-lg: 8px;
             --radius-xl: 12px;
             --radius-2xl: 16px;
+            --radius-3xl: 24px;
             --radius-full: 9999px;
 
             /* Typography */
             --font-sans: 'Poppins', system-ui, -apple-system, sans-serif;
-            --font-mono: 'SF Mono', 'Fira Code', monospace;
+            --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+
+            /* Icon Sizes */
+            --icon-xs: 12px;
+            --icon-sm: 14px;
+            --icon-md: 16px;
+            --icon-lg: 18px;
+            --icon-xl: 20px;
+            --icon-2xl: 24px;
+
+            /* Chart Heights */
+            --chart-height-desktop: 280px;
+            --chart-height-tablet: 240px;
+            --chart-height-mobile: 200px;
+
+            /* Transitions */
+            --transition-fast: 0.15s ease;
+            --transition-normal: 0.2s ease;
+            --transition-slow: 0.3s ease;
         }
 
-        /* Light Theme */
+        /* Light Theme - FIXED: Better contrast and visible icons */
         [data-theme="light"] {
-            --bg-primary: #f5f5f5;
-            --bg-secondary: #ffffff;
-            --bg-tertiary: #fafafa;
-            --bg-elevated: #ffffff;
-            
-            --text-primary: #171717;
-            --text-secondary: #525252;
-            --text-muted: #737373;
-            --text-disabled: #a3a3a3;
-            
-            --border-primary: #e5e5e5;
-            --border-secondary: #d4d4d4;
-            
-            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
-            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
-            --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.1);
+            --bg-primary: #F5F0EB;
+            --bg-secondary: #FFFFFF;
+            --bg-tertiary: #FAF7F4;
+            --bg-elevated: #FFFFFF;
+            --bg-hover: #F0EBE5;
+
+            --text-primary: #1C1210;
+            --text-secondary: #4A3F38;
+            --text-muted: #6B5D54;
+            --text-disabled: #9C8E85;
+
+            --border-primary: #E0D6CC;
+            --border-secondary: #C9B9A8;
+            --border-focus: var(--brand-500);
+
+            --shadow-sm: 0 1px 3px rgba(92, 61, 29, 0.08);
+            --shadow-md: 0 4px 6px -1px rgba(92, 61, 29, 0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(92, 61, 29, 0.12);
+            --shadow-xl: 0 20px 25px -5px rgba(92, 61, 29, 0.15);
+            --shadow-glow: 0 0 20px rgba(139, 90, 43, 0.15);
+
+            /* Icon Colors for Light Mode - FIXED */
+            --icon-primary: var(--brand-600);
+            --icon-secondary: var(--text-secondary);
+            --icon-muted: var(--text-muted);
+            --icon-on-brand: #ffffff;
         }
 
         /* ============================================
            RESET & BASE
            ============================================ */
-        *, *::before, *::after {
+        *,
+        *::before,
+        *::after {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
@@ -120,19 +166,36 @@
         html {
             font-size: 16px;
             -webkit-text-size-adjust: 100%;
+            scroll-behavior: smooth;
         }
 
         body {
             font-family: var(--font-sans);
             font-size: 14px;
-            line-height: 1.5;
+            line-height: 1.6;
             color: var(--text-primary);
             background: var(--bg-primary);
             min-height: 100vh;
+            min-height: 100dvh;
             -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            overflow-x: hidden;
         }
 
-        .hidden { display: none !important; }
+        ::selection {
+            background: var(--brand-500);
+            color: white;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Focus styles */
+        :focus-visible {
+            outline: 2px solid var(--brand-500);
+            outline-offset: 2px;
+        }
 
         /* ============================================
            LOGIN SCREEN
@@ -142,8 +205,17 @@
             align-items: center;
             justify-content: center;
             min-height: 100vh;
+            min-height: 100dvh;
             padding: var(--space-4);
-            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+            background:
+                radial-gradient(ellipse at top, rgba(139, 90, 43, 0.15) 0%, transparent 50%),
+                linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+        }
+
+        [data-theme="light"] .login-container {
+            background:
+                radial-gradient(ellipse at top, rgba(139, 90, 43, 0.1) 0%, transparent 50%),
+                linear-gradient(135deg, #E8DFD5 0%, #F5F0EB 50%, #FFFFFF 100%);
         }
 
         .login-card {
@@ -153,31 +225,49 @@
             border: 1px solid var(--border-primary);
             border-radius: var(--radius-2xl);
             padding: var(--space-8);
-            box-shadow: var(--shadow-xl);
+            box-shadow: var(--shadow-xl), var(--shadow-glow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .login-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--brand-500), var(--brand-400), var(--brand-300));
+        }
+
+        [data-theme="light"] .login-card {
+            border-color: var(--border-secondary);
         }
 
         @media (max-width: 480px) {
             .login-card {
                 padding: var(--space-6);
-                margin: var(--space-4);
+                border-radius: var(--radius-xl);
+                margin: var(--space-2);
             }
         }
 
         .login-logo {
             width: 64px;
             height: 64px;
-            margin: 0 auto var(--space-4);
-            background: linear-gradient(135deg, var(--brand-500), var(--brand-400));
+            margin: 0 auto var(--space-5);
+            background: linear-gradient(135deg, var(--brand-500), var(--brand-600));
             border-radius: var(--radius-xl);
             display: flex;
             align-items: center;
             justify-content: center;
+            box-shadow: 0 8px 16px rgba(139, 90, 43, 0.3);
         }
 
         .login-logo i {
             color: white;
-            width: 32px;
-            height: 32px;
+            width: var(--icon-2xl);
+            height: var(--icon-2xl);
         }
 
         .login-header {
@@ -190,11 +280,19 @@
             font-weight: 700;
             color: var(--text-primary);
             margin-bottom: var(--space-1);
+            letter-spacing: -0.02em;
+        }
+
+        @media (max-width: 480px) {
+            .login-title {
+                font-size: 20px;
+            }
         }
 
         .login-subtitle {
-            font-size: 14px;
+            font-size: 13px;
             color: var(--text-muted);
+            font-weight: 400;
         }
 
         /* ============================================
@@ -206,35 +304,51 @@
 
         .form-label {
             display: block;
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--text-primary);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
             margin-bottom: var(--space-2);
+            letter-spacing: 0.02em;
         }
 
         .form-input {
             width: 100%;
-            height: 44px;
+            height: 48px;
             padding: 0 var(--space-4);
             font-family: inherit;
-            font-size: 14px;
+            font-size: 15px;
             color: var(--text-primary);
             background: var(--bg-tertiary);
-            border: 1px solid var(--border-primary);
+            border: 1.5px solid var(--border-primary);
             border-radius: var(--radius-lg);
             outline: none;
-            transition: all 0.2s ease;
+            transition: all var(--transition-normal);
+        }
+
+        [data-theme="light"] .form-input {
+            background: var(--bg-primary);
+            border-color: var(--border-secondary);
+        }
+
+        .form-input:hover {
+            border-color: var(--border-secondary);
         }
 
         .form-input:focus {
             border-color: var(--brand-500);
-            box-shadow: 0 0 0 3px rgba(139, 90, 43, 0.15);
+            box-shadow: 0 0 0 4px rgba(139, 90, 43, 0.15);
+            background: var(--bg-secondary);
+        }
+
+        [data-theme="light"] .form-input:focus {
+            box-shadow: 0 0 0 4px rgba(139, 90, 43, 0.12);
         }
 
         .form-input[readonly] {
             background: var(--bg-elevated);
             color: var(--text-muted);
             cursor: not-allowed;
+            border-style: dashed;
         }
 
         .form-input::placeholder {
@@ -242,7 +356,7 @@
         }
 
         /* ============================================
-           BUTTONS
+           BUTTONS - IMPROVED
            ============================================ */
         .btn {
             display: inline-flex;
@@ -256,73 +370,156 @@
             font-weight: 600;
             color: var(--text-primary);
             background: var(--bg-tertiary);
-            border: 1px solid var(--border-primary);
+            border: 1.5px solid var(--border-primary);
             border-radius: var(--radius-lg);
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all var(--transition-normal);
             white-space: nowrap;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, transparent 100%);
+            opacity: 0;
+            transition: opacity var(--transition-fast);
+        }
+
+        .btn:hover::before {
+            opacity: 1;
+        }
+
+        [data-theme="light"] .btn {
+            background: var(--bg-secondary);
+            border-color: var(--border-secondary);
         }
 
         .btn:hover:not(:disabled) {
-            background: var(--bg-elevated);
+            background: var(--bg-hover);
             border-color: var(--border-secondary);
+            transform: translateY(-1px);
+        }
+
+        [data-theme="light"] .btn:hover:not(:disabled) {
+            background: var(--bg-hover);
+            border-color: var(--brand-400);
+        }
+
+        .btn:active:not(:disabled) {
+            transform: translateY(0);
         }
 
         .btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+            transform: none;
         }
 
         .btn i {
-            width: 16px;
-            height: 16px;
+            width: var(--icon-sm);
+            height: var(--icon-sm);
+            flex-shrink: 0;
+            color: var(--text-secondary);
+        }
+
+        [data-theme="light"] .btn i {
+            color: var(--text-secondary);
+        }
+
+        .btn:hover i {
+            color: var(--text-primary);
         }
 
         .btn-primary {
             color: white;
-            background: linear-gradient(135deg, var(--brand-500), var(--brand-600));
-            border-color: var(--brand-600);
+            background: linear-gradient(135deg, var(--brand-500) 0%, var(--brand-600) 100%);
+            border: none;
+            box-shadow: 0 2px 8px rgba(139, 90, 43, 0.3);
+        }
+
+        .btn-primary i {
+            color: white;
         }
 
         .btn-primary:hover:not(:disabled) {
-            background: linear-gradient(135deg, var(--brand-600), var(--brand-700));
+            background: linear-gradient(135deg, var(--brand-600) 0%, var(--brand-700) 100%);
+            box-shadow: 0 4px 12px rgba(139, 90, 43, 0.4);
         }
 
         .btn-danger {
             color: white;
-            background: var(--danger-500);
-            border-color: var(--danger-600);
+            background: linear-gradient(135deg, var(--danger-500) 0%, var(--danger-600) 100%);
+            border: none;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-danger i {
+            color: white;
         }
 
         .btn-danger:hover:not(:disabled) {
-            background: var(--danger-600);
+            background: linear-gradient(135deg, var(--danger-600) 0%, #b91c1c 100%);
         }
 
         .btn-info {
             color: white;
-            background: var(--info-500);
-            border-color: var(--info-600);
+            background: linear-gradient(135deg, var(--info-500) 0%, var(--info-600) 100%);
+            border: none;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-info i {
+            color: white;
         }
 
         .btn-info:hover:not(:disabled) {
-            background: var(--info-600);
+            background: linear-gradient(135deg, var(--info-600) 0%, #1d4ed8 100%);
+        }
+
+        .btn-success {
+            color: white;
+            background: linear-gradient(135deg, var(--success-500) 0%, var(--success-600) 100%);
+            border: none;
+            box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+        }
+
+        .btn-success i {
+            color: white;
         }
 
         .btn-sm {
-            height: 32px;
+            height: 34px;
             padding: 0 var(--space-3);
             font-size: 12px;
+            border-radius: var(--radius-md);
         }
 
         .btn-sm i {
-            width: 14px;
-            height: 14px;
+            width: var(--icon-xs);
+            height: var(--icon-xs);
+        }
+
+        .btn-primary i,
+        .btn-danger i,
+        .btn-info i,
+        .btn-success i {
+            color: white !important;
         }
 
         .btn-lg {
-            height: 48px;
-            padding: 0 var(--space-6);
+            height: 52px;
+            padding: 0 var(--space-8);
             font-size: 15px;
+            border-radius: var(--radius-xl);
+        }
+
+        .btn:hover:not(.btn-primary):not(.btn-danger):not(.btn-info):not(.btn-success) i {
+            color: var(--text-primary);
         }
 
         .btn-icon {
@@ -330,16 +527,113 @@
             padding: 0;
         }
 
+        [data-theme="light"] .btn-ghost i {
+            color: var(--text-secondary);
+        }
+
+        [data-theme="light"] .btn-ghost:hover i {
+            color: var(--text-primary);
+        }
+
+        /* Light mode - outlined action buttons */
+        [data-theme="light"] .btn-info {
+            color: var(--info-600);
+            background: transparent;
+            border: 1.5px solid var(--info-500);
+            box-shadow: none;
+        }
+
+        [data-theme="light"] .btn-info i {
+            color: var(--info-600);
+        }
+
+        [data-theme="light"] .btn-info:hover:not(:disabled) {
+            background: var(--info-500);
+            color: white;
+        }
+
+        [data-theme="light"] .btn-info:hover:not(:disabled) i {
+            color: white;
+        }
+
+        [data-theme="light"] .btn-danger {
+            color: var(--danger-600);
+            background: transparent;
+            border: 1.5px solid var(--danger-500);
+            box-shadow: none;
+        }
+
+        [data-theme="light"] .btn-danger i {
+            color: var(--danger-600);
+        }
+
+        [data-theme="light"] .btn-danger:hover:not(:disabled) {
+            background: var(--danger-500);
+            color: white;
+        }
+
+        [data-theme="light"] .btn-danger:hover:not(:disabled) i {
+            color: white;
+        }
+
+        [data-theme="light"] .btn-primary {
+            color: var(--brand-700);
+            background: transparent;
+            border: 1.5px solid var(--brand-500);
+            box-shadow: none;
+        }
+
+        [data-theme="light"] .btn-primary i {
+            color: var(--brand-700);
+        }
+
+        [data-theme="light"] .btn-primary:hover:not(:disabled) {
+            background: linear-gradient(135deg, var(--brand-500), var(--brand-600));
+            color: white;
+        }
+
+        [data-theme="light"] .btn-primary:hover:not(:disabled) i {
+            color: white;
+        }
+
         .btn-icon.btn-sm {
-            width: 32px;
+            width: 34px;
         }
 
         .btn-block {
             width: 100%;
         }
 
+        .btn-ghost {
+            background: transparent;
+            border-color: transparent;
+        }
+
+        .btn-ghost:hover:not(:disabled) {
+            background: var(--bg-tertiary);
+        }
+
+        /* Mobile touch targets */
+        @media (max-width: 768px) {
+            .btn {
+                min-height: 44px;
+            }
+
+            .btn-sm {
+                min-height: 40px;
+            }
+
+            .btn-icon {
+                width: 44px;
+            }
+
+            .btn-icon.btn-sm {
+                width: 40px;
+            }
+        }
+
         /* ============================================
-           ALERTS
+           ALERTS - IMPROVED
            ============================================ */
         .alert {
             display: flex;
@@ -350,32 +644,58 @@
             font-size: 13px;
             font-weight: 500;
             margin-bottom: var(--space-4);
+            border-left: 4px solid;
         }
 
         .alert i {
-            width: 18px;
-            height: 18px;
+            width: var(--icon-md);
+            height: var(--icon-md);
             flex-shrink: 0;
         }
 
         .alert-error {
-            color: #fca5a5;
+            color: var(--danger-400);
             background: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-left-color: var(--danger-500);
+        }
+
+        .alert-error i {
+            color: var(--danger-500);
         }
 
         .alert-success {
-            color: #86efac;
+            color: var(--success-400);
             background: rgba(34, 197, 94, 0.1);
-            border: 1px solid rgba(34, 197, 94, 0.2);
+            border-left-color: var(--success-500);
+        }
+
+        .alert-success i {
+            color: var(--success-500);
+        }
+
+        .alert-warning {
+            color: var(--warning-400);
+            background: rgba(245, 158, 11, 0.1);
+            border-left-color: var(--warning-500);
+        }
+
+        .alert-warning i {
+            color: var(--warning-500);
         }
 
         [data-theme="light"] .alert-error {
-            color: #dc2626;
+            color: var(--danger-600);
+            background: rgba(239, 68, 68, 0.08);
         }
 
         [data-theme="light"] .alert-success {
-            color: #16a34a;
+            color: var(--success-600);
+            background: rgba(34, 197, 94, 0.08);
+        }
+
+        [data-theme="light"] .alert-warning {
+            color: var(--warning-600);
+            background: rgba(245, 158, 11, 0.08);
         }
 
         /* ============================================
@@ -386,39 +706,56 @@
         }
 
         .app-wrapper {
-            max-width: 1400px;
+            width: 100%;
+            max-width: 1440px;
             margin: 0 auto;
-            padding: var(--space-6);
+            padding: var(--space-4);
         }
 
-        @media (max-width: 768px) {
+        @media (min-width: 768px) {
             .app-wrapper {
-                padding: var(--space-4);
+                padding: var(--space-5);
             }
         }
 
-        @media (max-width: 480px) {
+        @media (min-width: 1024px) {
             .app-wrapper {
-                padding: var(--space-3);
+                padding: var(--space-6);
             }
         }
 
         /* ============================================
-           HEADER
+           HEADER - IMPROVED
            ============================================ */
         .header {
             background: var(--bg-secondary);
             border: 1px solid var(--border-primary);
             border-radius: var(--radius-xl);
-            padding: var(--space-4) var(--space-6);
-            margin-bottom: var(--space-6);
+            padding: var(--space-3) var(--space-4);
+            margin-bottom: var(--space-4);
             box-shadow: var(--shadow-sm);
+            position: relative;
         }
 
-        @media (max-width: 768px) {
+        .header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: var(--space-4);
+            right: var(--space-4);
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--brand-500), transparent);
+            opacity: 0.3;
+        }
+
+        [data-theme="light"] .header {
+            background: var(--bg-elevated);
+            border-color: var(--border-secondary);
+        }
+
+        @media (min-width: 768px) {
             .header {
-                padding: var(--space-4);
-                margin-bottom: var(--space-4);
+                padding: var(--space-4) var(--space-5);
             }
         }
 
@@ -426,46 +763,61 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: var(--space-4);
+            gap: var(--space-3);
         }
 
         .header-brand {
             display: flex;
             align-items: center;
             gap: var(--space-3);
+            min-width: 0;
         }
 
         .header-logo {
             width: 40px;
             height: 40px;
-            background: linear-gradient(135deg, var(--brand-500), var(--brand-400));
+            background: linear-gradient(135deg, var(--brand-500), var(--brand-600));
             border-radius: var(--radius-lg);
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
+            box-shadow: 0 4px 8px rgba(139, 90, 43, 0.25);
         }
 
         .header-logo i {
             color: white;
-            width: 20px;
-            height: 20px;
+            width: var(--icon-lg);
+            height: var(--icon-lg);
+        }
+
+        .header-info {
+            min-width: 0;
         }
 
         .header-title {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 700;
             color: var(--text-primary);
-        }
-
-        .header-subtitle {
-            font-size: 12px;
-            color: var(--text-muted);
+            white-space: nowrap;
+            letter-spacing: -0.01em;
         }
 
         @media (max-width: 480px) {
+            .header-title {
+                font-size: 14px;
+            }
+        }
+
+        .header-subtitle {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: none;
+        }
+
+        @media (min-width: 640px) {
             .header-subtitle {
-                display: none;
+                display: block;
             }
         }
 
@@ -475,30 +827,28 @@
             gap: var(--space-2);
         }
 
-        /* Connection Status */
+        /* Connection Status - IMPROVED */
         .status-badge {
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: var(--space-2);
-            height: 32px;
+            height: 34px;
             padding: 0 var(--space-3);
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             border-radius: var(--radius-full);
+            min-width: 34px;
+            transition: all var(--transition-normal);
         }
 
         .status-badge .status-text {
-            display: inline;
+            display: none;
         }
 
-        @media (max-width: 640px) {
+        @media (min-width: 640px) {
             .status-badge .status-text {
-                display: none;
-            }
-            .status-badge {
-                padding: 0 var(--space-2);
-                width: 32px;
-                justify-content: center;
+                display: inline;
             }
         }
 
@@ -512,29 +862,42 @@
 
         .status-connected {
             color: var(--success-500);
-            background: rgba(34, 197, 94, 0.1);
+            background: rgba(34, 197, 94, 0.15);
+            border: 1px solid rgba(34, 197, 94, 0.3);
         }
 
         .status-connected .status-dot {
-            animation: pulse 2s ease-in-out infinite;
+            animation: pulse-dot 2s ease-in-out infinite;
+            box-shadow: 0 0 8px var(--success-500);
+        }
+
+        @keyframes pulse-dot {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.6;
+                transform: scale(0.9);
+            }
         }
 
         .status-disconnected {
             color: var(--danger-500);
-            background: rgba(239, 68, 68, 0.1);
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
         }
 
         .status-loading {
             color: var(--warning-500);
-            background: rgba(245, 158, 11, 0.1);
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid rgba(245, 158, 11, 0.3);
         }
 
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
-
-        /* Theme Toggle */
+        /* Theme Toggle - IMPROVED */
         .theme-toggle {
             width: 40px;
             height: 40px;
@@ -542,25 +905,48 @@
             align-items: center;
             justify-content: center;
             background: var(--bg-tertiary);
-            border: 1px solid var(--border-primary);
+            border: 1.5px solid var(--border-primary);
             border-radius: var(--radius-lg);
-            color: var(--text-secondary);
+            color: var(--icon-secondary);
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all var(--transition-normal);
+        }
+
+        [data-theme="light"] .theme-toggle {
+            background: var(--bg-primary);
+            border-color: var(--border-secondary);
         }
 
         .theme-toggle:hover {
-            background: var(--bg-elevated);
-            color: var(--text-primary);
+            background: var(--bg-hover);
+            color: var(--brand-400);
+            border-color: var(--brand-400);
+            transform: rotate(15deg);
+        }
+
+        [data-theme="light"] .theme-toggle:hover {
+            color: var(--brand-600);
+            border-color: var(--brand-500);
         }
 
         .theme-toggle i {
-            width: 20px;
-            height: 20px;
+            width: var(--icon-lg);
+            height: var(--icon-lg);
+            transition: transform var(--transition-normal);
+        }
+
+        .logout-text {
+            display: none;
+        }
+
+        @media (min-width: 640px) {
+            .logout-text {
+                display: inline;
+            }
         }
 
         /* ============================================
-           NAVIGATION
+           NAVIGATION - IMPROVED
            ============================================ */
         .nav-tabs {
             display: flex;
@@ -569,17 +955,24 @@
             border: 1px solid var(--border-primary);
             border-radius: var(--radius-xl);
             padding: var(--space-1);
-            margin-bottom: var(--space-6);
+            margin-bottom: var(--space-4);
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
         }
 
-        @media (max-width: 768px) {
-            .nav-tabs {
-                margin-bottom: var(--space-4);
-            }
+        .nav-tabs::-webkit-scrollbar {
+            display: none;
+        }
+
+        [data-theme="light"] .nav-tabs {
+            background: var(--bg-elevated);
+            border-color: var(--border-secondary);
         }
 
         .nav-tab {
             flex: 1;
+            min-width: 0;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -587,19 +980,34 @@
             height: 44px;
             padding: 0 var(--space-4);
             font-family: inherit;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             color: var(--text-muted);
             background: transparent;
             border: none;
             border-radius: var(--radius-lg);
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all var(--transition-normal);
+            white-space: nowrap;
+            position: relative;
         }
 
         .nav-tab i {
-            width: 18px;
-            height: 18px;
+            width: var(--icon-md);
+            height: var(--icon-md);
+            flex-shrink: 0;
+            color: var(--icon-muted);
+            transition: color var(--transition-normal);
+        }
+
+        .nav-tab span {
+            display: none;
+        }
+
+        @media (min-width: 480px) {
+            .nav-tab span {
+                display: inline;
+            }
         }
 
         .nav-tab:hover {
@@ -607,45 +1015,66 @@
             background: var(--bg-tertiary);
         }
 
+        .nav-tab:hover i {
+            color: var(--icon-secondary);
+        }
+
+        [data-theme="light"] .nav-tab:hover {
+            background: var(--bg-primary);
+        }
+
         .nav-tab.active {
             color: white;
             background: linear-gradient(135deg, var(--brand-500), var(--brand-600));
-            box-shadow: var(--shadow-sm);
+            box-shadow: 0 2px 8px rgba(139, 90, 43, 0.3);
         }
 
-        @media (max-width: 640px) {
-            .nav-tab {
-                padding: 0 var(--space-2);
-            }
-            .nav-tab span {
-                display: none;
-            }
+        .nav-tab.active i {
+            color: white;
         }
 
         /* ============================================
-           SECTIONS
+           SECTIONS - IMPROVED
            ============================================ */
         .section {
             background: var(--bg-secondary);
             border: 1px solid var(--border-primary);
             border-radius: var(--radius-xl);
-            padding: var(--space-6);
-            margin-bottom: var(--space-6);
+            padding: var(--space-4);
+            margin-bottom: var(--space-4);
             box-shadow: var(--shadow-sm);
+            position: relative;
+            overflow: hidden;
         }
 
-        @media (max-width: 768px) {
+        .section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--brand-500), var(--brand-400), var(--brand-300));
+            opacity: 0.8;
+        }
+
+        [data-theme="light"] .section {
+            background: var(--bg-elevated);
+            border-color: var(--border-secondary);
+        }
+
+        @media (min-width: 768px) {
             .section {
-                padding: var(--space-4);
-                margin-bottom: var(--space-4);
+                padding: var(--space-6);
+                border-radius: var(--radius-2xl);
             }
         }
 
         .section-header {
             display: flex;
             flex-direction: column;
-            gap: var(--space-4);
-            margin-bottom: var(--space-6);
+            gap: var(--space-3);
+            margin-bottom: var(--space-5);
         }
 
         @media (min-width: 768px) {
@@ -653,32 +1082,49 @@
                 flex-direction: row;
                 align-items: flex-start;
                 justify-content: space-between;
+                gap: var(--space-4);
             }
         }
 
         .section-title-group {
             flex: 1;
+            min-width: 0;
         }
 
         .section-eyebrow {
-            font-size: 11px;
-            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            font-size: 10px;
+            font-weight: 700;
             color: var(--brand-400);
             text-transform: uppercase;
             letter-spacing: 0.1em;
             margin-bottom: var(--space-1);
         }
 
+        [data-theme="light"] .section-eyebrow {
+            color: var(--brand-600);
+        }
+
         .section-title {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 700;
             color: var(--text-primary);
+            letter-spacing: -0.02em;
+        }
+
+        @media (min-width: 768px) {
+            .section-title {
+                font-size: 22px;
+            }
         }
 
         .section-description {
             font-size: 13px;
             color: var(--text-muted);
             margin-top: var(--space-1);
+            line-height: 1.5;
         }
 
         .section-actions {
@@ -687,26 +1133,65 @@
             flex-wrap: wrap;
         }
 
+        /* Office Hours Notice - IMPROVED */
+        .office-hours-notice {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            padding: var(--space-3) var(--space-4);
+            background: linear-gradient(135deg, rgba(139, 90, 43, 0.1), rgba(139, 90, 43, 0.05));
+            border: 1px solid rgba(139, 90, 43, 0.2);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--space-4);
+            font-size: 12px;
+            color: var(--brand-400);
+        }
+
+        [data-theme="light"] .office-hours-notice {
+            background: linear-gradient(135deg, rgba(139, 90, 43, 0.08), rgba(139, 90, 43, 0.03));
+            border-color: rgba(139, 90, 43, 0.25);
+            color: var(--brand-600);
+        }
+
+        .office-hours-notice i {
+            width: var(--icon-md);
+            height: var(--icon-md);
+            flex-shrink: 0;
+            color: var(--brand-500);
+        }
+
+        [data-theme="light"] .office-hours-notice i {
+            color: var(--brand-600);
+        }
+
+        .office-hours-notice.closed {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.05));
+            border-color: rgba(239, 68, 68, 0.25);
+            color: var(--danger-400);
+        }
+
+        [data-theme="light"] .office-hours-notice.closed {
+            color: var(--danger-600);
+        }
+
+        .office-hours-notice.closed i {
+            color: var(--danger-500);
+        }
+
         /* ============================================
-           STATS GRID
+           STATS GRID - IMPROVED
            ============================================ */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: var(--space-4);
-            margin-bottom: var(--space-6);
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--space-3);
+            margin-bottom: var(--space-5);
         }
 
-        @media (max-width: 1024px) {
+        @media (min-width: 768px) {
             .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        @media (max-width: 480px) {
-            .stats-grid {
-                grid-template-columns: 1fr;
-                gap: var(--space-3);
+                grid-template-columns: repeat(4, 1fr);
+                gap: var(--space-4);
             }
         }
 
@@ -714,10 +1199,15 @@
             background: var(--bg-tertiary);
             border: 1px solid var(--border-primary);
             border-radius: var(--radius-xl);
-            padding: var(--space-5);
+            padding: var(--space-4);
             position: relative;
             overflow: hidden;
-            transition: all 0.2s ease;
+            transition: all var(--transition-normal);
+        }
+
+        [data-theme="light"] .stat-card {
+            background: var(--bg-primary);
+            border-color: var(--border-secondary);
         }
 
         .stat-card::before {
@@ -728,11 +1218,25 @@
             width: 4px;
             height: 100%;
             background: linear-gradient(180deg, var(--brand-400), var(--brand-600));
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+        }
+
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 80px;
+            height: 80px;
+            background: radial-gradient(circle, var(--brand-500) 0%, transparent 70%);
+            opacity: 0.05;
+            transform: translate(30%, -30%);
         }
 
         .stat-card:hover {
             transform: translateY(-2px);
             box-shadow: var(--shadow-md);
+            border-color: var(--brand-400);
         }
 
         .stat-card.pulse {
@@ -740,38 +1244,47 @@
         }
 
         @keyframes card-pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.02); }
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.02);
+            }
         }
 
         .stat-icon {
             width: 40px;
             height: 40px;
-            background: var(--bg-elevated);
+            background: linear-gradient(135deg, var(--brand-500), var(--brand-600));
             border-radius: var(--radius-lg);
             display: flex;
             align-items: center;
             justify-content: center;
             margin-bottom: var(--space-3);
-            color: var(--brand-400);
+            box-shadow: 0 4px 8px rgba(139, 90, 43, 0.2);
         }
 
         .stat-icon i {
-            width: 20px;
-            height: 20px;
+            width: var(--icon-md);
+            height: var(--icon-md);
+            color: white;
         }
 
         .stat-value {
-            font-size: 28px;
+            font-size: 24px;
             font-weight: 700;
             color: var(--text-primary);
             line-height: 1;
             margin-bottom: var(--space-1);
+            letter-spacing: -0.02em;
         }
 
-        @media (max-width: 768px) {
+        @media (min-width: 768px) {
             .stat-value {
-                font-size: 24px;
+                font-size: 28px;
             }
         }
 
@@ -788,10 +1301,10 @@
             align-items: center;
             gap: 4px;
             margin-top: var(--space-2);
-            padding: 2px 8px;
-            font-size: 11px;
-            font-weight: 600;
-            border-radius: var(--radius-sm);
+            padding: 3px 8px;
+            font-size: 10px;
+            font-weight: 700;
+            border-radius: var(--radius-full);
         }
 
         .stat-change i {
@@ -804,9 +1317,17 @@
             background: rgba(34, 197, 94, 0.15);
         }
 
+        .stat-change.positive i {
+            color: var(--success-500);
+        }
+
         .stat-change.negative {
             color: var(--danger-500);
             background: rgba(239, 68, 68, 0.15);
+        }
+
+        .stat-change.negative i {
+            color: var(--danger-500);
         }
 
         .stat-change.neutral {
@@ -814,52 +1335,62 @@
             background: rgba(245, 158, 11, 0.15);
         }
 
+        .stat-change.neutral i {
+            color: var(--warning-500);
+        }
+
         .stat-office-name {
-            font-size: 15px;
+            font-size: 13px;
             font-weight: 600;
-            color: var(--brand-300);
+            color: var(--text-primary);
             line-height: 1.3;
             margin-bottom: var(--space-1);
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
-            min-height: 40px;
+            min-height: 34px;
         }
 
         /* ============================================
-           TOOLBAR & SEARCH
+           TOOLBAR & SEARCH - IMPROVED
            ============================================ */
         .toolbar {
             display: flex;
-            gap: var(--space-3);
-            margin-bottom: var(--space-5);
+            gap: var(--space-2);
+            margin-bottom: var(--space-4);
             flex-wrap: wrap;
         }
 
         .search-box {
             flex: 1;
-            min-width: 200px;
+            min-width: 0;
             position: relative;
         }
 
         .search-input {
             width: 100%;
-            height: 44px;
-            padding: 0 44px;
+            height: 48px;
+            padding: 0 48px;
             font-family: inherit;
             font-size: 14px;
             color: var(--text-primary);
             background: var(--bg-tertiary);
-            border: 1px solid var(--border-primary);
+            border: 1.5px solid var(--border-primary);
             border-radius: var(--radius-xl);
             outline: none;
-            transition: all 0.2s ease;
+            transition: all var(--transition-normal);
+        }
+
+        [data-theme="light"] .search-input {
+            background: var(--bg-primary);
+            border-color: var(--border-secondary);
         }
 
         .search-input:focus {
             border-color: var(--brand-500);
-            box-shadow: 0 0 0 3px rgba(139, 90, 43, 0.15);
+            box-shadow: 0 0 0 4px rgba(139, 90, 43, 0.1);
+            background: var(--bg-secondary);
         }
 
         .search-icon {
@@ -867,13 +1398,13 @@
             left: var(--space-4);
             top: 50%;
             transform: translateY(-50%);
-            color: var(--text-disabled);
+            color: var(--icon-muted);
             pointer-events: none;
         }
 
         .search-icon i {
-            width: 18px;
-            height: 18px;
+            width: var(--icon-md);
+            height: var(--icon-md);
         }
 
         .search-clear {
@@ -881,38 +1412,40 @@
             right: var(--space-2);
             top: 50%;
             transform: translateY(-50%);
-            width: 32px;
-            height: 32px;
+            width: 36px;
+            height: 36px;
             display: flex;
             align-items: center;
             justify-content: center;
             background: transparent;
             border: none;
             border-radius: var(--radius-md);
-            color: var(--text-disabled);
+            color: var(--icon-muted);
             cursor: pointer;
+            transition: all var(--transition-fast);
         }
 
         .search-clear:hover {
-            background: var(--bg-elevated);
+            background: var(--bg-hover);
             color: var(--text-primary);
         }
 
         .search-clear i {
-            width: 16px;
-            height: 16px;
+            width: var(--icon-sm);
+            height: var(--icon-sm);
         }
 
         /* ============================================
-           FILTERS
+           FILTERS - IMPROVED
            ============================================ */
         .filters-bar {
             display: flex;
             gap: var(--space-2);
-            margin-bottom: var(--space-5);
+            margin-bottom: var(--space-4);
             overflow-x: auto;
             padding-bottom: var(--space-2);
             -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
         }
 
         .filters-bar::-webkit-scrollbar {
@@ -924,40 +1457,48 @@
             height: 36px;
             padding: 0 var(--space-4);
             font-family: inherit;
-            font-size: 13px;
-            font-weight: 500;
+            font-size: 12px;
+            font-weight: 600;
             color: var(--text-secondary);
             background: var(--bg-tertiary);
-            border: 1px solid var(--border-primary);
+            border: 1.5px solid var(--border-primary);
             border-radius: var(--radius-full);
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all var(--transition-normal);
+            white-space: nowrap;
+        }
+
+        [data-theme="light"] .filter-btn {
+            background: var(--bg-primary);
+            border-color: var(--border-secondary);
         }
 
         .filter-btn:hover {
-            background: var(--bg-elevated);
-            border-color: var(--border-secondary);
+            background: var(--bg-hover);
+            border-color: var(--brand-400);
+            color: var(--text-primary);
         }
 
         .filter-btn.active {
             color: white;
-            background: var(--brand-500);
-            border-color: var(--brand-600);
+            background: linear-gradient(135deg, var(--brand-500), var(--brand-600));
+            border-color: transparent;
+            box-shadow: 0 2px 8px rgba(139, 90, 43, 0.3);
         }
 
         /* ============================================
-           CHARTS LAYOUT
+           CHARTS LAYOUT - IMPROVED
            ============================================ */
         .charts-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: var(--space-5);
-            margin-bottom: var(--space-6);
+            grid-template-columns: 1fr;
+            gap: var(--space-4);
+            margin-bottom: var(--space-5);
         }
 
-        @media (max-width: 1024px) {
+        @media (min-width: 1024px) {
             .charts-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: repeat(2, 1fr);
             }
         }
 
@@ -965,116 +1506,144 @@
             background: var(--bg-tertiary);
             border: 1px solid var(--border-primary);
             border-radius: var(--radius-xl);
-            padding: var(--space-5);
+            padding: var(--space-4);
+            overflow: hidden;
+            position: relative;
         }
 
-        @media (max-width: 768px) {
-            .chart-card {
-                padding: var(--space-4);
-            }
+        [data-theme="light"] .chart-card {
+            background: var(--bg-primary);
+            border-color: var(--border-secondary);
         }
 
         .chart-header {
             display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: var(--space-4);
-            margin-bottom: var(--space-5);
-            flex-wrap: wrap;
+            flex-direction: column;
+            gap: var(--space-2);
+            margin-bottom: var(--space-4);
+        }
+
+        @media (min-width: 480px) {
+            .chart-header {
+                flex-direction: row;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: var(--space-3);
+            }
         }
 
         .chart-title {
             display: flex;
             align-items: center;
             gap: var(--space-2);
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 600;
             color: var(--text-primary);
         }
 
         .chart-title i {
-            width: 20px;
-            height: 20px;
-            color: var(--brand-400);
+            width: var(--icon-md);
+            height: var(--icon-md);
+            color: var(--icon-primary);
         }
 
         .chart-subtitle {
-            font-size: 12px;
+            font-size: 11px;
             color: var(--text-muted);
             margin-top: 2px;
         }
 
         .chart-legend {
             display: flex;
-            gap: var(--space-4);
+            gap: var(--space-3);
             flex-wrap: wrap;
         }
 
         .legend-item {
             display: flex;
             align-items: center;
-            gap: var(--space-2);
-            font-size: 12px;
+            gap: var(--space-1);
+            font-size: 11px;
             color: var(--text-secondary);
+            font-weight: 500;
         }
 
         .legend-dot {
             width: 10px;
             height: 10px;
             border-radius: 50%;
+            flex-shrink: 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         }
 
         .chart-body {
-            min-height: 280px;
-        }
-
-        @media (max-width: 768px) {
-            .chart-body {
-                min-height: 220px;
-            }
+            position: relative;
+            width: 100%;
         }
 
         .chart-canvas-wrapper {
             position: relative;
-            height: 280px;
+            width: 100%;
+            height: var(--chart-height-mobile);
         }
 
-        @media (max-width: 768px) {
+        @media (min-width: 640px) {
             .chart-canvas-wrapper {
-                height: 220px;
+                height: var(--chart-height-tablet);
             }
         }
 
-        /* Bar Chart */
+        @media (min-width: 1024px) {
+            .chart-canvas-wrapper {
+                height: var(--chart-height-desktop);
+            }
+        }
+
+        /* Bar Chart - IMPROVED */
         .bar-chart {
             display: flex;
             flex-direction: column;
             gap: var(--space-3);
+            max-height: var(--chart-height-mobile);
+            overflow-y: auto;
+            padding-right: var(--space-2);
+        }
+
+        @media (min-width: 640px) {
+            .bar-chart {
+                max-height: var(--chart-height-tablet);
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .bar-chart {
+                max-height: var(--chart-height-desktop);
+            }
         }
 
         .bar-item {
             display: flex;
             align-items: center;
-            gap: var(--space-3);
+            gap: var(--space-2);
         }
 
         .bar-rank {
-            width: 24px;
-            height: 24px;
+            width: 22px;
+            height: 22px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 700;
-            color: var(--text-muted);
-            background: var(--bg-elevated);
+            color: white;
+            background: linear-gradient(135deg, var(--brand-500), var(--brand-600));
             border-radius: var(--radius-md);
             flex-shrink: 0;
         }
 
         .bar-label {
-            width: 140px;
-            font-size: 13px;
+            width: 90px;
+            font-size: 12px;
             font-weight: 500;
             color: var(--text-secondary);
             white-space: nowrap;
@@ -1083,10 +1652,10 @@
             flex-shrink: 0;
         }
 
-        @media (max-width: 768px) {
+        @media (min-width: 768px) {
             .bar-label {
-                width: 100px;
-                font-size: 12px;
+                width: 120px;
+                font-size: 13px;
             }
         }
 
@@ -1096,6 +1665,13 @@
             background: var(--bg-elevated);
             border-radius: var(--radius-md);
             overflow: hidden;
+            min-width: 60px;
+            border: 1px solid var(--border-primary);
+        }
+
+        [data-theme="light"] .bar-track {
+            background: var(--bg-tertiary);
+            border-color: var(--border-secondary);
         }
 
         .bar-fill {
@@ -1108,28 +1684,29 @@
             justify-content: flex-end;
             padding-right: var(--space-2);
             transition: width 0.5s ease;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
         }
 
         .bar-value {
             font-size: 11px;
             font-weight: 700;
             color: white;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
         }
 
         /* ============================================
-           INSIGHTS GRID
+           INSIGHTS GRID - IMPROVED
            ============================================ */
         .insights-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: var(--space-4);
-            margin-bottom: var(--space-6);
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--space-3);
+            margin-bottom: var(--space-5);
         }
 
-        @media (max-width: 768px) {
+        @media (min-width: 640px) {
             .insights-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: var(--space-3);
+                grid-template-columns: repeat(4, 1fr);
             }
         }
 
@@ -1139,22 +1716,49 @@
             border-radius: var(--radius-lg);
             padding: var(--space-4);
             text-align: center;
+            transition: all var(--transition-normal);
+        }
+
+        [data-theme="light"] .insight-card {
+            background: var(--bg-primary);
+            border-color: var(--border-secondary);
+        }
+
+        .insight-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
         }
 
         .insight-card.highlight {
-            background: linear-gradient(135deg, rgba(139, 90, 43, 0.15), rgba(212, 165, 116, 0.08));
-            border-color: rgba(212, 165, 116, 0.3);
+            background: linear-gradient(135deg, rgba(139, 90, 43, 0.15), rgba(139, 90, 43, 0.05));
+            border-color: var(--brand-400);
+            box-shadow: 0 0 20px rgba(139, 90, 43, 0.1);
+        }
+
+        [data-theme="light"] .insight-card.highlight {
+            background: linear-gradient(135deg, rgba(139, 90, 43, 0.12), rgba(139, 90, 43, 0.04));
         }
 
         .insight-value {
             font-size: 20px;
             font-weight: 700;
             color: var(--text-primary);
-            margin-bottom: 2px;
+            margin-bottom: var(--space-1);
+            letter-spacing: -0.02em;
+        }
+
+        @media (min-width: 768px) {
+            .insight-value {
+                font-size: 22px;
+            }
         }
 
         .insight-card.highlight .insight-value {
-            color: var(--brand-300);
+            color: var(--brand-400);
+        }
+
+        [data-theme="light"] .insight-card.highlight .insight-value {
+            color: var(--brand-600);
         }
 
         .insight-label {
@@ -1166,10 +1770,10 @@
         }
 
         /* ============================================
-           OFFICE PEAKS
+           OFFICE PEAKS - IMPROVED
            ============================================ */
         .peaks-section {
-            margin-bottom: var(--space-6);
+            margin-bottom: var(--space-5);
         }
 
         .peaks-header {
@@ -1183,33 +1787,32 @@
             display: flex;
             align-items: center;
             gap: var(--space-2);
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 600;
             color: var(--text-primary);
         }
 
         .peaks-title i {
-            width: 20px;
-            height: 20px;
-            color: var(--brand-400);
+            width: var(--icon-md);
+            height: var(--icon-md);
+            color: var(--icon-primary);
         }
 
         .peaks-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: var(--space-4);
+            grid-template-columns: 1fr;
+            gap: var(--space-3);
         }
 
-        @media (max-width: 1024px) {
+        @media (min-width: 640px) {
             .peaks-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
         }
 
-        @media (max-width: 640px) {
+        @media (min-width: 1024px) {
             .peaks-grid {
-                grid-template-columns: 1fr;
-                gap: var(--space-3);
+                grid-template-columns: repeat(3, 1fr);
             }
         }
 
@@ -1218,6 +1821,17 @@
             border: 1px solid var(--border-primary);
             border-radius: var(--radius-lg);
             padding: var(--space-4);
+            transition: all var(--transition-normal);
+        }
+
+        [data-theme="light"] .peak-card {
+            background: var(--bg-primary);
+            border-color: var(--border-secondary);
+        }
+
+        .peak-card:hover {
+            border-color: var(--brand-400);
+            box-shadow: var(--shadow-md);
         }
 
         .peak-card-header {
@@ -1230,18 +1844,19 @@
         .peak-card-icon {
             width: 36px;
             height: 36px;
-            background: linear-gradient(135deg, var(--brand-500), var(--brand-400));
-            border-radius: var(--radius-md);
+            background: linear-gradient(135deg, var(--brand-500), var(--brand-600));
+            border-radius: var(--radius-lg);
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
             flex-shrink: 0;
+            box-shadow: 0 4px 8px rgba(139, 90, 43, 0.2);
         }
 
         .peak-card-icon i {
-            width: 18px;
-            height: 18px;
+            width: var(--icon-sm);
+            height: var(--icon-sm);
+            color: white;
         }
 
         .peak-card-info {
@@ -1250,16 +1865,20 @@
         }
 
         .peak-card-name {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             color: var(--text-primary);
             line-height: 1.3;
             margin-bottom: 2px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .peak-card-visits {
-            font-size: 12px;
+            font-size: 11px;
             color: var(--text-muted);
+            font-weight: 500;
         }
 
         .peak-times {
@@ -1275,47 +1894,63 @@
             padding: var(--space-2) var(--space-3);
             background: var(--bg-elevated);
             border-radius: var(--radius-md);
+            border: 1px solid var(--border-primary);
+            transition: all var(--transition-fast);
+        }
+
+        [data-theme="light"] .peak-time-item {
+            background: var(--bg-tertiary);
+            border-color: var(--border-secondary);
+        }
+
+        .peak-time-item:hover {
+            border-color: var(--brand-400);
         }
 
         .peak-time-item.primary {
-            background: linear-gradient(135deg, rgba(139, 90, 43, 0.2), rgba(212, 165, 116, 0.1));
-            border: 1px solid rgba(212, 165, 116, 0.3);
+            background: linear-gradient(135deg, rgba(139, 90, 43, 0.15), rgba(139, 90, 43, 0.05));
+            border-color: var(--brand-400);
         }
 
         .peak-time-slot {
             display: flex;
             align-items: center;
             gap: var(--space-2);
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 500;
             color: var(--text-primary);
         }
 
         .peak-time-slot i {
-            width: 14px;
-            height: 14px;
-            color: var(--brand-400);
+            width: var(--icon-sm);
+            height: var(--icon-sm);
+            color: var(--icon-primary);
         }
 
         .peak-time-count {
             font-size: 11px;
             font-weight: 700;
             color: var(--brand-400);
-            background: rgba(212, 165, 116, 0.15);
-            padding: 2px 8px;
-            border-radius: var(--radius-sm);
+            background: rgba(139, 90, 43, 0.15);
+            padding: 3px 8px;
+            border-radius: var(--radius-full);
+        }
+
+        [data-theme="light"] .peak-time-count {
+            color: var(--brand-600);
+            background: rgba(139, 90, 43, 0.12);
         }
 
         .peak-time-item.primary .peak-time-count {
-            background: var(--brand-500);
+            background: linear-gradient(135deg, var(--brand-500), var(--brand-600));
             color: white;
         }
 
         /* ============================================
-           TABLE
+           TABLE - IMPROVED
            ============================================ */
         .table-section {
-            margin-top: var(--space-6);
+            margin-top: var(--space-5);
         }
 
         .table-header {
@@ -1329,26 +1964,31 @@
             display: flex;
             align-items: center;
             gap: var(--space-2);
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 600;
             color: var(--text-primary);
         }
 
         .table-title i {
-            width: 20px;
-            height: 20px;
-            color: var(--brand-400);
+            width: var(--icon-md);
+            height: var(--icon-md);
+            color: var(--icon-primary);
         }
 
         .table-wrapper {
             overflow-x: auto;
             border: 1px solid var(--border-primary);
             border-radius: var(--radius-xl);
+            -webkit-overflow-scrolling: touch;
+        }
+
+        [data-theme="light"] .table-wrapper {
+            border-color: var(--border-secondary);
         }
 
         .data-table {
             width: 100%;
-            min-width: 500px;
+            min-width: 420px;
             border-collapse: collapse;
         }
 
@@ -1356,15 +1996,24 @@
             background: var(--bg-tertiary);
         }
 
+        [data-theme="light"] .data-table thead {
+            background: var(--bg-primary);
+        }
+
         .data-table th {
             padding: var(--space-3) var(--space-4);
-            font-size: 11px;
-            font-weight: 600;
+            font-size: 10px;
+            font-weight: 700;
             color: var(--text-muted);
             text-align: left;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
-            border-bottom: 1px solid var(--border-primary);
+            letter-spacing: 0.08em;
+            border-bottom: 2px solid var(--border-primary);
+            white-space: nowrap;
+        }
+
+        [data-theme="light"] .data-table th {
+            border-color: var(--border-secondary);
         }
 
         .data-table td {
@@ -1372,6 +2021,11 @@
             font-size: 13px;
             color: var(--text-primary);
             border-bottom: 1px solid var(--border-primary);
+            transition: background var(--transition-fast);
+        }
+
+        [data-theme="light"] .data-table td {
+            border-color: var(--border-secondary);
         }
 
         .data-table tbody tr:last-child td {
@@ -1379,16 +2033,21 @@
         }
 
         .data-table tbody tr:hover {
-            background: var(--bg-tertiary);
+            background: var(--bg-hover);
         }
 
         .data-table tbody tr.new-row {
-            animation: row-highlight 1.5s ease;
+            animation: row-highlight 2s ease;
         }
 
         @keyframes row-highlight {
-            0%, 100% { background: transparent; }
-            50% { background: rgba(212, 165, 116, 0.15); }
+            0% {
+                background: rgba(139, 90, 43, 0.2);
+            }
+
+            100% {
+                background: transparent;
+            }
         }
 
         .cell-time {
@@ -1397,17 +2056,20 @@
         }
 
         .time-main {
-            font-weight: 500;
+            font-weight: 600;
+            white-space: nowrap;
+            color: var(--text-primary);
         }
 
         .time-ago {
-            font-size: 11px;
+            font-size: 10px;
             color: var(--text-muted);
+            font-weight: 500;
         }
 
         .cell-office {
-            font-weight: 500;
-            max-width: 200px;
+            font-weight: 600;
+            max-width: 140px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -1415,6 +2077,10 @@
 
         .cell-user {
             color: var(--text-secondary);
+            max-width: 100px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .status-pill {
@@ -1422,14 +2088,18 @@
             align-items: center;
             gap: 4px;
             padding: 4px 10px;
-            font-size: 11px;
-            font-weight: 600;
+            font-size: 10px;
+            font-weight: 700;
             border-radius: var(--radius-full);
+            white-space: nowrap;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
         }
 
         .status-live {
             color: var(--success-500);
             background: rgba(34, 197, 94, 0.15);
+            border: 1px solid rgba(34, 197, 94, 0.3);
         }
 
         .status-live::before {
@@ -1438,26 +2108,34 @@
             height: 6px;
             background: currentColor;
             border-radius: 50%;
-            animation: pulse 1.5s ease-in-out infinite;
+            animation: pulse-dot 1.5s ease-in-out infinite;
+            box-shadow: 0 0 6px currentColor;
         }
 
         .status-recent {
             color: var(--warning-500);
             background: rgba(245, 158, 11, 0.15);
+            border: 1px solid rgba(245, 158, 11, 0.3);
         }
 
         .status-past {
             color: var(--text-muted);
             background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+        }
+
+        [data-theme="light"] .status-past {
+            background: var(--bg-primary);
+            border-color: var(--border-secondary);
         }
 
         /* ============================================
-           OFFICE LIST
+           OFFICE LIST - IMPROVED
            ============================================ */
         .office-list {
             display: flex;
             flex-direction: column;
-            gap: var(--space-4);
+            gap: var(--space-3);
         }
 
         .office-card {
@@ -1465,25 +2143,30 @@
             border: 1px solid var(--border-primary);
             border-radius: var(--radius-xl);
             overflow: hidden;
-            transition: all 0.2s ease;
+            transition: all var(--transition-normal);
+        }
+
+        [data-theme="light"] .office-card {
+            background: var(--bg-primary);
+            border-color: var(--border-secondary);
         }
 
         .office-card:hover {
-            border-color: var(--border-secondary);
-            box-shadow: var(--shadow-sm);
+            border-color: var(--brand-400);
+            box-shadow: var(--shadow-md);
         }
 
         .office-header {
             display: flex;
-            align-items: flex-start;
+            flex-direction: column;
             gap: var(--space-3);
             padding: var(--space-4);
         }
 
-        @media (max-width: 640px) {
+        @media (min-width: 640px) {
             .office-header {
-                flex-direction: column;
-                gap: var(--space-3);
+                flex-direction: row;
+                align-items: flex-start;
             }
         }
 
@@ -1510,24 +2193,37 @@
             justify-content: center;
             background: var(--bg-elevated);
             border-radius: var(--radius-md);
-            color: var(--text-muted);
+            color: var(--icon-muted);
             flex-shrink: 0;
-            transition: all 0.2s ease;
+            transition: all var(--transition-normal);
+            border: 1px solid var(--border-primary);
+        }
+
+        [data-theme="light"] .office-chevron {
+            background: var(--bg-tertiary);
+            border-color: var(--border-secondary);
         }
 
         .office-chevron i {
-            width: 16px;
-            height: 16px;
-            transition: transform 0.2s ease;
+            width: var(--icon-sm);
+            height: var(--icon-sm);
+            transition: transform var(--transition-normal);
+        }
+
+        .office-chevron.open {
+            background: var(--brand-500);
+            border-color: var(--brand-500);
+            color: white;
         }
 
         .office-chevron.open i {
             transform: rotate(180deg);
         }
 
-        .office-toggle:hover .office-chevron {
-            background: var(--border-secondary);
-            color: var(--text-primary);
+        .office-toggle:hover .office-chevron:not(.open) {
+            background: var(--bg-hover);
+            border-color: var(--brand-400);
+            color: var(--brand-400);
         }
 
         .office-info {
@@ -1539,7 +2235,7 @@
             font-size: 15px;
             font-weight: 600;
             color: var(--text-primary);
-            line-height: 1.3;
+            line-height: 1.4;
             margin-bottom: var(--space-1);
         }
 
@@ -1552,11 +2248,17 @@
 
         .office-id {
             font-family: var(--font-mono);
-            font-size: 11px;
+            font-size: 10px;
             color: var(--text-disabled);
             background: var(--bg-elevated);
-            padding: 2px 8px;
+            padding: 3px 8px;
             border-radius: var(--radius-sm);
+            border: 1px solid var(--border-primary);
+        }
+
+        [data-theme="light"] .office-id {
+            background: var(--bg-tertiary);
+            border-color: var(--border-secondary);
         }
 
         .badge {
@@ -1564,8 +2266,8 @@
             align-items: center;
             height: 22px;
             padding: 0 10px;
-            font-size: 11px;
-            font-weight: 600;
+            font-size: 10px;
+            font-weight: 700;
             border-radius: var(--radius-full);
         }
 
@@ -1576,7 +2278,13 @@
 
         .badge-accent {
             color: var(--brand-400);
-            background: rgba(212, 165, 116, 0.15);
+            background: rgba(139, 90, 43, 0.15);
+            border: 1px solid rgba(139, 90, 43, 0.3);
+        }
+
+        [data-theme="light"] .badge-accent {
+            color: var(--brand-600);
+            background: rgba(139, 90, 43, 0.1);
         }
 
         .office-actions {
@@ -1585,17 +2293,10 @@
             flex-shrink: 0;
         }
 
-        @media (max-width: 640px) {
-            .office-actions {
-                width: 100%;
-                justify-content: flex-end;
-            }
-        }
-
         .office-content {
             display: grid;
             grid-template-rows: 0fr;
-            transition: grid-template-rows 0.3s ease;
+            transition: grid-template-rows var(--transition-slow);
         }
 
         .office-content.open {
@@ -1612,18 +2313,30 @@
 
         .office-info-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: 1fr;
             gap: var(--space-3);
             padding: var(--space-4);
             background: var(--bg-elevated);
             border-radius: var(--radius-lg);
             margin-bottom: var(--space-4);
+            border: 1px solid var(--border-primary);
         }
 
-        @media (max-width: 768px) {
+        @media (min-width: 640px) {
             .office-info-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: repeat(2, 1fr);
             }
+        }
+
+        @media (min-width: 1024px) {
+            .office-info-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        [data-theme="light"] .office-info-grid {
+            background: var(--bg-tertiary);
+            border-color: var(--border-secondary);
         }
 
         .info-item {
@@ -1638,15 +2351,15 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: var(--bg-tertiary);
+            background: linear-gradient(135deg, var(--brand-500), var(--brand-600));
             border-radius: var(--radius-md);
-            color: var(--brand-400);
             flex-shrink: 0;
         }
 
         .info-icon i {
-            width: 16px;
-            height: 16px;
+            width: var(--icon-sm);
+            height: var(--icon-sm);
+            color: white;
         }
 
         .info-content {
@@ -1657,7 +2370,7 @@
         .info-label {
             font-size: 10px;
             font-weight: 600;
-            color: var(--text-disabled);
+            color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.05em;
             margin-bottom: 2px;
@@ -1668,20 +2381,31 @@
             font-weight: 500;
             color: var(--text-primary);
             word-break: break-word;
+            line-height: 1.4;
         }
 
-        /* Services */
+        /* Services - IMPROVED */
         .services-section {
             margin-top: var(--space-4);
         }
 
         .services-header {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 700;
             color: var(--text-muted);
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.08em;
             margin-bottom: var(--space-3);
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+
+        .services-header::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border-primary);
         }
 
         .services-list {
@@ -1695,6 +2419,16 @@
             border: 1px solid var(--border-primary);
             border-radius: var(--radius-lg);
             padding: var(--space-4);
+            transition: all var(--transition-normal);
+        }
+
+        [data-theme="light"] .service-card {
+            background: var(--bg-elevated);
+            border-color: var(--border-secondary);
+        }
+
+        .service-card:hover {
+            border-color: var(--brand-400);
         }
 
         .service-header {
@@ -1718,7 +2452,7 @@
 
         .service-id {
             font-family: var(--font-mono);
-            font-size: 11px;
+            font-size: 10px;
             color: var(--text-disabled);
         }
 
@@ -1731,15 +2465,19 @@
         .requirements-section {
             margin-top: var(--space-4);
             padding-top: var(--space-4);
-            border-top: 1px solid var(--border-primary);
+            border-top: 1px dashed var(--border-primary);
+        }
+
+        [data-theme="light"] .requirements-section {
+            border-color: var(--border-secondary);
         }
 
         .requirements-title {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-disabled);
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--text-muted);
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.08em;
             margin-bottom: var(--space-3);
         }
 
@@ -1757,12 +2495,25 @@
             padding: var(--space-3);
             background: var(--bg-tertiary);
             border-radius: var(--radius-md);
+            border: 1px solid var(--border-primary);
+            transition: all var(--transition-fast);
+        }
+
+        [data-theme="light"] .requirement-item {
+            background: var(--bg-primary);
+            border-color: var(--border-secondary);
+        }
+
+        .requirement-item:hover {
+            border-color: var(--brand-400);
         }
 
         .requirement-name {
             flex: 1;
             font-size: 13px;
             color: var(--text-primary);
+            min-width: 0;
+            font-weight: 500;
         }
 
         .requirement-badges {
@@ -1772,32 +2523,32 @@
         }
 
         .priority-badge {
-            padding: 2px 8px;
-            font-size: 10px;
+            padding: 3px 8px;
+            font-size: 9px;
             font-weight: 700;
             color: white;
-            background: var(--brand-500);
+            background: linear-gradient(135deg, var(--brand-500), var(--brand-600));
             border-radius: var(--radius-sm);
         }
 
         .fee-badge {
-            padding: 2px 8px;
-            font-size: 10px;
+            padding: 3px 8px;
+            font-size: 9px;
             font-weight: 700;
-            color: var(--bg-primary);
-            background: var(--brand-300);
+            color: white;
+            background: linear-gradient(135deg, var(--success-500), var(--success-600));
             border-radius: var(--radius-sm);
         }
 
         /* ============================================
-           EMPTY STATE
+           EMPTY            STATE - IMPROVED
            ============================================ */
         .empty-state {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: var(--space-12) var(--space-6);
+            padding: var(--space-10) var(--space-4);
             text-align: center;
         }
 
@@ -1807,15 +2558,16 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: var(--bg-tertiary);
+            background: linear-gradient(135deg, var(--bg-tertiary), var(--bg-elevated));
             border-radius: var(--radius-2xl);
             margin-bottom: var(--space-4);
-            color: var(--text-muted);
+            border: 2px dashed var(--border-secondary);
         }
 
         .empty-icon i {
-            width: 36px;
-            height: 36px;
+            width: var(--icon-2xl);
+            height: var(--icon-2xl);
+            color: var(--icon-muted);
         }
 
         .empty-title {
@@ -1826,56 +2578,108 @@
         }
 
         .empty-description {
-            font-size: 14px;
+            font-size: 13px;
             color: var(--text-muted);
-            max-width: 300px;
+            max-width: 280px;
+            line-height: 1.5;
         }
 
         /* ============================================
-           MODALS
+           MODALS - IMPROVED
            ============================================ */
         .modal-overlay {
             position: fixed;
             inset: 0;
             z-index: 1000;
             display: flex;
-            align-items: center;
+            align-items: flex-end;
             justify-content: center;
-            padding: var(--space-4);
-            background: rgba(0, 0, 0, 0.75);
-            backdrop-filter: blur(4px);
+            padding: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        @media (min-width: 640px) {
+            .modal-overlay {
+                align-items: center;
+                padding: var(--space-4);
+            }
+        }
+
+        [data-theme="light"] .modal-overlay {
+            background: rgba(28, 18, 16, 0.7);
         }
 
         .modal {
             width: 100%;
-            max-width: 500px;
-            max-height: 90vh;
+            max-width: 100%;
+            max-height: 92vh;
+            max-height: 92dvh;
             background: var(--bg-secondary);
             border: 1px solid var(--border-primary);
-            border-radius: var(--radius-2xl);
+            border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
             overflow: hidden;
-            animation: modal-enter 0.2s ease;
+            animation: modal-slide-up 0.3s ease;
+            box-shadow: var(--shadow-xl);
+        }
+
+        @media (min-width: 640px) {
+            .modal {
+                max-width: 480px;
+                border-radius: var(--radius-2xl);
+                animation: modal-enter 0.2s ease;
+            }
+        }
+
+        @keyframes modal-slide-up {
+            from {
+                opacity: 0;
+                transform: translateY(100%);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         @keyframes modal-enter {
             from {
                 opacity: 0;
-                transform: scale(0.95) translateY(-10px);
+                transform: scale(0.95) translateY(-20px);
             }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        [data-theme="light"] .modal {
+            background: var(--bg-elevated);
+            border-color: var(--border-secondary);
         }
 
         .modal-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: var(--space-5);
+            padding: var(--space-4) var(--space-5);
             border-bottom: 1px solid var(--border-primary);
+            background: var(--bg-tertiary);
+        }
+
+        [data-theme="light"] .modal-header {
+            background: var(--bg-primary);
+            border-color: var(--border-secondary);
         }
 
         .modal-title {
-            font-size: 18px;
+            font-size: 17px;
             font-weight: 600;
             color: var(--text-primary);
+            letter-spacing: -0.01em;
         }
 
         .modal-close {
@@ -1884,28 +2688,36 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: var(--bg-tertiary);
+            background: var(--bg-elevated);
             border: 1px solid var(--border-primary);
             border-radius: var(--radius-lg);
-            color: var(--text-secondary);
+            color: var(--icon-secondary);
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all var(--transition-normal);
+        }
+
+        [data-theme="light"] .modal-close {
+            background: var(--bg-secondary);
+            border-color: var(--border-secondary);
         }
 
         .modal-close:hover {
-            background: var(--bg-elevated);
-            color: var(--text-primary);
+            background: var(--danger-500);
+            border-color: var(--danger-500);
+            color: white;
+            transform: rotate(90deg);
         }
 
         .modal-close i {
-            width: 18px;
-            height: 18px;
+            width: var(--icon-md);
+            height: var(--icon-md);
         }
 
         .modal-body {
             padding: var(--space-5);
             overflow-y: auto;
-            max-height: calc(90vh - 140px);
+            max-height: calc(92vh - 140px);
+            max-height: calc(92dvh - 140px);
         }
 
         .modal-footer {
@@ -1914,13 +2726,23 @@
             padding: 0 var(--space-5) var(--space-5);
         }
 
-        /* Requirement Builder */
+        /* Requirement Builder - IMPROVED */
         .requirement-builder {
             background: var(--bg-tertiary);
             border: 1px solid var(--border-primary);
             border-radius: var(--radius-lg);
             padding: var(--space-4);
             margin-bottom: var(--space-3);
+            transition: all var(--transition-normal);
+        }
+
+        [data-theme="light"] .requirement-builder {
+            background: var(--bg-primary);
+            border-color: var(--border-secondary);
+        }
+
+        .requirement-builder:hover {
+            border-color: var(--brand-400);
         }
 
         .requirement-fields {
@@ -1939,10 +2761,12 @@
             display: flex;
             justify-content: flex-end;
             margin-top: var(--space-3);
+            padding-top: var(--space-3);
+            border-top: 1px dashed var(--border-primary);
         }
 
         /* ============================================
-           SPINNER
+           SPINNER - IMPROVED
            ============================================ */
         .spinner {
             display: inline-block;
@@ -1950,6 +2774,7 @@
             height: 16px;
             border: 2px solid transparent;
             border-top-color: currentColor;
+            border-right-color: currentColor;
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
@@ -1961,7 +2786,127 @@
         }
 
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ============================================
+           SCROLLBAR STYLES
+           ============================================ */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-secondary);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-disabled);
+        }
+
+        [data-theme="light"] ::-webkit-scrollbar-thumb {
+            background: var(--border-secondary);
+        }
+
+        [data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+            background: var(--brand-400);
+        }
+
+        /* ============================================
+           SAFE AREA INSETS
+           ============================================ */
+        @supports (padding: max(0px)) {
+            .app-wrapper {
+                padding-left: max(var(--space-4), env(safe-area-inset-left));
+                padding-right: max(var(--space-4), env(safe-area-inset-right));
+                padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
+            }
+        }
+
+        /* ============================================
+           LOADING SKELETON
+           ============================================ */
+        .skeleton {
+            background: linear-gradient(90deg,
+                    var(--bg-tertiary) 25%,
+                    var(--bg-elevated) 50%,
+                    var(--bg-tertiary) 75%);
+            background-size: 200% 100%;
+            animation: skeleton-loading 1.5s ease-in-out infinite;
+            border-radius: var(--radius-md);
+        }
+
+        @keyframes skeleton-loading {
+            0% {
+                background-position: 200% 0;
+            }
+
+            100% {
+                background-position: -200% 0;
+            }
+        }
+
+        /* ============================================
+           PRINT STYLES
+           ============================================ */
+        @media print {
+
+            .header-actions,
+            .nav-tabs,
+            .section-actions,
+            .office-actions,
+            .service-actions,
+            .btn,
+            .modal-overlay,
+            .theme-toggle {
+                display: none !important;
+            }
+
+            .section {
+                break-inside: avoid;
+                box-shadow: none;
+                border: 1px solid #ccc;
+            }
+
+            body {
+                background: white;
+                color: black;
+            }
+        }
+
+        /* ============================================
+           ACCESSIBILITY
+           ============================================ */
+        @media (prefers-reduced-motion: reduce) {
+
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        /* High contrast mode */
+        @media (prefers-contrast: high) {
+            :root {
+                --border-primary: #666;
+                --border-secondary: #888;
+            }
+
+            [data-theme="light"] {
+                --border-primary: #444;
+                --border-secondary: #222;
+            }
         }
     </style>
 </head>
@@ -1986,11 +2931,13 @@
             <form id="loginForm">
                 <div class="form-group">
                     <label class="form-label">Email Address</label>
-                    <input type="email" id="username" class="form-input" required placeholder="admin@manilaserve.ph" autocomplete="username" />
+                    <input type="email" id="username" class="form-input" required placeholder="admin@manilaserve.ph"
+                        autocomplete="username" />
                 </div>
                 <div class="form-group">
                     <label class="form-label">Password</label>
-                    <input type="password" id="password" class="form-input" required placeholder="Enter password" autocomplete="current-password" />
+                    <input type="password" id="password" class="form-input" required placeholder="Enter your password"
+                        autocomplete="current-password" />
                 </div>
                 <button type="submit" class="btn btn-primary btn-lg btn-block" id="loginBtn">
                     <i data-lucide="log-in"></i>
@@ -2010,7 +2957,7 @@
                         <div class="header-logo">
                             <i data-lucide="landmark"></i>
                         </div>
-                        <div>
+                        <div class="header-info">
                             <h1 class="header-title">ManilaServe</h1>
                             <p class="header-subtitle">Administration Panel</p>
                         </div>
@@ -2020,13 +2967,14 @@
                             <span class="spinner"></span>
                             <span class="status-text">Connecting</span>
                         </div>
-                        <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+                        <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"
+                            aria-label="Toggle theme">
                             <i data-lucide="moon" id="themeIconDark"></i>
                             <i data-lucide="sun" id="themeIconLight" class="hidden"></i>
                         </button>
-                        <button class="btn btn-sm" onclick="logout()">
+                        <button class="btn btn-sm btn-ghost" onclick="logout()">
                             <i data-lucide="log-out"></i>
-                            <span class="status-text">Logout</span>
+                            <span class="logout-text">Logout</span>
                         </button>
                     </div>
                 </div>
@@ -2036,23 +2984,23 @@
             <div id="statusMessage" class="hidden"></div>
 
             <!-- Navigation -->
-            <nav class="nav-tabs">
-                <button class="nav-tab active" onclick="showSection('dashboard', this)">
+            <nav class="nav-tabs" role="tablist">
+                <button class="nav-tab active" onclick="showSection('dashboard', this)" role="tab" aria-selected="true">
                     <i data-lucide="layout-dashboard"></i>
                     <span>Dashboard</span>
                 </button>
-                <button class="nav-tab" onclick="showSection('offices', this)">
+                <button class="nav-tab" onclick="showSection('offices', this)" role="tab" aria-selected="false">
                     <i data-lucide="building-2"></i>
                     <span>Offices</span>
                 </button>
-                <button class="nav-tab" onclick="showSection('visitation', this)">
+                <button class="nav-tab" onclick="showSection('visitation', this)" role="tab" aria-selected="false">
                     <i data-lucide="map-pin"></i>
                     <span>Visitation</span>
                 </button>
             </nav>
 
             <!-- Dashboard -->
-            <section id="dashboardSection" class="section">
+            <section id="dashboardSection" class="section" role="tabpanel">
                 <div class="section-header">
                     <div class="section-title-group">
                         <p class="section-eyebrow">Overview</p>
@@ -2087,12 +3035,13 @@
                 <div class="empty-state" id="dashboardEmpty">
                     <div class="empty-icon"><i data-lucide="database"></i></div>
                     <h3 class="empty-title">Welcome to ManilaServe</h3>
-                    <p class="empty-description">Your city services data will appear here once loaded.</p>
+                    <p class="empty-description">Your city services data will appear here once loaded from the database.
+                    </p>
                 </div>
             </section>
 
             <!-- Offices -->
-            <section id="officesSection" class="section hidden">
+            <section id="officesSection" class="section hidden" role="tabpanel">
                 <div class="section-header">
                     <div class="section-title-group">
                         <p class="section-eyebrow">Management</p>
@@ -2118,8 +3067,10 @@
                 <div class="toolbar">
                     <div class="search-box">
                         <span class="search-icon"><i data-lucide="search"></i></span>
-                        <input id="officeSearch" class="search-input" type="search" placeholder="Search offices, services..." />
-                        <button class="search-clear" id="clearSearchBtn"><i data-lucide="x"></i></button>
+                        <input id="officeSearch" class="search-input" type="search"
+                            placeholder="Search offices, services, requirements..." aria-label="Search" />
+                        <button class="search-clear" id="clearSearchBtn" aria-label="Clear search"><i
+                                data-lucide="x"></i></button>
                     </div>
                 </div>
 
@@ -2132,13 +3083,19 @@
             </section>
 
             <!-- Visitation -->
-            <section id="visitationSection" class="section hidden">
+            <section id="visitationSection" class="section hidden" role="tabpanel">
                 <div class="section-header">
                     <div class="section-title-group">
                         <p class="section-eyebrow">Real-time Analytics</p>
                         <h2 class="section-title">Visitation & Peak Hours</h2>
                         <p class="section-description">Monitor arrivals and identify peak traffic periods</p>
                     </div>
+                </div>
+
+                <!-- Office Hours Notice -->
+                <div class="office-hours-notice" id="officeHoursNotice">
+                    <i data-lucide="clock"></i>
+                    <span><strong>7:00 AM - 4:00 PM</strong> • Visits only recorded during office hours</span>
                 </div>
 
                 <div class="stats-grid">
@@ -2148,19 +3105,19 @@
                         <div class="stat-label">Total Visits</div>
                         <div class="stat-change positive" id="visitsChange">
                             <i data-lucide="trending-up"></i>
-                            <span>+0 from yesterday</span>
+                            <span>+0</span>
                         </div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-icon"><i data-lucide="activity"></i></div>
                         <div class="stat-value" id="activeVisits">0</div>
-                        <div class="stat-label">Active (5 min)</div>
+                        <div class="stat-label">Active Now</div>
                     </div>
                     <div class="stat-card" id="topOfficeCard">
                         <div class="stat-icon"><i data-lucide="trophy"></i></div>
                         <div class="stat-office-name" id="topOffice">—</div>
                         <div class="stat-label">Most Visited</div>
-                        <div class="stat-change neutral" id="topOfficeCount">0 visits</div>
+                        <div class="stat-change neutral" id="topOfficeCount">0</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-icon"><i data-lucide="clock"></i></div>
@@ -2169,7 +3126,7 @@
                     </div>
                 </div>
 
-                <div class="filters-bar">
+                <div class="filters-bar" role="group" aria-label="Time filters">
                     <button class="filter-btn active" onclick="filterVisits('today', this)">Today</button>
                     <button class="filter-btn" onclick="filterVisits('week', this)">This Week</button>
                     <button class="filter-btn" onclick="filterVisits('month', this)">This Month</button>
@@ -2180,13 +3137,15 @@
                     <div class="chart-card">
                         <div class="chart-header">
                             <div>
-                                <h3 class="chart-title"><i data-lucide="bar-chart-3"></i> Most Visited</h3>
+                                <h3 class="chart-title"><i data-lucide="bar-chart-3"></i> Top Offices</h3>
                                 <p class="chart-subtitle">Ranked by total visits</p>
                             </div>
                         </div>
                         <div class="chart-body">
                             <div class="bar-chart" id="topOfficesChart">
-                                <div class="empty-state" style="padding: var(--space-8);"><p class="empty-description">Loading...</p></div>
+                                <div class="empty-state" style="padding: var(--space-8);">
+                                    <p class="empty-description">Loading chart data...</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -2194,8 +3153,8 @@
                     <div class="chart-card">
                         <div class="chart-header">
                             <div>
-                                <h3 class="chart-title"><i data-lucide="line-chart"></i> Peak Hours</h3>
-                                <p class="chart-subtitle">Hourly distribution</p>
+                                <h3 class="chart-title"><i data-lucide="line-chart"></i> Hourly Distribution</h3>
+                                <p class="chart-subtitle">7 AM - 4 PM office hours</p>
                             </div>
                             <div class="chart-legend">
                                 <div class="legend-item">
@@ -2227,20 +3186,22 @@
                     </div>
                     <div class="insight-card">
                         <div class="insight-value" id="avgHourlyVisits">0</div>
-                        <div class="insight-label">Avg/Hour</div>
+                        <div class="insight-label">Avg per Hour</div>
                     </div>
                     <div class="insight-card">
                         <div class="insight-value" id="uniqueOffices">0</div>
-                        <div class="insight-label">Unique Offices</div>
+                        <div class="insight-label">Offices Visited</div>
                     </div>
                 </div>
 
                 <div class="peaks-section">
                     <div class="peaks-header">
-                        <h3 class="peaks-title"><i data-lucide="clock-4"></i> Peak Hours by Office</h3>
+                        <h3 class="peaks-title"><i data-lucide="zap"></i> Peak Hours by Office</h3>
                     </div>
                     <div class="peaks-grid" id="officePeaksGrid">
-                        <div class="empty-state" style="grid-column: 1/-1; padding: var(--space-8);"><p class="empty-description">Peak data will appear here...</p></div>
+                        <div class="empty-state" style="grid-column: 1/-1; padding: var(--space-8);">
+                            <p class="empty-description">Peak data will appear when visits are recorded.</p>
+                        </div>
                     </div>
                 </div>
 
@@ -2252,14 +3213,20 @@
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>Timestamp</th>
-                                    <th>Department</th>
+                                    <th>Time</th>
+                                    <th>Office</th>
                                     <th>User</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody id="visitsTableBody">
-                                <tr><td colspan="4"><div class="empty-state" style="padding: var(--space-8);"><p class="empty-description">Waiting for visits...</p></div></td></tr>
+                                <tr>
+                                    <td colspan="4">
+                                        <div class="empty-state" style="padding: var(--space-8);">
+                                            <p class="empty-description">Waiting for visits...</p>
+                                        </div>
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -2269,11 +3236,13 @@
     </div>
 
     <!-- Office Modal -->
-    <div id="officeModal" class="modal-overlay hidden">
+    <div id="officeModal" class="modal-overlay hidden" role="dialog" aria-modal="true"
+        aria-labelledby="officeModalTitle">
         <div class="modal">
             <div class="modal-header">
                 <h4 class="modal-title" id="officeModalTitle">Add Office</h4>
-                <button class="modal-close" onclick="closeOfficeModal()"><i data-lucide="x"></i></button>
+                <button class="modal-close" onclick="closeOfficeModal()" aria-label="Close"><i
+                        data-lucide="x"></i></button>
             </div>
             <div class="modal-body">
                 <form id="officeForm">
@@ -2282,23 +3251,28 @@
                         <input type="text" id="officeId" class="form-input" readonly />
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Office Name</label>
-                        <input type="text" id="officeName" class="form-input" required placeholder="e.g., Manila Health Department" />
+                        <label class="form-label">Office Name *</label>
+                        <input type="text" id="officeName" class="form-input" required
+                            placeholder="e.g., Manila Health Department" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Location</label>
-                        <input type="text" id="officeLocation" class="form-input" required placeholder="e.g., Ground Floor, City Hall" />
+                        <label class="form-label">Location *</label>
+                        <input type="text" id="officeLocation" class="form-input" required
+                            placeholder="e.g., Ground Floor, City Hall" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Department Head</label>
-                        <input type="text" id="officeHead" class="form-input" required placeholder="e.g., Dr. Juan Dela Cruz" />
+                        <label class="form-label">Department Head *</label>
+                        <input type="text" id="officeHead" class="form-input" required
+                            placeholder="e.g., Dr. Juan Dela Cruz" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Contact Number</label>
-                        <input type="text" id="officePhone" class="form-input" required placeholder="e.g., (02) 5310-5270" />
+                        <label class="form-label">Contact Number *</label>
+                        <input type="text" id="officePhone" class="form-input" required
+                            placeholder="e.g., (02) 5310-5270" />
                     </div>
                     <div class="modal-footer">
-                        <button type="submit" class="btn btn-primary" style="flex:1;"><i data-lucide="save"></i> Save</button>
+                        <button type="submit" class="btn btn-primary" style="flex:1;"><i data-lucide="save"></i> Save
+                            Office</button>
                         <button type="button" class="btn" onclick="closeOfficeModal()">Cancel</button>
                     </div>
                 </form>
@@ -2307,11 +3281,13 @@
     </div>
 
     <!-- Service Modal -->
-    <div id="serviceModal" class="modal-overlay hidden">
+    <div id="serviceModal" class="modal-overlay hidden" role="dialog" aria-modal="true"
+        aria-labelledby="serviceModalTitle">
         <div class="modal">
             <div class="modal-header">
                 <h4 class="modal-title" id="serviceModalTitle">Add Service</h4>
-                <button class="modal-close" onclick="closeServiceModal()"><i data-lucide="x"></i></button>
+                <button class="modal-close" onclick="closeServiceModal()" aria-label="Close"><i
+                        data-lucide="x"></i></button>
             </div>
             <div class="modal-body">
                 <form id="serviceForm">
@@ -2320,18 +3296,21 @@
                         <input type="text" id="serviceId" class="form-input" readonly />
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Service Name</label>
-                        <input type="text" id="serviceName" class="form-input" required placeholder="e.g., Birth Certificate Request" />
+                        <label class="form-label">Service Name *</label>
+                        <input type="text" id="serviceName" class="form-input" required
+                            placeholder="e.g., Birth Certificate Request" />
                     </div>
                     <div class="form-group">
                         <label class="form-label">Requirements</label>
                         <div id="requirementsList"></div>
-                        <button type="button" class="btn btn-sm" onclick="addRequirement()" style="margin-top: var(--space-2);">
+                        <button type="button" class="btn btn-sm" onclick="addRequirement()"
+                            style="margin-top: var(--space-3);">
                             <i data-lucide="plus"></i> Add Requirement
                         </button>
                     </div>
                     <div class="modal-footer">
-                        <button type="submit" class="btn btn-primary" style="flex:1;"><i data-lucide="save"></i> Save</button>
+                        <button type="submit" class="btn btn-primary" style="flex:1;"><i data-lucide="save"></i> Save
+                            Service</button>
                         <button type="button" class="btn" onclick="closeServiceModal()">Cancel</button>
                     </div>
                 </form>
@@ -2352,7 +3331,7 @@
             authDomain: "manilaserve-f3ed8.firebaseapp.com",
             databaseURL: "https://manilaserve-f3ed8-default-rtdb.asia-southeast1.firebasedatabase.app",
             projectId: "manilaserve-f3ed8",
-        storageBucket: "manilaserve-f3ed8.firebasestorage.app",
+            storageBucket: "manilaserve-f3ed8.firebasestorage.app",
             messagingSenderId: "396234367219",
             appId: "1:396234367219:web:e5bc1919b8552eb4fed786"
         };
@@ -2360,6 +3339,12 @@
         const ADMIN_CREDENTIALS = {
             username: "admin@manilaserve.ph",
             password: "admin1234"
+        };
+
+        // Office Hours Configuration
+        const OFFICE_HOURS = {
+            start: 7,
+            end: 16
         };
 
         // ============================================
@@ -2376,12 +3361,80 @@
         let searchTerm = "";
         let searchDebounceTimer = null;
 
-        // Visitation - FIXED: Using Map to prevent duplicates
-        let visitsMap = new Map(); // Key: visit key, Value: visit object
+        let visitsMap = new Map();
         let currentFilter = 'today';
         let visitsListener = null;
         let visitsInitialized = false;
         let peakHoursChartInstance = null;
+        let chartResizeTimeout = null;
+
+        // ============================================
+        // OFFICE HOURS UTILITIES
+        // ============================================
+        function isWithinOfficeHours(timestamp = Date.now()) {
+            const date = new Date(timestamp);
+            const hour = date.getHours();
+            return hour >= OFFICE_HOURS.start && hour < OFFICE_HOURS.end;
+        }
+
+        function getCurrentOfficeStatus() {
+            const now = new Date();
+            const hour = now.getHours();
+
+            if (isWithinOfficeHours()) {
+                const closingTime = new Date(now);
+                closingTime.setHours(OFFICE_HOURS.end, 0, 0, 0);
+                const remainingMs = closingTime - now;
+                const remainingHours = Math.floor(remainingMs / (1000 * 60 * 60));
+                const remainingMins = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+
+                return {
+                    isOpen: true,
+                    message: `Open • Closes in ${remainingHours}h ${remainingMins}m`,
+                    timeUntilChange: remainingMs
+                };
+            } else {
+                let nextOpen = new Date(now);
+                if (hour >= OFFICE_HOURS.end) {
+                    nextOpen.setDate(nextOpen.getDate() + 1);
+                }
+                nextOpen.setHours(OFFICE_HOURS.start, 0, 0, 0);
+                const waitMs = nextOpen - now;
+                const waitHours = Math.floor(waitMs / (1000 * 60 * 60));
+                const waitMins = Math.floor((waitMs % (1000 * 60 * 60)) / (1000 * 60));
+
+                return {
+                    isOpen: false,
+                    message: `Closed • Opens in ${waitHours}h ${waitMins}m`,
+                    timeUntilChange: waitMs
+                };
+            }
+        }
+
+        function updateOfficeHoursNotice() {
+            const notice = document.getElementById('officeHoursNotice');
+            if (!notice) return;
+
+            const status = getCurrentOfficeStatus();
+
+            if (status.isOpen) {
+                notice.classList.remove('closed');
+                notice.innerHTML = `
+                    <i data-lucide="clock"></i>
+                    <span><strong>7 AM - 4 PM</strong> • ${status.message}</span>
+                `;
+            } else {
+                notice.classList.add('closed');
+                notice.innerHTML = `
+                    <i data-lucide="clock-off"></i>
+                    <span><strong>Office Closed</strong> • ${status.message}</span>
+                `;
+            }
+
+            initIcons();
+        }
+
+        setInterval(updateOfficeHoursNotice, 60000);
 
         // ============================================
         // ICONS
@@ -2400,10 +3453,10 @@
         function applyTheme(theme) {
             document.documentElement.setAttribute("data-theme", theme);
             localStorage.setItem(THEME_KEY, theme);
-            
+
             const darkIcon = document.getElementById("themeIconDark");
             const lightIcon = document.getElementById("themeIconLight");
-            
+
             if (theme === 'dark') {
                 darkIcon?.classList.remove('hidden');
                 lightIcon?.classList.add('hidden');
@@ -2412,13 +3465,20 @@
                 lightIcon?.classList.remove('hidden');
             }
 
+            // Update meta theme color
+            document.querySelector('meta[name="theme-color"]').setAttribute('content',
+                theme === 'dark' ? '#0a0a0a' : '#F5F0EB'
+            );
+
             if (peakHoursChartInstance) {
-                updateChartTheme();
+                setTimeout(updateChartTheme, 50);
             }
         }
 
         function initTheme() {
-            applyTheme(localStorage.getItem(THEME_KEY) || "dark");
+            const savedTheme = localStorage.getItem(THEME_KEY);
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            applyTheme(savedTheme || (prefersDark ? 'dark' : 'dark'));
         }
 
         function toggleTheme() {
@@ -2428,14 +3488,18 @@
 
         function updateChartTheme() {
             const isDark = document.documentElement.getAttribute("data-theme") === "dark";
-            const textColor = isDark ? '#737373' : '#525252';
-            const gridColor = isDark ? 'rgba(64, 64, 64, 0.3)' : 'rgba(229, 229, 229, 0.8)';
+            const textColor = isDark ? '#737373' : '#6B5D54';
+            const gridColor = isDark ? 'rgba(64, 64, 64, 0.4)' : 'rgba(201, 185, 168, 0.5)';
 
             if (peakHoursChartInstance) {
                 peakHoursChartInstance.options.scales.x.ticks.color = textColor;
                 peakHoursChartInstance.options.scales.y.ticks.color = textColor;
                 peakHoursChartInstance.options.scales.x.grid.color = gridColor;
                 peakHoursChartInstance.options.scales.y.grid.color = gridColor;
+                peakHoursChartInstance.options.plugins.tooltip.backgroundColor = isDark ? '#242424' : '#FFFFFF';
+                peakHoursChartInstance.options.plugins.tooltip.titleColor = isDark ? '#fafafa' : '#1C1210';
+                peakHoursChartInstance.options.plugins.tooltip.bodyColor = isDark ? '#a3a3a3' : '#4A3F38';
+                peakHoursChartInstance.options.plugins.tooltip.borderColor = isDark ? '#404040' : '#C9B9A8';
                 peakHoursChartInstance.update('none');
             }
         }
@@ -2453,7 +3517,7 @@
 
         function truncate(str, len) {
             if (!str) return '';
-            return str.length > len ? str.substring(0, len) + '...' : str;
+            return str.length > len ? str.substring(0, len) + '…' : str;
         }
 
         function formatNumber(n) {
@@ -2461,13 +3525,24 @@
         }
 
         function formatHour(h) {
-            if (h === 0) return '12 AM';
-            if (h === 12) return '12 PM';
-            return h < 12 ? `${h} AM` : `${h - 12} PM`;
+            if (h === 0) return '12AM';
+            if (h === 12) return '12PM';
+            return h < 12 ? `${h}AM` : `${h - 12}PM`;
         }
 
         function formatHourRange(h) {
             return `${formatHour(h)} - ${formatHour((h + 1) % 24)}`;
+        }
+
+        function getResponsiveChartConfig() {
+            const width = window.innerWidth;
+            return {
+                fontSize: width < 480 ? 9 : width < 768 ? 10 : 11,
+                pointRadius: width < 480 ? 4 : width < 768 ? 5 : 6,
+                pointHoverRadius: width < 480 ? 6 : width < 768 ? 7 : 8,
+                borderWidth: width < 480 ? 2 : 2.5,
+                padding: width < 480 ? 10 : 12
+            };
         }
 
         // ============================================
@@ -2485,19 +3560,19 @@
             }
         }
 
-        document.getElementById("loginForm").addEventListener("submit", async function(e) {
+        document.getElementById("loginForm").addEventListener("submit", async function (e) {
             e.preventDefault();
-            
+
             const username = document.getElementById("username").value.trim();
             const password = document.getElementById("password").value.trim();
             const btn = document.getElementById("loginBtn");
-            
+
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner"></span> Signing in...';
 
             try {
                 const dbAdmin = await getAdminFromDB();
-                const valid = dbAdmin 
+                const valid = dbAdmin
                     ? (username === dbAdmin.username && password === dbAdmin.password)
                     : (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password);
 
@@ -2527,6 +3602,7 @@
             document.getElementById("appContainer").style.display = "block";
             initFirebase();
             initIcons();
+            updateOfficeHoursNotice();
         }
 
         function showLoginScreen() {
@@ -2540,24 +3616,22 @@
 
         function logout() {
             if (!confirm('Are you sure you want to logout?')) return;
-            
+
             sessionStorage.removeItem('manilaAdminLoggedIn');
-            
-            // Clean up listeners
+
             if (visitsListener && database) {
                 database.ref('visits').off('child_added', visitsListener);
                 visitsListener = null;
             }
-            
-            // Reset state
+
             visitsMap.clear();
             visitsInitialized = false;
-            
+
             if (peakHoursChartInstance) {
                 peakHoursChartInstance.destroy();
                 peakHoursChartInstance = null;
             }
-            
+
             showLoginScreen();
         }
 
@@ -2567,7 +3641,7 @@
         function initFirebase() {
             try {
                 updateConnectionStatus("loading", "Connecting");
-                
+
                 if (!firebase.apps.length) {
                     firebase.initializeApp(firebaseConfig);
                 }
@@ -2575,7 +3649,7 @@
 
                 loadData().then(() => {
                     updateConnectionStatus("connected", "Connected");
-                    showStatus("Connected to Firebase!", "success");
+                    showStatus("Connected to database!", "success");
                     updateDashboard();
                 });
 
@@ -2583,14 +3657,14 @@
             } catch (error) {
                 console.error('Firebase init error:', error);
                 updateConnectionStatus("disconnected", "Failed");
-                showStatus("Connection failed: " + error.message, "error");
+                showStatus("Connection failed", "error");
             }
         }
 
         function updateConnectionStatus(status, text) {
             const el = document.getElementById("connectionStatus");
             el.className = `status-badge status-${status}`;
-            
+
             if (status === "loading") {
                 el.innerHTML = `<span class="spinner"></span><span class="status-text">${text}</span>`;
             } else {
@@ -2600,7 +3674,7 @@
 
         async function loadData() {
             if (!database) return;
-            
+
             try {
                 const snap = await database.ref("offices").once("value");
                 const data = snap.val();
@@ -2615,18 +3689,18 @@
 
         async function saveData() {
             if (!database) {
-                showStatus("Not connected to database", "error");
+                showStatus("Not connected", "error");
                 return;
             }
-            
+
             try {
                 await database.ref("offices").set(currentData);
-                showStatus("Saved successfully!", "success");
+                showStatus("Changes saved!", "success");
                 updateStats();
                 localStorage.setItem("lastUpdate", new Date().toISOString());
             } catch (error) {
                 console.error('Save error:', error);
-                showStatus("Failed to save: " + error.message, "error");
+                showStatus("Save failed", "error");
             }
         }
 
@@ -2635,20 +3709,35 @@
         // ============================================
         function showStatus(msg, type) {
             const el = document.getElementById("statusMessage");
-            const icon = type === 'success' ? 'check-circle' : 'alert-circle';
+            const icon = type === 'success' ? 'check-circle' : type === 'warning' ? 'alert-triangle' : 'alert-circle';
             el.innerHTML = `<div class="alert alert-${type}"><i data-lucide="${icon}"></i><span>${msg}</span></div>`;
             el.classList.remove("hidden");
             initIcons();
-            setTimeout(() => el.classList.add("hidden"), 4000);
+            setTimeout(() => el.classList.add("hidden"), 3500);
         }
 
         function showSection(name, btn) {
             document.querySelectorAll(".section").forEach(s => s.classList.add("hidden"));
             document.getElementById(name + "Section")?.classList.remove("hidden");
-            document.querySelectorAll(".nav-tab").forEach(t => t.classList.remove("active"));
+
+            document.querySelectorAll(".nav-tab").forEach(t => {
+                t.classList.remove("active");
+                t.setAttribute('aria-selected', 'false');
+            });
             btn?.classList.add("active");
+            btn?.setAttribute('aria-selected', 'true');
+
             currentSection = name;
             renderContent();
+
+            if (name === 'visitation') {
+                updateOfficeHoursNotice();
+                setTimeout(() => {
+                    if (peakHoursChartInstance) {
+                        peakHoursChartInstance.resize();
+                    }
+                }, 150);
+            }
         }
 
         function renderContent() {
@@ -2686,7 +3775,7 @@
                 const d = new Date(last);
                 const today = new Date();
                 const isToday = d.toDateString() === today.toDateString();
-                document.getElementById("lastUpdate").textContent = isToday 
+                document.getElementById("lastUpdate").textContent = isToday
                     ? d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
                     : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             }
@@ -2699,7 +3788,7 @@
             const t = normalize(term);
             if (!t) {
                 return currentData.map((o, i) => ({
-                    office: o, 
+                    office: o,
                     officeIndex: i,
                     services: (o.Services || []).map((s, j) => ({ service: s, serviceIndex: j })),
                     totalServices: (o.Services || []).length
@@ -2724,11 +3813,11 @@
                     if (oMatch && !sMatches.length) {
                         sMatches = (o.Services || []).map((s, j) => ({ service: s, serviceIndex: j }));
                     }
-                    result.push({ 
-                        office: o, 
-                        officeIndex: i, 
-                        services: sMatches, 
-                        totalServices: (o.Services || []).length 
+                    result.push({
+                        office: o,
+                        officeIndex: i,
+                        services: sMatches,
+                        totalServices: (o.Services || []).length
                     });
                 }
             });
@@ -2738,15 +3827,15 @@
         function toggleOffice(idx) {
             const o = currentData[idx];
             if (!o) return;
-            
+
             const content = document.getElementById(`officeContent-${idx}`);
             const chevron = document.getElementById(`chevron-${idx}`);
-            
+
             if (!content) return;
-            
+
             const isOpen = content.classList.toggle("open");
             chevron?.classList.toggle("open", isOpen);
-            
+
             if (isOpen) {
                 expandedOffices.add(o.OfficeId);
             } else {
@@ -2773,7 +3862,7 @@
                     <div class="empty-state">
                         <div class="empty-icon"><i data-lucide="search-x"></i></div>
                         <h3 class="empty-title">No results found</h3>
-                        <p class="empty-description">Try adjusting your search terms.</p>
+                        <p class="empty-description">Try different search terms or add a new office.</p>
                     </div>
                 `;
                 initIcons();
@@ -2787,7 +3876,7 @@
                 return `
                     <div class="office-card">
                         <div class="office-header">
-                            <button class="office-toggle" onclick="toggleOffice(${idx})">
+                            <button class="office-toggle" onclick="toggleOffice(${idx})" aria-expanded="${isOpen}">
                                 <span class="office-chevron ${isOpen ? 'open' : ''}" id="chevron-${idx}">
                                     <i data-lucide="chevron-down"></i>
                                 </span>
@@ -2795,19 +3884,19 @@
                                     <div class="office-name">${o.OfficeName}</div>
                                     <div class="office-meta">
                                         <span class="office-id">${o.OfficeId}</span>
-                                        <span class="badge badge-primary">${count} service${count !== 1 ? 's' : ''}</span>
+                                        <span class="badge badge-primary">${count} ${count === 1 ? 'service' : 'services'}</span>
                                         ${searchTerm ? '<span class="badge badge-accent">Match</span>' : ''}
                                     </div>
                                 </div>
                             </button>
                             <div class="office-actions">
-                                <button class="btn btn-primary btn-icon btn-sm" onclick="addService(${idx})" title="Add Service">
+                                <button class="btn btn-primary btn-icon btn-sm" onclick="addService(${idx})" title="Add Service" aria-label="Add Service">
                                     <i data-lucide="plus"></i>
                                 </button>
-                                <button class="btn btn-info btn-icon btn-sm" onclick="editOffice(${idx})" title="Edit">
+                                <button class="btn btn-info btn-icon btn-sm" onclick="editOffice(${idx})" title="Edit Office" aria-label="Edit Office">
                                     <i data-lucide="pencil"></i>
                                 </button>
-                                <button class="btn btn-danger btn-icon btn-sm" onclick="deleteOffice(${idx})" title="Delete">
+                                <button class="btn btn-danger btn-icon btn-sm" onclick="deleteOffice(${idx})" title="Delete Office" aria-label="Delete Office">
                                     <i data-lucide="trash-2"></i>
                                 </button>
                             </div>
@@ -2861,7 +3950,7 @@
                                                         </div>
                                                         ${s.Requirements?.length ? `
                                                             <div class="requirements-section">
-                                                                <div class="requirements-title">Requirements</div>
+                                                                <div class="requirements-title">Requirements (${s.Requirements.length})</div>
                                                                 <div class="requirements-list">
                                                                     ${s.Requirements.map(r => `
                                                                         <div class="requirement-item">
@@ -2879,14 +3968,14 @@
                                                 `).join('')}
                                             </div>
                                         </div>
-                                    ` : '<p style="color: var(--text-muted); font-size: 13px; padding: var(--space-4);">No services available</p>'}
+                                    ` : '<p style="color: var(--text-muted); font-size: 13px; padding: var(--space-4); text-align: center;">No services added yet</p>'}
                                 </div>
                             </div>
                         </div>
                     </div>
                 `;
             }).join('');
-            
+
             initIcons();
         }
 
@@ -2899,7 +3988,9 @@
             document.getElementById("officeForm").reset();
             document.getElementById("officeId").value = generateId("OFC");
             document.getElementById("officeModal").classList.remove("hidden");
+            document.body.style.overflow = 'hidden';
             initIcons();
+            document.getElementById("officeName").focus();
         }
 
         function editOffice(idx) {
@@ -2912,26 +4003,27 @@
             document.getElementById("officeHead").value = o.Head;
             document.getElementById("officePhone").value = o.Phone;
             document.getElementById("officeModal").classList.remove("hidden");
+            document.body.style.overflow = 'hidden';
             initIcons();
         }
 
         function closeOfficeModal() {
             document.getElementById("officeModal").classList.add("hidden");
+            document.body.style.overflow = '';
         }
 
         function deleteOffice(idx) {
             const o = currentData[idx];
-            if (!confirm(`Delete "${o.OfficeName}" and all its services?`)) return;
+            if (!confirm(`Delete "${o.OfficeName}" and all its services?\n\nThis action cannot be undone.`)) return;
             expandedOffices.delete(o.OfficeId);
             currentData.splice(idx, 1);
             saveData();
             renderContent();
-            showStatus("Office deleted", "success");
         }
 
-        document.getElementById("officeForm").addEventListener("submit", function(e) {
+        document.getElementById("officeForm").addEventListener("submit", function (e) {
             e.preventDefault();
-            
+
             const data = {
                 OfficeId: document.getElementById("officeId").value.trim(),
                 OfficeName: document.getElementById("officeName").value.trim(),
@@ -2944,11 +4036,9 @@
             if (editingOfficeIndex >= 0) {
                 data.Services = currentData[editingOfficeIndex].Services || [];
                 currentData[editingOfficeIndex] = data;
-                showStatus("Office updated", "success");
             } else {
                 currentData.push(data);
                 expandedOffices.add(data.OfficeId);
-                showStatus("Office added", "success");
             }
 
             saveData();
@@ -2968,31 +4058,35 @@
             document.getElementById("requirementsList").innerHTML = "";
             addRequirement();
             document.getElementById("serviceModal").classList.remove("hidden");
+            document.body.style.overflow = 'hidden';
             initIcons();
+            document.getElementById("serviceName").focus();
         }
 
         function editService(officeIdx, serviceIdx) {
             currentOfficeIndex = officeIdx;
             editingServiceIndex = serviceIdx;
             const s = currentData[officeIdx].Services[serviceIdx];
-            
+
             document.getElementById("serviceModalTitle").textContent = "Edit Service";
             document.getElementById("serviceId").value = s.ServiceId;
             document.getElementById("serviceName").value = s.ServiceName;
             document.getElementById("requirementsList").innerHTML = "";
-            
+
             if (s.Requirements?.length) {
                 s.Requirements.forEach(r => addRequirement(r.Name, r.Priority, r.Fee || 0));
             } else {
                 addRequirement();
             }
-            
+
             document.getElementById("serviceModal").classList.remove("hidden");
+            document.body.style.overflow = 'hidden';
             initIcons();
         }
 
         function closeServiceModal() {
             document.getElementById("serviceModal").classList.add("hidden");
+            document.body.style.overflow = '';
         }
 
         function deleteService(officeIdx, serviceIdx) {
@@ -3001,7 +4095,6 @@
             currentData[officeIdx].Services.splice(serviceIdx, 1);
             saveData();
             renderContent();
-            showStatus("Service deleted", "success");
         }
 
         function addRequirement(name = "", priority = 1, fee = 0) {
@@ -3011,16 +4104,16 @@
             div.innerHTML = `
                 <div class="requirement-fields">
                     <div class="form-group" style="margin-bottom: 0;">
-                        <label class="form-label">Name</label>
+                        <label class="form-label">Requirement Name</label>
                         <input type="text" class="form-input req-name" value="${name}" placeholder="e.g., Valid ID" required>
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
                         <label class="form-label">Priority</label>
-                        <input type="number" class="form-input req-priority" value="${priority}" min="1" required>
+                        <input type="number" class="form-input req-priority" value="${priority}" min="1" max="99" required>
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
                         <label class="form-label">Fee (₱)</label>
-                        <input type="number" class="form-input req-fee" value="${fee}" min="0" step="0.01">
+                        <input type="number" class="form-input req-fee" value="${fee}" min="0" step="0.01" placeholder="0.00">
                     </div>
                 </div>
                 <div class="requirement-remove">
@@ -3033,15 +4126,15 @@
             initIcons();
         }
 
-        document.getElementById("serviceForm").addEventListener("submit", function(e) {
+        document.getElementById("serviceForm").addEventListener("submit", function (e) {
             e.preventDefault();
-            
+
             const requirements = [];
             document.querySelectorAll(".requirement-builder").forEach(div => {
                 const name = div.querySelector(".req-name").value.trim();
                 const priority = parseInt(div.querySelector(".req-priority").value) || 1;
                 const fee = parseFloat(div.querySelector(".req-fee").value) || 0;
-                
+
                 if (name) {
                     const req = { Name: name, Priority: priority };
                     if (fee > 0) req.Fee = fee;
@@ -3050,7 +4143,7 @@
             });
 
             if (!requirements.length) {
-                showStatus("Add at least one requirement", "error");
+                showStatus("Add at least one requirement", "warning");
                 return;
             }
 
@@ -3066,10 +4159,8 @@
 
             if (editingServiceIndex >= 0) {
                 currentData[currentOfficeIndex].Services[editingServiceIndex] = data;
-                showStatus("Service updated", "success");
             } else {
                 currentData[currentOfficeIndex].Services.push(data);
-                showStatus("Service added", "success");
             }
 
             saveData();
@@ -3078,103 +4169,82 @@
         });
 
         // ============================================
-        // VISITATION TRACKING - FIXED DUPLICATE ISSUE
+        // VISITATION TRACKING
         // ============================================
         function startVisitTracking() {
             if (!database) return;
-            
-            // Clear previous data
+
             visitsMap.clear();
             visitsInitialized = false;
 
-            console.log('[VISITS] Starting visit tracking...');
-
-            // First load all existing visits
             database.ref('visits').once('value')
                 .then(snapshot => {
-                    console.log('[VISITS] Loading existing visits...');
-                    
+                    let filtered = 0;
+
                     snapshot.forEach(child => {
                         const key = child.key;
                         const visit = child.val();
-                        
-                        // Only add if not already in map (prevents duplicates)
+
+                        if (!isWithinOfficeHours(visit.timestamp)) {
+                            filtered++;
+                            return;
+                        }
+
                         if (!visitsMap.has(key)) {
-                            visitsMap.set(key, {
-                                ...visit,
-                                key: key
-                            });
+                            visitsMap.set(key, { ...visit, key });
                         }
                     });
 
-                    console.log(`[VISITS] Loaded ${visitsMap.size} unique visits`);
+                    console.log(`[Visits] Loaded ${visitsMap.size} (filtered ${filtered} outside hours)`);
                     visitsInitialized = true;
-                    
-                    // Update UI
-                    updateVisitation();
 
-                    // Now listen for NEW visits only
+                    updateVisitation();
                     startRealtimeListener();
                 })
                 .catch(error => {
-                    console.error('[VISITS] Error loading visits:', error);
+                    console.error('[Visits] Error:', error);
                 });
         }
 
         function startRealtimeListener() {
-            // Remove any existing listener
             if (visitsListener) {
                 database.ref('visits').off('child_added', visitsListener);
             }
 
-            console.log('[VISITS] Starting realtime listener...');
-
-            // Listen for new visits
             visitsListener = database.ref('visits').on('child_added', snapshot => {
                 const key = snapshot.key;
-                
-                // Skip if already processed or not initialized
-                if (!visitsInitialized || visitsMap.has(key)) {
-                    return;
-                }
+
+                if (!visitsInitialized || visitsMap.has(key)) return;
 
                 const visit = snapshot.val();
-                console.log('[VISITS] New visit detected:', key, visit.officeName);
 
-                // Add to map
-                visitsMap.set(key, {
-                    ...visit,
-                    key: key
-                });
+                if (!isWithinOfficeHours(visit.timestamp)) return;
 
-                // Animate stats card
+                visitsMap.set(key, { ...visit, key });
+
                 const card = document.getElementById('totalVisitsCard');
                 if (card) {
                     card.classList.add('pulse');
-                    setTimeout(() => card.classList.remove('pulse'), 500);
+                    setTimeout(() => card.classList.remove('pulse'), 600);
                 }
 
-                // Update UI if on visitation tab
                 if (currentSection === 'visitation') {
                     updateVisitation();
                     addNewVisitRow(key);
                 }
 
-                // Play notification
                 playNotificationSound();
             });
         }
 
         function getVisitsArray() {
-            // Convert map to sorted array (newest first)
-            return Array.from(visitsMap.values())
-                .sort((a, b) => b.timestamp - a.timestamp);
+            return Array.from(visitsMap.values()).sort((a, b) => b.timestamp - a.timestamp);
         }
 
         function filterVisitsByTime(visits, range) {
             const now = Date.now();
             const day = 24 * 60 * 60 * 1000;
-            
+
             const cutoffs = {
                 'today': now - day,
                 'week': now - (7 * day),
@@ -3182,33 +4252,28 @@
                 'all': 0
             };
 
-            const cutoff = cutoffs[range] || cutoffs['today'];
-            return visits.filter(v => v.timestamp >= cutoff);
+            return visits.filter(v => v.timestamp >= (cutoffs[range] || cutoffs['today']));
         }
 
         function filterVisits(range, btn) {
-            if (typeof range === 'string') {
-                currentFilter = range;
-            }
-            
+            if (typeof range === 'string') currentFilter = range;
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
             btn?.classList.add('active');
-            
             updateVisitation();
         }
 
         function updateVisitation() {
+            updateOfficeHoursNotice();
+
             const allVisits = getVisitsArray();
             const filtered = filterVisitsByTime(allVisits, currentFilter);
             const now = Date.now();
             const day = 24 * 60 * 60 * 1000;
 
-            // Total visits
             document.getElementById('totalVisits').textContent = formatNumber(filtered.length);
 
-            // Calculate change from yesterday
             const todayVisits = allVisits.filter(v => v.timestamp >= now - day).length;
-            const yesterdayVisits = allVisits.filter(v => 
+            const yesterdayVisits = allVisits.filter(v =>
                 v.timestamp >= now - (2 * day) && v.timestamp < now - day
             ).length;
             const diff = todayVisits - yesterdayVisits;
@@ -3216,54 +4281,56 @@
             const changeEl = document.getElementById('visitsChange');
             changeEl.innerHTML = `
                 <i data-lucide="${diff >= 0 ? 'trending-up' : 'trending-down'}"></i>
-                <span>${diff >= 0 ? '+' : ''}${diff} from yesterday</span>
+                <span>${diff >= 0 ? '+' : ''}${diff}</span>
             `;
             changeEl.className = `stat-change ${diff >= 0 ? 'positive' : 'negative'}`;
 
-            // Active visits (last 5 minutes)
             const fiveMinAgo = now - (5 * 60 * 1000);
-            const activeCount = filtered.filter(v => v.timestamp > fiveMinAgo).length;
+            const activeCount = isWithinOfficeHours()
+                ? filtered.filter(v => v.timestamp > fiveMinAgo).length
+                : 0;
             document.getElementById('activeVisits').textContent = activeCount;
 
-            // Office counts - FIXED: Proper counting without duplicates
             const officeCounts = {};
             filtered.forEach(v => {
-                const name = v.officeName || 'Unknown Office';
+                const name = v.officeName || 'Unknown';
                 officeCounts[name] = (officeCounts[name] || 0) + 1;
             });
 
-            // Top office
             const sortedOffices = Object.entries(officeCounts).sort((a, b) => b[1] - a[1]);
             if (sortedOffices.length > 0) {
-                document.getElementById('topOffice').textContent = sortedOffices[0][0];
-                document.getElementById('topOfficeCount').textContent = `${sortedOffices[0][1]} visits`;
+                document.getElementById('topOffice').textContent = truncate(sortedOffices[0][0], 22);
+                document.getElementById('topOfficeCount').textContent = sortedOffices[0][1];
             } else {
                 document.getElementById('topOffice').textContent = '—';
-                document.getElementById('topOfficeCount').textContent = '0 visits';
+                document.getElementById('topOfficeCount').textContent = '0';
             }
 
-            // Unique offices
             document.getElementById('uniqueOffices').textContent = Object.keys(officeCounts).length;
 
-            // Peak hours calculation
-            const hourlyData = Array(24).fill(0);
+            const officeHoursCount = OFFICE_HOURS.end - OFFICE_HOURS.start;
+            const hourlyData = Array(officeHoursCount).fill(0);
+
             filtered.forEach(v => {
                 const hour = new Date(v.timestamp).getHours();
-                hourlyData[hour]++;
+                if (hour >= OFFICE_HOURS.start && hour < OFFICE_HOURS.end) {
+                    hourlyData[hour - OFFICE_HOURS.start]++;
+                }
             });
 
             const maxVisits = Math.max(...hourlyData);
             const minVisits = Math.min(...hourlyData.filter(h => h > 0)) || 0;
-            const peakHour = hourlyData.indexOf(maxVisits);
-            const quietHour = hourlyData.findIndex(h => h === minVisits && h > 0);
-            const avgHourly = Math.round(hourlyData.reduce((a, b) => a + b, 0) / 24);
+            const peakHourIndex = hourlyData.indexOf(maxVisits);
+            const quietHourIndex = hourlyData.findIndex(h => h === minVisits && h > 0);
+            const peakHour = peakHourIndex + OFFICE_HOURS.start;
+            const quietHour = quietHourIndex >= 0 ? quietHourIndex + OFFICE_HOURS.start : -1;
+            const avgHourly = Math.round(hourlyData.reduce((a, b) => a + b, 0) / officeHoursCount);
 
             document.getElementById('peakHourDisplay').textContent = maxVisits > 0 ? formatHour(peakHour) : '—';
             document.getElementById('busiestHour').textContent = maxVisits > 0 ? formatHourRange(peakHour) : '—';
-            document.getElementById('quietestHour').textContent = minVisits > 0 ? formatHourRange(quietHour) : '—';
+            document.getElementById('quietestHour').textContent = quietHour >= 0 ? formatHourRange(quietHour) : '—';
             document.getElementById('avgHourlyVisits').textContent = avgHourly;
 
-            // Update charts
             updateBarChart(officeCounts);
             updateLineChart(hourlyData);
             updateOfficePeaks(filtered);
@@ -3274,27 +4341,33 @@
 
         function updateBarChart(officeCounts) {
             const container = document.getElementById('topOfficesChart');
+            const isMobile = window.innerWidth < 640;
+            const maxItems = isMobile ? 5 : 8;
+            const labelLen = isMobile ? 12 : 16;
+
             const sorted = Object.entries(officeCounts)
                 .sort((a, b) => b[1] - a[1])
-                .slice(0, 8);
+                .slice(0, maxItems);
 
             if (!sorted.length) {
                 container.innerHTML = `
                     <div class="empty-state" style="padding: var(--space-8);">
-                        <p class="empty-description">No visit data available yet.</p>
+                        <div class="empty-icon"><i data-lucide="bar-chart-2"></i></div>
+                        <p class="empty-description">No visit data available</p>
                     </div>
                 `;
+                initIcons();
                 return;
             }
 
             const maxCount = sorted[0][1];
 
             container.innerHTML = sorted.map(([name, count], idx) => {
-                const pct = (count / maxCount) * 100;
+                const pct = Math.max((count / maxCount) * 100, 15);
                 return `
                     <div class="bar-item">
                         <span class="bar-rank">${idx + 1}</span>
-                        <span class="bar-label" title="${name}">${truncate(name, 16)}</span>
+                        <span class="bar-label" title="${name}">${truncate(name, labelLen)}</span>
                         <div class="bar-track">
                             <div class="bar-fill" style="width: ${pct}%">
                                 <span class="bar-value">${count}</span>
@@ -3310,20 +4383,22 @@
             if (!ctx) return;
 
             const isDark = document.documentElement.getAttribute("data-theme") === "dark";
-            const textColor = isDark ? '#737373' : '#525252';
-            const gridColor = isDark ? 'rgba(64, 64, 64, 0.3)' : 'rgba(229, 229, 229, 0.8)';
+            const config = getResponsiveChartConfig();
+            const textColor = isDark ? '#737373' : '#6B5D54';
+            const gridColor = isDark ? 'rgba(64, 64, 64, 0.4)' : 'rgba(201, 185, 168, 0.5)';
 
-            // Find peak hours (top 3)
             const sortedHours = hourlyData
-                .map((count, hour) => ({ hour, count }))
+                .map((count, idx) => ({ hour: idx + OFFICE_HOURS.start, count, idx }))
                 .sort((a, b) => b.count - a.count);
-            const peakHourIndices = sortedHours.slice(0, 3).map(h => h.hour);
+            const peakHourIndices = sortedHours.slice(0, 3).map(h => h.idx);
 
-            const pointColors = hourlyData.map((_, i) => 
-                peakHourIndices.includes(i) ? '#22C55E' : '#D4A574'
+            const pointColors = hourlyData.map((_, i) =>
+                peakHourIndices.includes(i) ? '#22C55E' : '#C4915A'
             );
 
-            const labels = Array.from({ length: 24 }, (_, i) => formatHour(i));
+            const labels = Array.from({ length: hourlyData.length }, (_, i) =>
+                formatHour(i + OFFICE_HOURS.start)
+            );
 
             if (peakHoursChartInstance) {
                 peakHoursChartInstance.destroy();
@@ -3335,13 +4410,13 @@
                     labels,
                     datasets: [{
                         data: hourlyData,
-                        borderColor: '#D4A574',
-                        backgroundColor: 'rgba(212, 165, 116, 0.1)',
-                        borderWidth: 2,
+                        borderColor: '#C4915A',
+                        backgroundColor: isDark ? 'rgba(196, 145, 90, 0.15)' : 'rgba(139, 90, 43, 0.1)',
+                        borderWidth: config.borderWidth,
                         fill: true,
                         tension: 0.4,
-                        pointRadius: 4,
-                        pointHoverRadius: 7,
+                        pointRadius: config.pointRadius,
+                        pointHoverRadius: config.pointHoverRadius,
                         pointBackgroundColor: pointColors,
                         pointBorderColor: pointColors,
                         pointBorderWidth: 2
@@ -3350,6 +4425,7 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    resizeDelay: 100,
                     interaction: {
                         mode: 'index',
                         intersect: false
@@ -3357,19 +4433,22 @@
                     plugins: {
                         legend: { display: false },
                         tooltip: {
-                            backgroundColor: isDark ? '#262626' : '#ffffff',
-                            titleColor: isDark ? '#fafafa' : '#171717',
-                            bodyColor: isDark ? '#a3a3a3' : '#525252',
-                            borderColor: isDark ? '#404040' : '#e5e5e5',
+                            enabled: true,
+                            backgroundColor: isDark ? '#242424' : '#FFFFFF',
+                            titleColor: isDark ? '#fafafa' : '#1C1210',
+                            bodyColor: isDark ? '#a3a3a3' : '#4A3F38',
+                            borderColor: isDark ? '#404040' : '#C9B9A8',
                             borderWidth: 1,
-                            padding: 12,
+                            padding: config.padding,
                             cornerRadius: 8,
                             displayColors: false,
+                            titleFont: { size: config.fontSize + 1, family: "'Poppins'", weight: '600' },
+                            bodyFont: { size: config.fontSize, family: "'Poppins'" },
                             callbacks: {
-                                title: ctx => formatHourRange(ctx[0].dataIndex),
+                                title: ctx => formatHourRange(ctx[0].dataIndex + OFFICE_HOURS.start),
                                 label: ctx => {
                                     const isPeak = peakHourIndices.includes(ctx.dataIndex);
-                                    return `${ctx.parsed.y} visits${isPeak ? ' (Peak)' : ''}`;
+                                    return `${ctx.parsed.y} visits${isPeak ? ' ⭐' : ''}`;
                                 }
                             }
                         }
@@ -3379,9 +4458,10 @@
                             grid: { color: gridColor, drawBorder: false },
                             ticks: {
                                 color: textColor,
-                                font: { family: "'Poppins'", size: 10 },
+                                font: { family: "'Poppins'", size: config.fontSize, weight: '500' },
                                 maxRotation: 45,
-                                callback: (val, idx) => idx % 3 === 0 ? labels[idx] : ''
+                                autoSkip: true,
+                                maxTicksLimit: window.innerWidth < 480 ? 5 : 9
                             }
                         },
                         y: {
@@ -3389,9 +4469,10 @@
                             grid: { color: gridColor, drawBorder: false },
                             ticks: {
                                 color: textColor,
-                                font: { family: "'Poppins'", size: 11 },
+                                font: { family: "'Poppins'", size: config.fontSize, weight: '500' },
                                 stepSize: 1,
-                                precision: 0
+                                precision: 0,
+                                maxTicksLimit: 6
                             }
                         }
                     }
@@ -3401,35 +4482,41 @@
 
         function updateOfficePeaks(visits) {
             const container = document.getElementById('officePeaksGrid');
+            const isMobile = window.innerWidth < 640;
+            const maxItems = isMobile ? 4 : 6;
+            const nameLen = isMobile ? 20 : 28;
 
-            // Group by office
             const officeData = {};
             visits.forEach(v => {
-                const name = v.officeName || 'Unknown Office';
+                const name = v.officeName || 'Unknown';
                 if (!officeData[name]) {
-                    officeData[name] = { visits: 0, hourly: Array(24).fill(0) };
+                    officeData[name] = { visits: 0, hourly: Array(OFFICE_HOURS.end - OFFICE_HOURS.start).fill(0) };
                 }
                 officeData[name].visits++;
-                officeData[name].hourly[new Date(v.timestamp).getHours()]++;
+                const hour = new Date(v.timestamp).getHours();
+                if (hour >= OFFICE_HOURS.start && hour < OFFICE_HOURS.end) {
+                    officeData[name].hourly[hour - OFFICE_HOURS.start]++;
+                }
             });
 
-            // Sort and take top 6
             const sorted = Object.entries(officeData)
                 .sort((a, b) => b[1].visits - a[1].visits)
-                .slice(0, 6);
+                .slice(0, maxItems);
 
             if (!sorted.length) {
                 container.innerHTML = `
                     <div class="empty-state" style="grid-column: 1/-1; padding: var(--space-8);">
-                        <p class="empty-description">Peak hours data will appear when visits are recorded.</p>
+                        <div class="empty-icon"><i data-lucide="clock"></i></div>
+                        <p class="empty-description">Peak hour data will appear when visits are recorded.</p>
                     </div>
                 `;
+                initIcons();
                 return;
             }
 
             container.innerHTML = sorted.map(([name, data]) => {
                 const peakHours = data.hourly
-                    .map((count, hour) => ({ hour, count }))
+                    .map((count, idx) => ({ hour: idx + OFFICE_HOURS.start, count }))
                     .filter(h => h.count > 0)
                     .sort((a, b) => b.count - a.count)
                     .slice(0, 3);
@@ -3439,7 +4526,7 @@
                         <div class="peak-card-header">
                             <div class="peak-card-icon"><i data-lucide="building-2"></i></div>
                             <div class="peak-card-info">
-                                <div class="peak-card-name">${truncate(name, 28)}</div>
+                                <div class="peak-card-name" title="${name}">${truncate(name, nameLen)}</div>
                                 <div class="peak-card-visits">${data.visits} total visits</div>
                             </div>
                         </div>
@@ -3452,7 +4539,7 @@
                                     </span>
                                     <span class="peak-time-count">${p.count}</span>
                                 </div>
-                            `).join('') : '<p style="color: var(--text-muted); font-size: 12px;">No data</p>'}
+                            `).join('') : '<p style="color: var(--text-muted); font-size: 12px; padding: var(--space-2);">No peak data</p>'}
                         </div>
                     </div>
                 `;
@@ -3463,29 +4550,32 @@
 
         function updateVisitsTable(visits) {
             const tbody = document.getElementById('visitsTableBody');
+            const isMobile = window.innerWidth < 640;
+            const maxRows = isMobile ? 25 : 50;
 
             if (!visits.length) {
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="4">
                             <div class="empty-state" style="padding: var(--space-8);">
-                                <p class="empty-description">No visits recorded yet.</p>
+                                <div class="empty-icon"><i data-lucide="users"></i></div>
+                                <p class="empty-description">No visits recorded yet. Visits will appear here in real-time.</p>
                             </div>
                         </td>
                     </tr>
                 `;
+                initIcons();
                 return;
             }
 
-            // Show most recent 50 visits
-            const recentVisits = visits.slice(0, 50);
-
-            tbody.innerHTML = recentVisits.map(v => createVisitRow(v)).join('');
+            tbody.innerHTML = visits.slice(0, maxRows).map(v => createVisitRow(v)).join('');
         }
 
         function createVisitRow(visit) {
             const status = getVisitStatus(visit.timestamp);
             const timeAgo = getTimeAgo(visit.timestamp);
+            const isMobile = window.innerWidth < 640;
+
             const timeStr = new Date(visit.timestamp).toLocaleString('en-US', {
                 month: 'short',
                 day: 'numeric',
@@ -3497,12 +4587,12 @@
                 <tr data-key="${visit.key}">
                     <td>
                         <div class="cell-time">
-                            <span class="time-main">${timeStr}</span>
-                            <span class="time-ago">${timeAgo}</span>
+                            <span class="time-main">${isMobile ? timeAgo : timeStr}</span>
+                            ${!isMobile ? `<span class="time-ago">${timeAgo}</span>` : ''}
                         </div>
                     </td>
-                    <td class="cell-office">${visit.officeName || 'Unknown'}</td>
-                    <td class="cell-user">${visit.userId || 'Anonymous'}</td>
+                    <td class="cell-office" title="${visit.officeName || 'Unknown'}">${truncate(visit.officeName || 'Unknown', isMobile ? 14 : 22)}</td>
+                    <td class="cell-user">${truncate(visit.userId || 'Anonymous', isMobile ? 10 : 18)}</td>
                     <td><span class="status-pill ${status.cls}">${status.text}</span></td>
                 </tr>
             `;
@@ -3513,45 +4603,33 @@
             if (!visit) return;
 
             const tbody = document.getElementById('visitsTableBody');
-            
-            // Check if row already exists
             if (tbody.querySelector(`tr[data-key="${key}"]`)) return;
-            
-            // Remove empty state if present
-            const emptyRow = tbody.querySelector('td[colspan]');
-            if (emptyRow) {
-                emptyRow.closest('tr').remove();
-            }
 
-            // Create new row
+            const emptyRow = tbody.querySelector('td[colspan]');
+            if (emptyRow) emptyRow.closest('tr').remove();
+
             const row = document.createElement('tr');
             row.className = 'new-row';
             row.setAttribute('data-key', key);
             row.innerHTML = createVisitRow(visit).replace(/<tr[^>]*>|<\/tr>/g, '');
 
-            // Insert at top
             tbody.insertBefore(row, tbody.firstChild);
 
-            // Keep only 50 rows
-            while (tbody.children.length > 50) {
+            const maxRows = window.innerWidth < 640 ? 25 : 50;
+            while (tbody.children.length > maxRows) {
                 tbody.removeChild(tbody.lastChild);
             }
         }
 
         function getVisitStatus(timestamp) {
             const diff = Date.now() - timestamp;
-            
-            if (diff < 5 * 60 * 1000) {
-                return { cls: 'status-live', text: 'Live' };
-            } else if (diff < 60 * 60 * 1000) {
-                return { cls: 'status-recent', text: 'Recent' };
-            }
+            if (diff < 5 * 60 * 1000) return { cls: 'status-live', text: 'Live' };
+            if (diff < 60 * 60 * 1000) return { cls: 'status-recent', text: 'Recent' };
             return { cls: 'status-past', text: 'Past' };
         }
 
         function getTimeAgo(timestamp) {
             const seconds = Math.floor((Date.now() - timestamp) / 1000);
-            
             if (seconds < 60) return 'Just now';
             if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
             if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
@@ -3561,30 +4639,65 @@
         function playNotificationSound() {
             try {
                 const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjSO1fLMey4FJHzP8OKTRwoWYrjq66NcFApMqOPyvmwkBjiS1/LLei8FM4LL8OCPQgkWYrjp66NXEwpJpeLyt28jCDaN1vLKfS4GM4TM8NyPRgkXY7jp66ZZFA==');
-                audio.volume = 0.3;
-                audio.play().catch(() => {});
-            } catch (e) {}
+                audio.volume = 0.15;
+                audio.play().catch(() => { });
+            } catch (e) { }
         }
 
         // ============================================
         // SEARCH
         // ============================================
-        document.getElementById("officeSearch").addEventListener("input", function(e) {
+        document.getElementById("officeSearch").addEventListener("input", function (e) {
             searchTerm = e.target.value;
             clearTimeout(searchDebounceTimer);
-            searchDebounceTimer = setTimeout(renderOffices, 200);
+            searchDebounceTimer = setTimeout(renderOffices, 250);
         });
 
-        document.getElementById("clearSearchBtn").addEventListener("click", function() {
+        document.getElementById("clearSearchBtn").addEventListener("click", function () {
             document.getElementById("officeSearch").value = "";
             searchTerm = "";
             renderOffices();
         });
 
         // ============================================
+        // RESPONSIVE HANDLERS
+        // ============================================
+        function handleResize() {
+            clearTimeout(chartResizeTimeout);
+            chartResizeTimeout = setTimeout(() => {
+                if (currentSection === 'visitation') {
+                    const allVisits = getVisitsArray();
+                    const filtered = filterVisitsByTime(allVisits, currentFilter);
+
+                    const hourlyData = Array(OFFICE_HOURS.end - OFFICE_HOURS.start).fill(0);
+                    filtered.forEach(v => {
+                        const hour = new Date(v.timestamp).getHours();
+                        if (hour >= OFFICE_HOURS.start && hour < OFFICE_HOURS.end) {
+                            hourlyData[hour - OFFICE_HOURS.start]++;
+                        }
+                    });
+
+                    const officeCounts = {};
+                    filtered.forEach(v => {
+                        const name = v.officeName || 'Unknown';
+                        officeCounts[name] = (officeCounts[name] || 0) + 1;
+                    });
+
+                    updateLineChart(hourlyData);
+                    updateBarChart(officeCounts);
+                    updateOfficePeaks(filtered);
+                    updateVisitsTable(filtered);
+                }
+            }, 300);
+        }
+
+        window.addEventListener('resize', handleResize);
+        window.addEventListener('orientationchange', () => setTimeout(handleResize, 150));
+
+        // ============================================
         // KEYBOARD SHORTCUTS
         // ============================================
-        document.addEventListener("keydown", function(e) {
+        document.addEventListener("keydown", function (e) {
             // Ctrl/Cmd + S to save
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
                 e.preventDefault();
@@ -3594,12 +4707,72 @@
                     document.getElementById("serviceForm").requestSubmit();
                 }
             }
-            
+
             // Escape to close modals
             if (e.key === "Escape") {
                 closeOfficeModal();
                 closeServiceModal();
             }
+
+            // Ctrl/Cmd + K to focus search
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+                e.preventDefault();
+                const searchInput = document.getElementById("officeSearch");
+                if (searchInput && currentSection === 'offices') {
+                    searchInput.focus();
+                }
+            }
+        });
+
+        // ============================================
+        // MODAL BACKDROP CLICK
+        // ============================================
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', function (e) {
+                if (e.target === this) {
+                    closeOfficeModal();
+                    closeServiceModal();
+                }
+            });
+        });
+
+        // ============================================
+        // TOUCH HANDLING FOR MODALS
+        // ============================================
+        document.addEventListener('touchmove', function (e) {
+            const officeModal = document.getElementById('officeModal');
+            const serviceModal = document.getElementById('serviceModal');
+
+            if (!officeModal.classList.contains('hidden') || !serviceModal.classList.contains('hidden')) {
+                const modalBody = e.target.closest('.modal-body');
+                if (!modalBody) {
+                    e.preventDefault();
+                }
+            }
+        }, { passive: false });
+
+        // ============================================
+        // VISIBILITY & NETWORK HANDLERS
+        // ============================================
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible' && sessionStorage.getItem("manilaAdminLoggedIn") && database) {
+                updateOfficeHoursNotice();
+                if (currentSection === 'visitation') {
+                    updateVisitation();
+                }
+            }
+        });
+
+        window.addEventListener('online', function () {
+            if (database) {
+                updateConnectionStatus('connected', 'Connected');
+                showStatus('Back online!', 'success');
+            }
+        });
+
+        window.addEventListener('offline', function () {
+            updateConnectionStatus('disconnected', 'Offline');
+            showStatus('You are offline', 'warning');
         });
 
         // ============================================
@@ -3609,18 +4782,35 @@
             initTheme();
             initIcons();
 
-            // Initialize Firebase for auth check
             if (!firebase.apps.length) {
                 firebase.initializeApp(firebaseConfig);
             }
             database = firebase.database();
 
-            // Check if already logged in
             if (sessionStorage.getItem("manilaAdminLoggedIn")) {
                 showMainApp();
             } else {
                 showLoginScreen();
             }
+
+            // Periodic time ago updates
+            setInterval(() => {
+                if (currentSection === 'visitation' && sessionStorage.getItem("manilaAdminLoggedIn")) {
+                    const tbody = document.getElementById('visitsTableBody');
+                    if (tbody) {
+                        tbody.querySelectorAll('.time-ago').forEach(el => {
+                            const row = el.closest('tr');
+                            if (row) {
+                                const key = row.getAttribute('data-key');
+                                const visit = visitsMap.get(key);
+                                if (visit) {
+                                    el.textContent = getTimeAgo(visit.timestamp);
+                                }
+                            }
+                        });
+                    }
+                }
+            }, 30000);
         }
 
         // Auto-fill credentials for demo
@@ -3628,17 +4818,39 @@
         document.getElementById("password").value = "admin1234";
 
         // Start app
-        window.addEventListener("load", initApp);
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initApp);
+        } else {
+            initApp();
+        }
 
-        // Session timeout (30 minutes)
-        setTimeout(() => {
-            if (sessionStorage.getItem("manilaAdminLoggedIn")) {
-                alert("Session expired. Please login again.");
-                logout();
-            }
-        }, 30 * 60 * 1000);
+        // Session management
+        let sessionTimeout;
+        function resetSessionTimeout() {
+            clearTimeout(sessionTimeout);
+            sessionTimeout = setTimeout(() => {
+                if (sessionStorage.getItem("manilaAdminLoggedIn")) {
+                    showStatus("Session expiring soon...", "warning");
+                    setTimeout(() => {
+                        if (sessionStorage.getItem("manilaAdminLoggedIn")) {
+                            alert("Session expired. Please login again.");
+                            logout();
+                        }
+                    }, 60000);
+                }
+            }, 29 * 60 * 1000); // 29 minutes
+        }
 
-        console.log("🏛️ ManilaServe Admin Panel Ready");
+        ['click', 'touchstart', 'keydown', 'scroll', 'mousemove'].forEach(event => {
+            document.addEventListener(event, resetSessionTimeout, { passive: true });
+        });
+
+        resetSessionTimeout();
+
+        // Console branding
+        console.log('%c🏛️ ManilaServe Admin Panel', 'font-size: 20px; font-weight: bold; color: #8B5A2B;');
+        console.log('%cOffice Hours: 7:00 AM - 4:00 PM', 'font-size: 12px; color: #666;');
     </script>
 </body>
+
 </html>
