@@ -4276,7 +4276,7 @@
                 'all': 0
             };
 
-            return visits.filter(v => v.timestamp >= (cutoffs[range] || cutoffs['today']));
+            return visits.filter(v => v.timestamp >= (cutoffs[range] ?? cutoffs['today']));
         }
 
         function filterVisits(range, btn) {
